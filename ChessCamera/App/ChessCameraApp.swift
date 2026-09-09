@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -7,5 +8,6 @@ struct ChessCameraApp: App {
             HistoryView()
                 .preferredColorScheme(.dark)
         }
+        .modelContainer(for: GameRecord.self)
     }
 }

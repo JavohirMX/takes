@@ -30,3 +30,14 @@ import Testing
     let engine = GameEngine()
     #expect(engine.occupancy() == Occupancy.standardStart())
 }
+
+@Test func replaceLastPlyUpdatesPGN() throws {
+    let engine = GameEngine()
+    try engine.apply(san: "e4")
+    try engine.apply(san: "e5")
+    try engine.replaceLast(with: "c5")
+    #expect(engine.pgn.contains("c5"))
+    #expect(!engine.pgn.contains("e5"))
+    try engine.undo()
+    #expect(engine.fen.contains("4P3"))
+}

@@ -13,11 +13,58 @@ final class GameEngine {
     private(set) var board: Board
     private(set) var game: Game
     private var currentIndex: MoveTree.Index
-    private var appliedSANs: [String] = []
+    private(set) var appliedSANs: [String] = []
+    private(set) var lastMove: Move?
 
     var fen: String { board.position.fen }
     var pgn: String { game.pgn }
     var state: Board.State { board.state }
+    var plyCount: Int { appliedSANs.count }
+    var lastMoveSquares: (from: ChessSquare, to: ChessSquare)? {
+        guard let lastMove else { return nil }
+        guard let from = ChessSquare.parse(lastMove.start.notation),
+              let to = ChessSquare.parse(lastMove.end.notation) else { return nil }
+        return (from, to)
+    }
+
+    var isTerminal: Bool {
+        switch board.state {
+        case .checkmate, .draw: true
+        default: false
+        }
+    }
+
+    var resultTitle: String {
+        switch board.state {
+        case .checkmate(let color):
+            color == .white ? "Checkmate — Black wins" : "Checkmate — White wins"
+        case .draw:
+            "Draw"
+        default:
+            "Game ended"
+        }
+    }
+
+    var resultToken: String {
+        switch board.state {
+        case .checkmate(let color):
+            color == .white ? "0-1" : "1-0"
+        case .draw:
+            "½-½"
+        default:
+            "*"
+        }
+    }
+
+    var formattedLastSAN: String? {
+        guard let san = appliedSANs.last else { return nil }
+        let plies = appliedSANs.count
+        let number = (plies + 1) / 2
+        if plies.isMultiple(of: 2) {
+            return "\(number)... \(san)"
+        }
+        return "\(number). \(san)"
+    }
 
     init() {
         let newGame = Game()
@@ -52,6 +99,7 @@ final class GameEngine {
         board = trial
         currentIndex = game.make(move: committed, from: currentIndex)
         appliedSANs.append(committed.san)
+        lastMove = committed
     }
 
     func apply(san: String) throws {
@@ -69,8 +117,76 @@ final class GameEngine {
         try rebuildFromAppliedMoves()
     }
 
+    func replaceLast(with san: String) throws {
+        guard !appliedSANs.isEmpty else {
+            throw GameEngineError.nothingToUndo
+        }
+        appliedSANs.removeLast()
+        try rebuildFromAppliedMoves()
+        try apply(san: san)
+    }
+
+    func fenBeforeLastMove() -> String? {
+        guard !appliedSANs.isEmpty else { return nil }
+        let sans = Array(appliedSANs.dropLast())
+        do {
+            let snapshot = try GameEngine(fen: (game.startingPosition ?? .standard).fen)
+            for san in sans {
+                try snapshot.apply(san: san)
+            }
+            return snapshot.fen
+        } catch {
+            return nil
+        }
+    }
+
+    func legalMoves() -> [Move] {
+        var moves: [Move] = []
+        for start in Square.allCases {
+            for end in board.legalMoves(forPieceAt: start) {
+                var trial = board
+                guard let executed = trial.move(pieceAt: start, to: end) else { continue }
+                if case .promotion = trial.state {
+                    for kind in [Piece.Kind.queen, .rook, .bishop, .knight] {
+                        var promo = board
+                        guard let base = promo.move(pieceAt: start, to: end) else { continue }
+                        moves.append(promo.completePromotion(of: base, to: kind))
+                    }
+                } else {
+                    moves.append(executed)
+                }
+            }
+        }
+        return moves
+    }
+
+    func pieceMap() -> [ChessSquare: PieceClass] {
+        FenCodec.parsePieces(fen)
+    }
+
     func occupancy() -> Occupancy {
         Self.occupancy(of: board)
+    }
+
+    func resetToStart() {
+        let newGame = Game()
+        board = Board()
+        game = newGame
+        currentIndex = newGame.startingIndex
+        appliedSANs = []
+        lastMove = nil
+    }
+
+    func load(fen: String) throws {
+        guard let position = Position(fen: fen) else {
+            throw GameEngineError.invalidFEN(fen)
+        }
+        let newGame = Game(startingWith: position)
+        board = Board(position: position)
+        game = newGame
+        currentIndex = newGame.startingIndex
+        appliedSANs = []
+        lastMove = nil
     }
 
     static func occupancy(of board: Board) -> Occupancy {
@@ -90,6 +206,7 @@ final class GameEngine {
         board = Board(position: start)
         game = Game(startingWith: start)
         currentIndex = game.startingIndex
+        lastMove = nil
         let sans = appliedSANs
         appliedSANs = []
         for san in sans {

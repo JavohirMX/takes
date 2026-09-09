@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PrimaryButton: View {
     let title: String
+    var isDisabled: Bool = false
     var action: () -> Void = {}
 
     var body: some View {
@@ -12,7 +13,11 @@ struct PrimaryButton: View {
                 .frame(maxWidth: .infinity, minHeight: 50)
                 .padding(.horizontal, 16)
         }
-        .background(Theme.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            (isDisabled ? Theme.accent.opacity(0.4) : Theme.accent),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .disabled(isDisabled)
         .accessibilityLabel(title)
     }
 }

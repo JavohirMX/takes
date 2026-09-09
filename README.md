@@ -1,8 +1,10 @@
 # Chess Camera
 
-iPhone prototype for a 10-day Apple Developer Academy challenge: point a camera at a physical chessboard, reconstruct the game, and leave with PGN you can replay or paste into another tool.
+iPhone prototype: point a camera at a physical chessboard, reconstruct the game, and leave with PGN you can replay or paste into another tool.
 
-This repo currently holds the planning set only. Implementation follows [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+## Status
+
+SwiftUI app on iOS 18+ / Swift 6. Chess rules, FEN, and PGN come from [ChessKit](https://github.com/chesskit-app/chesskit-swift). Vision localizes the board; occupancy settle + legal-move inference record the game. **No Core ML model is bundled yet** — confirm-start uses the standard position, and occupancy uses a non-ML heuristic until you train `PieceClassifier.mlmodel` (see [docs/training-notes.md](docs/training-notes.md)).
 
 ## Docs
 
@@ -13,22 +15,26 @@ This repo currently holds the planning set only. Implementation follows [docs/IM
 | [docs/UI_UX.md](docs/UI_UX.md) | Interface: dark camera-tool UI, adaptive live layout, states |
 | [docs/APP_FLOW.md](docs/APP_FLOW.md) | Flow: phase machine, setup ritual, demo script |
 | [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | 10-day build tasks |
+| [docs/training-notes.md](docs/training-notes.md) | How to export 64 crops and train a classifier later |
 
-## Locked scope (short)
-
-- **Platform:** iPhone, iOS 18+, SwiftUI, AVFoundation
-- **Vision:** Vision + Core ML on *your* chess set. No OpenCV, no paid AI APIs, no Stockfish
-- **Game:** standard start → occupancy changes + chess rules → full-game PGN (including special moves)
-- **Calibration:** auto board detect, 4-corner fallback
-- **UX:** auto-accept moves; edit/undo last ply; wait until the board is still
-- **Output:** live digital board, FEN, replay, SwiftData history, share PGN
-
-## Requirements (when code exists)
+## Requirements
 
 - Xcode 16+
 - iOS 18+
-- Physical iPhone for camera (simulator is fine for chess-logic tests)
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) to regenerate `ChessCamera.xcodeproj` from `project.yml`
+- Physical iPhone for live camera, board detect, and a real game
+- Simulator: chess-logic tests, History, primer, confirm-start (standard FEN), live HUD, replay, share/copy PGN
 
-## Research question
+```bash
+xcodegen generate
+xcodebuild -scheme ChessCamera -destination 'platform=iOS Simulator,name=iPhone 16' test
+```
 
-Can a normal iPhone camera turn a physical game into a digitally reviewable game under controlled conditions — and can chess rules fix what vision gets wrong?
+## Locked scope
+
+- **Platform:** iPhone, iOS 18+, SwiftUI, AVFoundation
+- **Vision:** Vision + optional Core ML on *your* chess set. No OpenCV, no paid AI APIs, no Stockfish, no iCloud
+- **Game:** standard start → occupancy changes + chess rules → full-game PGN
+- **Calibration:** auto board detect, 4-corner fallback
+- **UX:** auto-accept moves; edit/undo last ply; wait until the board is still
+- **Output:** live digital board, FEN, replay, SwiftData history, share PGN

@@ -1,4 +1,11 @@
 import CoreGraphics
+import Foundation
+
+struct SquareCrop: Sendable, Identifiable {
+    var square: ChessSquare
+    nonisolated(unsafe) var image: CGImage
+    var id: String { square.algebraic }
+}
 
 enum GridSampler {
     /// Crop rectangle for one square in a square warped board image.
@@ -35,5 +42,39 @@ enum GridSampler {
         case .whiteAtTop:
             ChessSquare(file: 7 - fileIndex, rank: rankFromImageTop)
         }
+    }
+
+    /// 64 square crops from a square warped board. Inset avoids neighboring pieces and gutters.
+    static func crops(
+        from warped: CGImage,
+        orientation: BoardOrientation,
+        inset: CGFloat = 0.12
+    ) -> [SquareCrop] {
+        let imageSize = CGFloat(min(warped.width, warped.height))
+        var crops: [SquareCrop] = []
+        crops.reserveCapacity(64)
+        for rankFromImageTop in 0..<8 {
+            for fileIndex in 0..<8 {
+                let cropRect = rect(
+                    fileIndex: fileIndex,
+                    rankFromImageTop: rankFromImageTop,
+                    imageSize: imageSize,
+                    inset: inset
+                ).integral
+                guard cropRect.width >= 1, cropRect.height >= 1,
+                      let tile = warped.cropping(to: cropRect) else { continue }
+                crops.append(
+                    SquareCrop(
+                        square: square(
+                            fileIndex: fileIndex,
+                            rankFromImageTop: rankFromImageTop,
+                            orientation: orientation
+                        ),
+                        image: tile
+                    )
+                )
+            }
+        }
+        return crops
     }
 }

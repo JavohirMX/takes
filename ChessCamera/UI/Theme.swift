@@ -13,4 +13,6 @@ enum Theme {
     static let danger = Color(red: 0.94, green: 0.27, blue: 0.27)          // #EF4444
     static let boardLight = Color(red: 0.89, green: 0.91, blue: 0.94)      // #E2E8F0
     static let boardDark = Color(red: 0.28, green: 0.33, blue: 0.41)       // #475569
+    static let lastMove = accent.opacity(0.35)                             // #22C55E @ 35%
+    static let overlayScrim = Color.black.opacity(0.55)                    // #000000 @ 55%
 }
