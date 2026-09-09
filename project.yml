@@ -1,0 +1,60 @@
+name: ChessCamera
+options:
+  bundleIdPrefix: app.chesscamera
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+  xcodeVersion: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    TARGETED_DEVICE_FAMILY: "1"
+packages:
+  ChessKit:
+    url: https://github.com/chesskit-app/chesskit-swift
+    from: 0.17.0
+targets:
+  ChessCamera:
+    type: application
+    platform: iOS
+    sources:
+      - path: ChessCamera
+    dependencies:
+      - package: ChessKit
+        product: ChessKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.ChessCamera
+        PRODUCT_NAME: ChessCamera
+        PRODUCT_MODULE_NAME: ChessCamera
+        INFOPLIST_KEY_CFBundleDisplayName: Chess Camera
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_NSCameraUsageDescription: Chess Camera watches the board to record your game.
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Import a recorded video to test the same pipeline.
+        GENERATE_INFOPLIST_FILE: YES
+        ENABLE_PREVIEWS: YES
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    scheme:
+      testTargets:
+        - ChessCameraTests
+  ChessCameraTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ChessCameraTests
+    dependencies:
+      - target: ChessCamera
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.ChessCameraTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ChessCamera.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ChessCamera"
+        BUNDLE_LOADER: "$(TEST_HOST)"
