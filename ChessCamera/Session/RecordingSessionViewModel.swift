@@ -13,6 +13,12 @@ final class RecordingSessionViewModel: Identifiable {
     nonisolated let id = UUID()
     var phase: SessionPhase = .idle
     var quad: Quadrilateral?
+    /// Vision rectangle proposal in Board Studio (always updated when Vision fires).
+    var visionQuad: Quadrilateral?
+    /// Core ML heatmap proposal in Board Studio (nil if model missing or weak peaks).
+    var mlQuad: Quadrilateral?
+    /// Which proposal drives handles, warp thumb, and Looks good (default Vision).
+    var activeLocalizer: BoardLocalizerSource = .vision
     var bufferSize: CGSize = .zero
     var warpedThumbnail: CGImage?
     var orientation: BoardOrientation = .whiteAtBottom
@@ -38,6 +44,8 @@ final class RecordingSessionViewModel: Identifiable {
     var isVideoImport = false
     var trackingWeak = false
     var isCaptureRunning = false
+    /// Shared with `CameraPreview` so preview layer and sample buffers rotate together.
+    var previewRotationAngle: CGFloat = 90
 
     let engine = GameEngine()
     let pipeline = VisionPipeline()
@@ -58,6 +66,8 @@ final class RecordingSessionViewModel: Identifiable {
     private var quadConsensus = QuadConsensus()
     private var weakTrackFrames = 0
     private let imageContext = CIContext()
+    private let heatmapLocalizer: HeatmapBoardLocalizer? = HeatmapBoardLocalizer.loadBundled()
+    private var studioFrameIndex = 0
 
     var fen: String { engine.fen }
     var pgn: String { engine.pgn }
@@ -67,6 +77,7 @@ final class RecordingSessionViewModel: Identifiable {
     var liveCaptureSession: AVCaptureSession? {
         liveCamera?.captureSession
     }
+    var isHeatmapLocalizerAvailable: Bool { heatmapLocalizer != nil }
 
     func newGame() async {
         await teardown()
@@ -81,6 +92,7 @@ final class RecordingSessionViewModel: Identifiable {
         cornerTracker.reset()
         quadConsensus.reset()
         weakTrackFrames = 0
+        studioFrameIndex = 0
         startConsuming()
         await Task.yield()
         await startCaptureIfNeeded()
@@ -180,10 +192,14 @@ final class RecordingSessionViewModel: Identifiable {
 
     func rescanBoard() async {
         quad = nil
+        visionQuad = nil
+        mlQuad = nil
         warpedThumbnail = nil
         trackingWeak = false
         needsTemplateCapture = true
         weakTrackFrames = 0
+        studioFrameIndex = 0
+        activeLocalizer = .vision
         cornerTracker.reset()
         quadConsensus.reset()
         await pipeline.setLockedQuad(nil)
@@ -194,13 +210,33 @@ final class RecordingSessionViewModel: Identifiable {
     /// Timeout / manual path: plant editable inset corners for the user to drag.
     func placeManualCorners() {
         let size = bufferSize == .zero ? CGSize(width: 1280, height: 720) : bufferSize
-        quad = Quadrilateral.insetRect(in: size)
+        let inset = Quadrilateral.insetRect(in: size)
+        quad = inset
+        visionQuad = inset
+        activeLocalizer = .vision
         detectTimedOut = true
         needsTemplateCapture = true
         weakTrackFrames = 0
         trackingWeak = false
         cornerTracker.reset()
         quadConsensus.reset()
+    }
+
+    func setActiveLocalizer(_ source: BoardLocalizerSource) {
+        switch source {
+        case .vision:
+            guard visionQuad != nil else { return }
+            activeLocalizer = .vision
+            quad = visionQuad
+        case .ml:
+            guard mlQuad != nil else { return }
+            activeLocalizer = .ml
+            quad = mlQuad
+        }
+        needsTemplateCapture = true
+        weakTrackFrames = 0
+        trackingWeak = false
+        cornerTracker.reset()
     }
 
     func setCorner(_ index: Int, bufferPoint: CGPoint) {
@@ -217,6 +253,10 @@ final class RecordingSessionViewModel: Identifiable {
         default: break
         }
         self.quad = quad
+        switch activeLocalizer {
+        case .vision: visionQuad = quad
+        case .ml: mlQuad = quad
+        }
     }
 
     func useTheseCorners() async {
@@ -415,15 +455,9 @@ final class RecordingSessionViewModel: Identifiable {
 
     func updateVideoRotation(from scene: UIWindowScene?) {
         guard let orientation = scene?.interfaceOrientation else { return }
-        let mapped: AVCaptureVideoOrientation
-        switch orientation {
-        case .portrait: mapped = .portrait
-        case .portraitUpsideDown: mapped = .portraitUpsideDown
-        case .landscapeLeft: mapped = .landscapeLeft
-        case .landscapeRight: mapped = .landscapeRight
-        default: mapped = .portrait
-        }
-        liveCamera?.updateVideoRotation(interfaceOrientation: mapped)
+        let angle = LiveCameraSource.rotationAngle(forInterfaceOrientation: orientation)
+        previewRotationAngle = angle
+        liveCamera?.updateVideoRotation(interfaceOrientation: orientation)
     }
 
     private func startConsuming() {
@@ -474,20 +508,31 @@ final class RecordingSessionViewModel: Identifiable {
             previewImage = image(from: frame.buffer)
         }
 
-        if quad == nil {
+        studioFrameIndex += 1
+        if studioFrameIndex % 2 == 0, let heatmapLocalizer {
+            mlQuad = await heatmapLocalizer.detect(in: frame.buffer)
+            if activeLocalizer == .ml, !isDraggingCorner, let mlQuad {
+                quad = mlQuad
+            }
+        }
+
+        if visionQuad == nil {
             if let detected = await pipeline.detectQuad(in: frame) {
                 if let consensus = quadConsensus.ingest(detected, imageSize: bufferSize) {
-                    quad = consensus
-                    needsTemplateCapture = true
+                    visionQuad = consensus
+                    if activeLocalizer == .vision {
+                        quad = consensus
+                        needsTemplateCapture = true
+                    }
                     detectTimedOut = false
                 }
             }
-            if quad == nil,
+            if visionQuad == nil,
                let detectStartedAt,
                ContinuousClock().now - detectStartedAt >= .seconds(2) {
                 detectTimedOut = true
             }
-        } else if !isDraggingCorner, let gray = GrayFrame.from(frame.buffer), let current = quad {
+        } else if !isDraggingCorner, activeLocalizer == .vision, let gray = GrayFrame.from(frame.buffer), let current = visionQuad {
             if needsTemplateCapture || !cornerTracker.hasTemplates {
                 cornerTracker.capture(from: gray, quad: current)
                 needsTemplateCapture = false
@@ -500,11 +545,13 @@ final class RecordingSessionViewModel: Identifiable {
                     trackingWeak = true
                     // Brief updates, then freeze auto-moves until drag or Rescan.
                     if weakTrackFrames < 3 {
+                        visionQuad = result.quad
                         quad = result.quad
                     }
                 } else {
                     weakTrackFrames = 0
                     trackingWeak = false
+                    visionQuad = result.quad
                     quad = result.quad
                 }
             }
@@ -679,8 +726,13 @@ final class RecordingSessionViewModel: Identifiable {
     private func resetGameState() {
         phase = .idle
         quad = nil
+        visionQuad = nil
+        mlQuad = nil
+        activeLocalizer = .vision
+        studioFrameIndex = 0
         warpedThumbnail = nil
         previewImage = nil
+        previewRotationAngle = 90
         orientation = .whiteAtBottom
         proposedFEN = FenCodec.standard
         classifiedClasses = FenCodec.standardClasses()

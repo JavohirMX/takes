@@ -58,7 +58,8 @@ struct BoardStudioView: View {
             ZStack {
                 CameraPreview(
                     session: model.liveCaptureSession,
-                    stillImage: model.isVideoImport ? model.previewImage : nil
+                    stillImage: model.isVideoImport ? model.previewImage : nil,
+                    videoRotationAngle: model.previewRotationAngle
                 )
                 if model.cameraUnavailable {
                     Text("Camera unavailable")
@@ -68,15 +69,27 @@ struct BoardStudioView: View {
                     ProgressView()
                         .tint(Theme.accent)
                 }
-                if let quad = model.quad, model.bufferSize.width > 0 {
-                    BoardQuadOverlay(
-                        quad: quad,
-                        bufferSize: model.bufferSize,
-                        style: model.trackingWeak ? .poor : .locked,
-                        pulse: false
-                    )
-                    BoardGridOverlay(quad: quad, bufferSize: model.bufferSize)
-                    handles(in: proxy.size)
+                if model.bufferSize.width > 0 {
+                    if let vision = model.visionQuad {
+                        BoardQuadOverlay(
+                            quad: vision,
+                            bufferSize: model.bufferSize,
+                            style: .detecting,
+                            pulse: model.activeLocalizer != .vision
+                        )
+                    }
+                    if let ml = model.mlQuad {
+                        BoardQuadOverlay(
+                            quad: ml,
+                            bufferSize: model.bufferSize,
+                            style: .mlCompare,
+                            pulse: model.activeLocalizer != .ml
+                        )
+                    }
+                    if let quad = model.quad {
+                        BoardGridOverlay(quad: quad, bufferSize: model.bufferSize)
+                        handles(in: proxy.size)
+                    }
                 }
             }
             .onAppear { cameraSize = proxy.size }
@@ -94,6 +107,9 @@ struct BoardStudioView: View {
                 .font(.callout)
                 .foregroundStyle(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if model.isHeatmapLocalizerAvailable || model.mlQuad != nil || model.visionQuad != nil {
+                localizerPicker
+            }
             if model.quad != nil {
                 PrimaryButton(title: "Looks good") {
                     Task { await model.confirmQuad() }
@@ -117,6 +133,38 @@ struct BoardStudioView: View {
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
         }
+    }
+
+    private var localizerPicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("Localizer", selection: Binding(
+                get: { model.activeLocalizer },
+                set: { model.setActiveLocalizer($0) }
+            )) {
+                Text(BoardLocalizerSource.vision.title)
+                    .tag(BoardLocalizerSource.vision)
+                    .disabled(model.visionQuad == nil)
+                Text(BoardLocalizerSource.ml.title)
+                    .tag(BoardLocalizerSource.ml)
+                    .disabled(model.mlQuad == nil)
+            }
+            .pickerStyle(.segmented)
+            .disabled(model.visionQuad == nil && model.mlQuad == nil)
+            Text(compareStatusCopy)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    private var compareStatusCopy: String {
+        let visionMark = model.visionQuad != nil ? "✓" : "—"
+        let mlMark: String
+        if !model.isHeatmapLocalizerAvailable {
+            mlMark = "n/a"
+        } else {
+            mlMark = model.mlQuad != nil ? "✓" : "—"
+        }
+        return "Vision \(visionMark)  ML \(mlMark) — active: \(model.activeLocalizer.title)"
     }
 
     private var statusCopy: String {

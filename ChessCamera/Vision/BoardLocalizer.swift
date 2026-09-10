@@ -129,3 +129,17 @@ struct VisionBoardLocalizer: BoardLocalizer {
 protocol BoardLocalizer: Sendable {
     func detect(in buffer: CVPixelBuffer) async -> Quadrilateral?
 }
+
+enum BoardLocalizerSource: String, CaseIterable, Identifiable, Sendable {
+    case vision
+    case ml
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .vision: "Vision"
+        case .ml: "ML"
+        }
+    }
+}

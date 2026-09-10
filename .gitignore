@@ -14,3 +14,7 @@ build/
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
+scripts/.venv/
+scripts/.cache/
+**/__pycache__/
+*.pyc

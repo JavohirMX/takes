@@ -19,7 +19,11 @@ struct BoardDetectionView: View {
 
     private var cameraStack: some View {
         ZStack {
-            CameraPreview(session: model.liveCaptureSession, stillImage: model.previewImage)
+            CameraPreview(
+                session: model.liveCaptureSession,
+                stillImage: model.previewImage,
+                videoRotationAngle: model.previewRotationAngle
+            )
             BoardQuadOverlay(
                 quad: model.quad,
                 bufferSize: model.bufferSize,

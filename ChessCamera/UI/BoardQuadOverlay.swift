@@ -4,12 +4,22 @@ enum QuadOverlayStyle {
     case detecting
     case locked
     case poor
+    /// Secondary overlay for ML compare in Board Studio.
+    case mlCompare
 
     var color: Color {
         switch self {
         case .detecting: Color.white.opacity(0.8)
         case .locked: Theme.accent
         case .poor: Theme.caution
+        case .mlCompare: Theme.accent.opacity(0.9)
+        }
+    }
+
+    var lineWidth: CGFloat {
+        switch self {
+        case .mlCompare: 2.5
+        default: 3
         }
     }
 }
@@ -34,7 +44,7 @@ struct BoardQuadOverlay: View {
                     }
                     path.closeSubpath()
                 }
-                .stroke(style.color, lineWidth: 3)
+                .stroke(style.color, lineWidth: style.lineWidth)
                 .opacity(pulse ? 0.55 : 1)
                 .animation(pulse ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .easeOut(duration: 0.2), value: pulse)
             }

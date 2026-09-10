@@ -22,6 +22,10 @@ targets:
     platform: iOS
     sources:
       - path: ChessCamera
+        excludes:
+          # Kept on disk for `uv run` reconvert; not loaded at runtime.
+          - Resources/model.json
+          - Resources/group1-shard1of1.bin
     dependencies:
       - package: ChessKit
         product: ChessKit

@@ -1,0 +1,9 @@
+Chessboard U-Net++ weights in this folder (`model.json`, `group1-shard1of1.bin`)
+are from Elucidation/chessdetect-tfjs (MIT License):
+
+  https://github.com/Elucidation/chessdetect-tfjs
+
+Copyright (c) 2025 Sam
+
+Converted for on-device use as ChessCamera/ML/ChessboardUNet.mlpackage via
+scripts/convert_chessboard_unet.py (uv).

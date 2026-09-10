@@ -1,0 +1,23 @@
+[project]
+name = "chessboard-unet-convert"
+version = "0.1.0"
+description = "Convert Elucidation chessdetect TF.js U-Net++ to Core ML"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "tensorflow==2.15.1",
+    "tfjs-graph-converter==1.6.3",
+    "coremltools>=7.2",
+    "numpy>=1.24,<2",
+    "pillow>=10.0",
+    "tf2onnx>=1.16",
+    "setuptools<81",
+    "onnx==1.16.2",
+]
+
+[tool.uv]
+package = false
+override-dependencies = [
+    # Unpublished / Linux-only transitive deps that break arm64 mac resolution.
+    "tensorflow-metal ; sys_platform == 'never'",
+    "tensorflow-decision-forests ; sys_platform == 'never'",
+]

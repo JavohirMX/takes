@@ -1,5 +1,7 @@
 import AVFoundation
+import CoreMedia
 import Foundation
+import UIKit
 
 final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     let captureSession = AVCaptureSession()
@@ -58,9 +60,9 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         }
     }
 
-    func updateVideoRotation(interfaceOrientation: AVCaptureVideoOrientation) {
+    func updateVideoRotation(interfaceOrientation: UIInterfaceOrientation) {
         sessionQueue.async {
-            let angle = Self.rotationAngle(for: interfaceOrientation)
+            let angle = Self.rotationAngle(forInterfaceOrientation: interfaceOrientation)
             if let connection = self.output?.connection(with: .video) {
                 Self.applyRotation(angle, to: connection)
             }
@@ -81,18 +83,27 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
     private func configureIfNeeded() throws {
         guard !configured else { return }
         captureSession.beginConfiguration()
-        captureSession.sessionPreset = .hd1280x720
+        defer { captureSession.commitConfiguration() }
 
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            captureSession.commitConfiguration()
+        guard let device = Self.preferredBackCamera() else {
             throw CaptureError.cameraUnavailable
         }
+
+        // Prefer 720p; some multi-cam configs reject the preset — fall back to inputPriority.
+        if captureSession.canSetSessionPreset(.hd1280x720) {
+            captureSession.sessionPreset = .hd1280x720
+        } else {
+            captureSession.sessionPreset = .inputPriority
+            Self.selectPrefer720pFormat(on: device)
+        }
+
         let input = try AVCaptureDeviceInput(device: device)
         guard captureSession.canAddInput(input) else {
-            captureSession.commitConfiguration()
             throw CaptureError.cameraUnavailable
         }
         captureSession.addInput(input)
+
+        Self.applyMinimumZoom(on: device)
 
         let output = AVCaptureVideoDataOutput()
         output.alwaysDiscardsLateVideoFrames = true
@@ -101,7 +112,6 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         ]
         output.setSampleBufferDelegate(self, queue: outputQueue)
         guard captureSession.canAddOutput(output) else {
-            captureSession.commitConfiguration()
             throw CaptureError.cameraUnavailable
         }
         captureSession.addOutput(output)
@@ -111,8 +121,57 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
             Self.applyRotation(90, to: connection)
         }
 
-        captureSession.commitConfiguration()
         configured = true
+    }
+
+    /// Prefer virtual multi-cam (0.5× via min zoom), then ultra-wide, then wide.
+    private static func preferredBackCamera() -> AVCaptureDevice? {
+        let types: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,
+            .builtInDualWideCamera,
+            .builtInUltraWideCamera,
+            .builtInWideAngleCamera
+        ]
+        for type in types {
+            if let device = AVCaptureDevice.default(type, for: .video, position: .back) {
+                return device
+            }
+        }
+        return nil
+    }
+
+    private static func applyMinimumZoom(on device: AVCaptureDevice) {
+        let target = min(device.minAvailableVideoZoomFactor, device.maxAvailableVideoZoomFactor)
+        guard abs(device.videoZoomFactor - target) > 0.01 else { return }
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = target
+            device.unlockForConfiguration()
+        } catch {
+            // Leave default zoom if lock fails.
+        }
+    }
+
+    private static func selectPrefer720pFormat(on device: AVCaptureDevice) {
+        let preferred = device.formats
+            .filter { format in
+                let dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                return dims.width >= 1280 && dims.height >= 720
+            }
+            .sorted { a, b in
+                let da = CMVideoFormatDescriptionGetDimensions(a.formatDescription)
+                let db = CMVideoFormatDescriptionGetDimensions(b.formatDescription)
+                return (da.width * da.height) < (db.width * db.height)
+            }
+            .first
+        guard let preferred else { return }
+        do {
+            try device.lockForConfiguration()
+            device.activeFormat = preferred
+            device.unlockForConfiguration()
+        } catch {
+            // Keep whatever the session chose.
+        }
     }
 
     private func stopRunning() {
@@ -138,7 +197,7 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         }
     }
 
-    private static func applyRotation(_ angle: CGFloat, to connection: AVCaptureConnection) {
+    static func applyRotation(_ angle: CGFloat, to connection: AVCaptureConnection) {
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
         }
@@ -147,13 +206,25 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         }
     }
 
-    private static func rotationAngle(for orientation: AVCaptureVideoOrientation) -> CGFloat {
+    static func rotationAngle(for orientation: AVCaptureVideoOrientation) -> CGFloat {
+        // Degrees clockwise from sensor-native landscapeRight (0°).
         switch orientation {
         case .portrait: 90
         case .portraitUpsideDown: 270
-        case .landscapeRight: 180
-        case .landscapeLeft: 0
+        case .landscapeRight: 0
+        case .landscapeLeft: 180
         @unknown default: 90
+        }
+    }
+
+    /// Preferred path: map interface orientation → angle (avoids UIDevice/AVCapture landscape name confusion).
+    static func rotationAngle(forInterfaceOrientation orientation: UIInterfaceOrientation) -> CGFloat {
+        switch orientation {
+        case .portrait: 90
+        case .portraitUpsideDown: 270
+        case .landscapeLeft: 180
+        case .landscapeRight: 0
+        default: 90
         }
     }
 }

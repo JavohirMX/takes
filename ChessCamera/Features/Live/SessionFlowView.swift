@@ -79,8 +79,17 @@ struct SessionFlowView: View {
                 break
             }
         }
-        .onAppear { syncVideoRotation() }
+        .onAppear {
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+            syncVideoRotation()
+        }
+        .onDisappear {
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        }
         .onChange(of: verticalSizeClass) { _, _ in
+            syncVideoRotation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             syncVideoRotation()
         }
     }

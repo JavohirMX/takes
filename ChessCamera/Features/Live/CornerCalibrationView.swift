@@ -10,7 +10,11 @@ struct CornerCalibrationView: View {
             GeometryReader { proxy in
                 let size = proxy.size
                 ZStack {
-                    CameraPreview(session: model.liveCaptureSession, stillImage: model.previewImage)
+                    CameraPreview(
+                        session: model.liveCaptureSession,
+                        stillImage: model.previewImage,
+                        videoRotationAngle: model.previewRotationAngle
+                    )
                     BoardQuadOverlay(
                         quad: model.quad,
                         bufferSize: model.bufferSize,

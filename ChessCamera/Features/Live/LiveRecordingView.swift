@@ -74,7 +74,11 @@ struct LiveRecordingView: View {
 
     private var cameraBlock: some View {
         ZStack {
-            CameraPreview(session: model.liveCaptureSession, stillImage: model.previewImage)
+            CameraPreview(
+                session: model.liveCaptureSession,
+                stillImage: model.previewImage,
+                videoRotationAngle: model.previewRotationAngle
+            )
             BoardQuadOverlay(
                 quad: model.quad,
                 bufferSize: model.bufferSize,
