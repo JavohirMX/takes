@@ -17,6 +17,7 @@ actor VisionPipeline {
 
     private let localizer: any BoardLocalizer
     private let classifier: (any PieceClassifier)?
+    private var needsFingerprintSnapshot = false
 
     init(
         localizer: any BoardLocalizer = VisionBoardLocalizer(),
@@ -36,13 +37,27 @@ actor VisionPipeline {
         self.orientation = orientation
     }
 
+    func requestFingerprintSnapshot() {
+        needsFingerprintSnapshot = true
+    }
+
     func captureEmptyBaselines(from warped: CGImage, occupied: Occupancy) {
         let crops = GridSampler.crops(from: warped, orientation: orientation)
         occupancyEstimator.captureBaselines(crops: crops, occupied: occupied)
     }
 
+    func snapshotFingerprints(from warped: CGImage) {
+        let crops = GridSampler.crops(from: warped, orientation: orientation)
+        occupancyEstimator.snapshot(crops: crops)
+        needsFingerprintSnapshot = false
+    }
+
+    /// Mounted path: once confirmed, never re-detect — return the locked quad every frame.
+    /// Re-detect only after `setLockedQuad(nil)` (Rescan).
     func detectQuad(in frame: CapturedFrame) async -> Quadrilateral? {
-        if let lockedQuad { return lockedQuad }
+        if let locked = lockedQuad {
+            return locked
+        }
         return await localizer.detect(in: frame.buffer)
     }
 
@@ -63,19 +78,35 @@ actor VisionPipeline {
 
     func observation(
         from frame: CapturedFrame,
-        classify: Bool
+        classify: Bool,
+        previousOccupancy: Occupancy
     ) async -> BoardObservation? {
         guard let quad = await detectQuad(in: frame) else { return nil }
         guard let warped = warp(frame, quad: quad) else { return nil }
         let crops = GridSampler.crops(from: warped.squareImage, orientation: orientation)
+
+        if needsFingerprintSnapshot {
+            occupancyEstimator.snapshot(crops: crops)
+            needsFingerprintSnapshot = false
+        }
+
         var classes: [ChessSquare: PieceClass] = [:]
         if classify, classifier != nil {
             classes = await classifySquares(from: warped.squareImage)
         }
-        let occupancy = occupancyEstimator.occupancy(
-            crops: crops,
-            classes: classify ? classes : nil
-        )
+
+        let occupancy: Occupancy
+        if occupancyEstimator.hasSnapshot {
+            occupancy = occupancyEstimator.occupancyApplyingChanges(
+                crops: crops,
+                previous: previousOccupancy
+            )
+        } else if classify, !classes.isEmpty {
+            occupancy = occupancyEstimator.occupancy(crops: crops, classes: classes)
+        } else {
+            occupancy = occupancyEstimator.occupancy(crops: crops, classes: nil)
+        }
+
         return BoardObservation(
             timestamp: frame.timestamp,
             quad: quad,

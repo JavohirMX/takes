@@ -33,6 +33,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Chess Camera
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_NSCameraUsageDescription: Chess Camera watches the board to record your game.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Import a recorded video to test the same pipeline.
         GENERATE_INFOPLIST_FILE: YES

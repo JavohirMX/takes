@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import UIKit
 
 struct CameraPreview: UIViewRepresentable {
     var session: AVCaptureSession?
@@ -7,31 +8,18 @@ struct CameraPreview: UIViewRepresentable {
 
     func makeUIView(context: Context) -> CameraPreviewView {
         let view = CameraPreviewView()
-        view.previewLayer.videoGravity = .resizeAspect
-        view.backgroundColor = .black
+        view.session = session
+        view.stillImage = stillImage
         return view
     }
 
     func updateUIView(_ uiView: CameraPreviewView, context: Context) {
-        if let session {
-            uiView.imageView.isHidden = true
-            uiView.previewLayer.isHidden = false
-            if uiView.previewLayer.session !== session {
-                uiView.previewLayer.session = session
-            }
-        } else {
-            uiView.previewLayer.session = nil
-            uiView.previewLayer.isHidden = true
-            uiView.imageView.isHidden = false
-            if let stillImage {
-                uiView.imageView.image = UIImage(cgImage: stillImage)
-            } else {
-                uiView.imageView.image = nil
-            }
-        }
+        uiView.session = session
+        uiView.stillImage = stillImage
     }
 }
 
+/// Apple's AVCam pattern: the preview layer *is* the view's backing layer.
 final class CameraPreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 
@@ -39,12 +27,30 @@ final class CameraPreviewView: UIView {
         layer as! AVCaptureVideoPreviewLayer
     }
 
-    let imageView = UIImageView()
+    private let imageView = UIImageView()
+
+    var session: AVCaptureSession? {
+        get { previewLayer.session }
+        set {
+            if previewLayer.session !== newValue {
+                previewLayer.session = newValue
+            }
+            applyStillImage()
+        }
+    }
+
+    var stillImage: CGImage? {
+        didSet { applyStillImage() }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        backgroundColor = .black
+        previewLayer.videoGravity = .resizeAspect
+        previewLayer.backgroundColor = UIColor.black.cgColor
+
         imageView.contentMode = .scaleAspectFit
-        imageView.backgroundColor = .black
+        imageView.backgroundColor = .clear
         imageView.isHidden = true
         addSubview(imageView)
     }
@@ -57,4 +63,15 @@ final class CameraPreviewView: UIView {
         super.layoutSubviews()
         imageView.frame = bounds
     }
+
+    private func applyStillImage() {
+        let showStill = session == nil && stillImage != nil
+        imageView.isHidden = !showStill
+        if showStill, let stillImage {
+            imageView.image = UIImage(cgImage: stillImage)
+        } else {
+            imageView.image = nil
+        }
+    }
+
 }

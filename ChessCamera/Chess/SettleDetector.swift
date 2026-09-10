@@ -2,7 +2,8 @@ import Foundation
 
 struct SettleConfig: Sendable {
     var stableDuration: Duration = .milliseconds(600)
-    var maxHammingJitter: Int = 0
+    /// Occupancy flicker of this many bits is ignored so a still board can settle.
+    var maxHammingJitter: Int = 1
 }
 
 enum BoardMotion: Equatable, Sendable {

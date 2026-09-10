@@ -13,10 +13,9 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         AsyncStream { continuation in
             self.continuation = continuation
             continuation.onTermination = { [weak self] _ in
-                guard let self else { return }
-                self.sessionQueue.async {
-                    self.stopRunning()
-                }
+                // Do not stop the capture session here. Cancelling the frame
+                // consumer must not kill the live preview.
+                self?.continuation = nil
             }
         }
     }()
@@ -62,9 +61,8 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
     func updateVideoRotation(interfaceOrientation: AVCaptureVideoOrientation) {
         sessionQueue.async {
             let angle = Self.rotationAngle(for: interfaceOrientation)
-            if let connection = self.output?.connection(with: .video),
-               connection.isVideoRotationAngleSupported(angle) {
-                connection.videoRotationAngle = angle
+            if let connection = self.output?.connection(with: .video) {
+                Self.applyRotation(angle, to: connection)
             }
         }
     }
@@ -109,9 +107,8 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         captureSession.addOutput(output)
         self.output = output
 
-        if let connection = output.connection(with: .video),
-           connection.isVideoRotationAngleSupported(90) {
-            connection.videoRotationAngle = 90
+        if let connection = output.connection(with: .video) {
+            Self.applyRotation(90, to: connection)
         }
 
         captureSession.commitConfiguration()
@@ -138,6 +135,15 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
             await AVCaptureDevice.requestAccess(for: .video)
         default:
             false
+        }
+    }
+
+    private static func applyRotation(_ angle: CGFloat, to connection: AVCaptureConnection) {
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+        }
+        if connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
         }
     }
 

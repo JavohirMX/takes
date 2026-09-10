@@ -3,6 +3,7 @@ import Foundation
 enum SessionPhase: Equatable, Sendable {
     case idle
     case importingVideo
+    case boardStudio
     case detectingBoard
     case calibratingCorners
     case confirmingStart

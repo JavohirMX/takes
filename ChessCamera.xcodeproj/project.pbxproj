@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		05104C618E7BEEA97D5AE212 /* AssetVideoSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27762E892A116A0129F170C2 /* AssetVideoSource.swift */; };
 		0927703FFF749E61E03AE0A4 /* BoardLocalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA3E7681CE93FE2D646331D /* BoardLocalizer.swift */; };
+		0A11C0DE5C0A11C0DE5C0A11 /* ChessboardGridScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11C0DE5C0A11C0DE5C0A12 /* ChessboardGridScore.swift */; };
+		0A11C0DE5C0A11C0DE5C0A13 /* QuadConsensus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11C0DE5C0A11C0DE5C0A14 /* QuadConsensus.swift */; };
+		0A11C0DE5C0A11C0DE5C0A15 /* BoardLocalizerScoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11C0DE5C0A11C0DE5C0A16 /* BoardLocalizerScoreTests.swift */; };
 		0DFD3E376157F38C52B5CCE8 /* VisionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F09C832452C674A3F981FA6 /* VisionPipeline.swift */; };
 		196738630B87B3F96068CEF0 /* SessionReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885774EC391C6A091B692228 /* SessionReducerTests.swift */; };
 		1B96F7BD962BD338B9647838 /* ConfirmStartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D0196B7AAFE7491A7D276E0 /* ConfirmStartView.swift */; };
@@ -19,6 +22,7 @@
 		3659DFF731728761CDB532E4 /* Quadrilateral.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CED534D304BB42852031DD1 /* Quadrilateral.swift */; };
 		37206928B6D3C62354AC1A26 /* ReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153B0C245C35784202078C0 /* ReplayView.swift */; };
 		373DD7FC3FF8B3988C8AB518 /* MoveInferrerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F385A1C6D000AE9DFF229B3E /* MoveInferrerTests.swift */; };
+		394077BAF45B899B3F61FC66 /* CornerHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F906397F6B499ED9F74D0D6 /* CornerHandle.swift */; };
 		3BFA2E61456376388504D61A /* VideoMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D319D0AC3281B999D0BAC505 /* VideoMappingTests.swift */; };
 		3D65842AF9A0512F692B0B8C /* CornerCalibrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33CDAF021C4A67084142D2 /* CornerCalibrationView.swift */; };
 		43530378565097A5867B7EF1 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0EB3CE243B9B1352369C63 /* AppContainer.swift */; };
@@ -33,10 +37,13 @@
 		616ED4E13FA1D0BF878DB1EE /* ChessCameraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4550D3A4EC5B1F9F5E09F7B /* ChessCameraApp.swift */; };
 		6887C8BEC20B9E9138852220 /* BoardQuadOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C2D4FB6153013B0037F4DC /* BoardQuadOverlay.swift */; };
 		69B11F190BCA0E8685F3FC05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4F1EF2B9089815AFC5B0DE93 /* Assets.xcassets */; };
+		6F6F914D6E1A5E5DE0288DAA /* BoardStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C728BC089E05D1DE58D4A98E /* BoardStudioView.swift */; };
 		749AA361C72F39C5DC30B868 /* BoardDetectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46CC9DDC9504DBD80822876 /* BoardDetectionView.swift */; };
 		7565B081FE990130FDA594AF /* LiveCameraSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CAED125FB37E264AF34D9C /* LiveCameraSource.swift */; };
+		7C8C667EB0A8122D70D4012A /* BoardGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71CEBD9D619FAE0AF196B22 /* BoardGridOverlay.swift */; };
 		7E55A474CDB7FA8EDD927F5C /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */; };
 		803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD0BB7A070EF2EA30CBA486 /* OccupancyEstimator.swift */; };
+		8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */; };
 		9EAB8A7EFAEDC96BCE7080CD /* VideoMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D425D12AF9A60D29FFFCD6 /* VideoMapping.swift */; };
 		9F0EFF697E4A3D38399B1829 /* SetupPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370B62A5F0006AA5BA4679CC /* SetupPrimerView.swift */; };
 		A0184C1D450D6309DA1C3C43 /* CameraPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72FE7C1A587B62DC967E2B51 /* CameraPermissionView.swift */; };
@@ -47,7 +54,9 @@
 		AC957787020982DD36FA616B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CEE2DCF9ED9DE0888413B88 /* Theme.swift */; };
 		ACA986A15065145232FCAA16 /* StatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 965DE7BAC5CEA82F32932572 /* StatusBanner.swift */; };
 		AEB143CDCE6BD739F276288C /* DigitalBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB2C097D4F49229B6F0C6E9 /* DigitalBoardView.swift */; };
+		B2AD095917287D559B0DB25B /* CornerTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */; };
 		B45E2E887B33396EA01523BD /* LiveRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4366B489D9995754DA91A995 /* LiveRecordingView.swift */; };
+		B586646729DCE53F787169A3 /* CornerTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1013B27E23EDD807311855C /* CornerTracker.swift */; };
 		BA7478BBD8A3008ADC3AC49E /* SessionPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE38A828270834A19A69AFAA /* SessionPhase.swift */; };
 		C05E782950D99E493B421334 /* SettleDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92EB850B56B89077875BFBE /* SettleDetector.swift */; };
 		C2AAA022190DFAF737E05519 /* GameRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9179C54600BDD7A36F495747 /* GameRecord.swift */; };
@@ -56,6 +65,7 @@
 		CF91F0EB3BEF44E87E5FFF06 /* SettleDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F3D98EC612F6962407582C /* SettleDetectorTests.swift */; };
 		E19E0E60BDE4C5F84ADDEFEC /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5205AE72ECC8A76BCD8EFCE7 /* ShareSheet.swift */; };
 		E4C8382C44C0123BC07874B3 /* PieceClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC7264E35F2622519CD7AFD5 /* PieceClassifier.swift */; };
+		E89AF36505E4C612017789E7 /* WarpedBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4830D1AEC7276C133B59756F /* WarpedBoardView.swift */; };
 		EB8A71718C2C2C199A9018A3 /* GameEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4DF6AAD7DFA7C4AFFB57BA /* GameEngineTests.swift */; };
 		EE982BA48D41A96F96BE4F63 /* MoveListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 345B8F34C0C137F732B2A45F /* MoveListView.swift */; };
 		F1902E8630C19010F90C22A5 /* GridSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F133624111158A6BC81A9525 /* GridSampler.swift */; };
@@ -77,11 +87,15 @@
 
 /* Begin PBXFileReference section */
 		0CED534D304BB42852031DD1 /* Quadrilateral.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Quadrilateral.swift; sourceTree = "<group>"; };
+		0A11C0DE5C0A11C0DE5C0A12 /* ChessboardGridScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChessboardGridScore.swift; sourceTree = "<group>"; };
+		0A11C0DE5C0A11C0DE5C0A14 /* QuadConsensus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuadConsensus.swift; sourceTree = "<group>"; };
+		0A11C0DE5C0A11C0DE5C0A16 /* BoardLocalizerScoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLocalizerScoreTests.swift; sourceTree = "<group>"; };
 		0E48CF6C220FF6B94508C5A2 /* OccupancyEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyEstimatorTests.swift; sourceTree = "<group>"; };
 		130C59A61979D7C44565CFD3 /* ChessCameraTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ChessCameraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		136134940AEE54A92F2C9DEF /* PieceClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceClass.swift; sourceTree = "<group>"; };
 		2687048DD7EAFFA84374F96C /* GridSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSamplerTests.swift; sourceTree = "<group>"; };
 		27762E892A116A0129F170C2 /* AssetVideoSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetVideoSource.swift; sourceTree = "<group>"; };
+		2F906397F6B499ED9F74D0D6 /* CornerHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerHandle.swift; sourceTree = "<group>"; };
 		345B8F34C0C137F732B2A45F /* MoveListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveListView.swift; sourceTree = "<group>"; };
 		370B62A5F0006AA5BA4679CC /* SetupPrimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupPrimerView.swift; sourceTree = "<group>"; };
 		3D4DF6AAD7DFA7C4AFFB57BA /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
@@ -89,6 +103,7 @@
 		42F3D98EC612F6962407582C /* SettleDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettleDetectorTests.swift; sourceTree = "<group>"; };
 		4366B489D9995754DA91A995 /* LiveRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRecordingView.swift; sourceTree = "<group>"; };
 		47C2D4FB6153013B0037F4DC /* BoardQuadOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardQuadOverlay.swift; sourceTree = "<group>"; };
+		4830D1AEC7276C133B59756F /* WarpedBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarpedBoardView.swift; sourceTree = "<group>"; };
 		4ECF8CD0493C1DF86F812C65 /* Occupancy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Occupancy.swift; sourceTree = "<group>"; };
 		4ED39002C57FA3559FAB339C /* SessionFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFlowView.swift; sourceTree = "<group>"; };
 		4F1EF2B9089815AFC5B0DE93 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -97,7 +112,7 @@
 		5EE9A5A8A196054CB608A014 /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
 		641EB4B86D2BBBE963570277 /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
 		6716FC7C8065EF77F736FBD6 /* EditMoveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditMoveSheet.swift; sourceTree = "<group>"; };
-		68EBB019766ACFBA03AFE3B3 /* ChessCamera.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ChessCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		68EBB019766ACFBA03AFE3B3 /* ChessCamera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChessCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F60C51FC76184F806DA689F /* BoardWarper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardWarper.swift; sourceTree = "<group>"; };
 		71AE7AECECBB5E3BC7AF3222 /* GameOverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverView.swift; sourceTree = "<group>"; };
 		72FE7C1A587B62DC967E2B51 /* CameraPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionView.swift; sourceTree = "<group>"; };
@@ -117,13 +132,17 @@
 		9CEE2DCF9ED9DE0888413B88 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		9E0EB3CE243B9B1352369C63 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		A4D425D12AF9A60D29FFFCD6 /* VideoMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoMapping.swift; sourceTree = "<group>"; };
+		A71CEBD9D619FAE0AF196B22 /* BoardGridOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardGridOverlay.swift; sourceTree = "<group>"; };
 		AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChessSquareTests.swift; sourceTree = "<group>"; };
 		AFA3E7681CE93FE2D646331D /* BoardLocalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLocalizer.swift; sourceTree = "<group>"; };
 		B4550D3A4EC5B1F9F5E09F7B /* ChessCameraApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChessCameraApp.swift; sourceTree = "<group>"; };
+		B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyGridOverlay.swift; sourceTree = "<group>"; };
 		BAA39EB2AE3A09A5E91A53FE /* FrameSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameSource.swift; sourceTree = "<group>"; };
 		BDD0BB7A070EF2EA30CBA486 /* OccupancyEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyEstimator.swift; sourceTree = "<group>"; };
 		BE38A828270834A19A69AFAA /* SessionPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPhase.swift; sourceTree = "<group>"; };
+		C1013B27E23EDD807311855C /* CornerTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerTracker.swift; sourceTree = "<group>"; };
 		C46CC9DDC9504DBD80822876 /* BoardDetectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardDetectionView.swift; sourceTree = "<group>"; };
+		C728BC089E05D1DE58D4A98E /* BoardStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardStudioView.swift; sourceTree = "<group>"; };
 		CC33CDAF021C4A67084142D2 /* CornerCalibrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerCalibrationView.swift; sourceTree = "<group>"; };
 		CC7264E35F2622519CD7AFD5 /* PieceClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceClassifier.swift; sourceTree = "<group>"; };
 		D153B0C245C35784202078C0 /* ReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayView.swift; sourceTree = "<group>"; };
@@ -131,6 +150,7 @@
 		D8BC96D9A76DCA39603BC639 /* OccupancyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyTests.swift; sourceTree = "<group>"; };
 		D8CAED125FB37E264AF34D9C /* LiveCameraSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCameraSource.swift; sourceTree = "<group>"; };
 		D92EB850B56B89077875BFBE /* SettleDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettleDetector.swift; sourceTree = "<group>"; };
+		D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerTrackerTests.swift; sourceTree = "<group>"; };
 		F133624111158A6BC81A9525 /* GridSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSampler.swift; sourceTree = "<group>"; };
 		F385A1C6D000AE9DFF229B3E /* MoveInferrerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveInferrerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -152,8 +172,11 @@
 			children = (
 				AFA3E7681CE93FE2D646331D /* BoardLocalizer.swift */,
 				6F60C51FC76184F806DA689F /* BoardWarper.swift */,
+				0A11C0DE5C0A11C0DE5C0A12 /* ChessboardGridScore.swift */,
+				C1013B27E23EDD807311855C /* CornerTracker.swift */,
 				F133624111158A6BC81A9525 /* GridSampler.swift */,
 				BDD0BB7A070EF2EA30CBA486 /* OccupancyEstimator.swift */,
+				0A11C0DE5C0A11C0DE5C0A14 /* QuadConsensus.swift */,
 				0CED534D304BB42852031DD1 /* Quadrilateral.swift */,
 				7F09C832452C674A3F981FA6 /* VisionPipeline.swift */,
 			);
@@ -240,7 +263,9 @@
 		875B1C8B8E512F124B9EF084 /* ChessCameraTests */ = {
 			isa = PBXGroup;
 			children = (
+				0A11C0DE5C0A11C0DE5C0A16 /* BoardLocalizerScoreTests.swift */,
 				AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */,
+				D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */,
 				3D4DF6AAD7DFA7C4AFFB57BA /* GameEngineTests.swift */,
 				2687048DD7EAFFA84374F96C /* GridSamplerTests.swift */,
 				F385A1C6D000AE9DFF229B3E /* MoveInferrerTests.swift */,
@@ -275,6 +300,7 @@
 			isa = PBXGroup;
 			children = (
 				C46CC9DDC9504DBD80822876 /* BoardDetectionView.swift */,
+				C728BC089E05D1DE58D4A98E /* BoardStudioView.swift */,
 				8D0196B7AAFE7491A7D276E0 /* ConfirmStartView.swift */,
 				CC33CDAF021C4A67084142D2 /* CornerCalibrationView.swift */,
 				4366B489D9995754DA91A995 /* LiveRecordingView.swift */,
@@ -286,16 +312,20 @@
 		BBE87CF984AF1CBDC781D84D /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				A71CEBD9D619FAE0AF196B22 /* BoardGridOverlay.swift */,
 				47C2D4FB6153013B0037F4DC /* BoardQuadOverlay.swift */,
 				641EB4B86D2BBBE963570277 /* CameraPreview.swift */,
+				2F906397F6B499ED9F74D0D6 /* CornerHandle.swift */,
 				7AB2C097D4F49229B6F0C6E9 /* DigitalBoardView.swift */,
 				77D0BFBF62F1C1BE14BABFA4 /* FenBar.swift */,
 				345B8F34C0C137F732B2A45F /* MoveListView.swift */,
+				B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */,
 				3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */,
 				94B40F811C0E6F4925584380 /* SecondaryButton.swift */,
 				5205AE72ECC8A76BCD8EFCE7 /* ShareSheet.swift */,
 				965DE7BAC5CEA82F32932572 /* StatusBanner.swift */,
 				9CEE2DCF9ED9DE0888413B88 /* Theme.swift */,
+				4830D1AEC7276C133B59756F /* WarpedBoardView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -389,7 +419,6 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					F21275A360A34ABF5D23435E = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -433,7 +462,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A11C0DE5C0A11C0DE5C0A15 /* BoardLocalizerScoreTests.swift in Sources */,
 				4818C00D3247ABE67102D9D2 /* ChessSquareTests.swift in Sources */,
+				B2AD095917287D559B0DB25B /* CornerTrackerTests.swift in Sources */,
 				EB8A71718C2C2C199A9018A3 /* GameEngineTests.swift in Sources */,
 				5B9CBD76688D6499602BADA6 /* GridSamplerTests.swift in Sources */,
 				373DD7FC3FF8B3988C8AB518 /* MoveInferrerTests.swift in Sources */,
@@ -452,16 +483,21 @@
 				43530378565097A5867B7EF1 /* AppContainer.swift in Sources */,
 				05104C618E7BEEA97D5AE212 /* AssetVideoSource.swift in Sources */,
 				749AA361C72F39C5DC30B868 /* BoardDetectionView.swift in Sources */,
+				7C8C667EB0A8122D70D4012A /* BoardGridOverlay.swift in Sources */,
 				0927703FFF749E61E03AE0A4 /* BoardLocalizer.swift in Sources */,
 				214BB437FEE30A0FA1133B33 /* BoardOrientation.swift in Sources */,
 				6887C8BEC20B9E9138852220 /* BoardQuadOverlay.swift in Sources */,
+				6F6F914D6E1A5E5DE0288DAA /* BoardStudioView.swift in Sources */,
 				F295EA609CA9D7AEDEEC3177 /* BoardWarper.swift in Sources */,
+				0A11C0DE5C0A11C0DE5C0A11 /* ChessboardGridScore.swift in Sources */,
 				A0184C1D450D6309DA1C3C43 /* CameraPermissionView.swift in Sources */,
 				52C0873690FA20966CD1193E /* CameraPreview.swift in Sources */,
 				616ED4E13FA1D0BF878DB1EE /* ChessCameraApp.swift in Sources */,
 				FEE14E29CEF6B39419B46413 /* ChessSquare.swift in Sources */,
 				1B96F7BD962BD338B9647838 /* ConfirmStartView.swift in Sources */,
 				3D65842AF9A0512F692B0B8C /* CornerCalibrationView.swift in Sources */,
+				394077BAF45B899B3F61FC66 /* CornerHandle.swift in Sources */,
+				B586646729DCE53F787169A3 /* CornerTracker.swift in Sources */,
 				AEB143CDCE6BD739F276288C /* DigitalBoardView.swift in Sources */,
 				5724114A3102A693276D4065 /* EditMoveSheet.swift in Sources */,
 				AA9463A9DED518FD7C7BAB57 /* FenBar.swift in Sources */,
@@ -478,9 +514,11 @@
 				EE982BA48D41A96F96BE4F63 /* MoveListView.swift in Sources */,
 				A1C3A2F6D053D4FC266969BF /* Occupancy.swift in Sources */,
 				803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */,
+				8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */,
 				FD11C9AE03C4FAD97C277F81 /* PieceClass.swift in Sources */,
 				E4C8382C44C0123BC07874B3 /* PieceClassifier.swift in Sources */,
 				7E55A474CDB7FA8EDD927F5C /* PrimaryButton.swift in Sources */,
+				0A11C0DE5C0A11C0DE5C0A13 /* QuadConsensus.swift in Sources */,
 				3659DFF731728761CDB532E4 /* Quadrilateral.swift in Sources */,
 				531F7CB04F6CE258D1CB83C3 /* RecordingSessionViewModel.swift in Sources */,
 				37206928B6D3C62354AC1A26 /* ReplayView.swift in Sources */,
@@ -494,6 +532,7 @@
 				AC957787020982DD36FA616B /* Theme.swift in Sources */,
 				9EAB8A7EFAEDC96BCE7080CD /* VideoMapping.swift in Sources */,
 				0DFD3E376157F38C52B5CCE8 /* VisionPipeline.swift in Sources */,
+				E89AF36505E4C612017789E7 /* WarpedBoardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -515,7 +554,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = MBBD9BRZ67;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Chess Camera";
@@ -523,6 +562,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import a recorded video to test the same pipeline.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -543,7 +583,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = MBBD9BRZ67;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Chess Camera";
@@ -551,6 +591,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import a recorded video to test the same pipeline.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

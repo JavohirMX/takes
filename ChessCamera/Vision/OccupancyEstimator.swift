@@ -64,6 +64,7 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
     var globalEmpty: SquareFingerprint?
     var varianceThreshold: Double = 80
     var meanDeltaThreshold: Double = 18
+    private var fingerprints: [ChessSquare: SquareFingerprint] = [:]
 
     mutating func captureBaselines(crops: [SquareCrop], occupied: Occupancy) {
         var empties: [SquareFingerprint] = []
@@ -96,6 +97,47 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
         return result
     }
 
+    mutating func snapshot(crops: [SquareCrop]) {
+        fingerprints = [:]
+        for crop in crops {
+            fingerprints[crop.square] = SquareFingerprint.make(crop.image)
+        }
+    }
+
+    var hasSnapshot: Bool { !fingerprints.isEmpty }
+
+    /// Known game occupancy, updated only on squares that changed vs the last snapshot.
+    /// Independent empty/occupied classification is too noisy to ever match a legal move.
+    func occupancyApplyingChanges(crops: [SquareCrop], previous: Occupancy) -> Occupancy {
+        guard hasSnapshot, !crops.isEmpty else {
+            return occupancy(crops: crops, classes: nil)
+        }
+
+        var scores = [Double](repeating: 0, count: crops.count)
+        var current = [SquareFingerprint?](repeating: nil, count: crops.count)
+        for (index, crop) in crops.enumerated() {
+            let fingerprint = SquareFingerprint.make(crop.image)
+            current[index] = fingerprint
+            if let baseline = fingerprints[crop.square] {
+                scores[index] = SquareChangeDetector.score(current: fingerprint, baseline: baseline)
+            }
+        }
+
+        let changed = SquareChangeDetector.changedMask(scores: scores)
+        var result = previous
+        for (index, crop) in crops.enumerated() where changed[index] {
+            guard let fingerprint = current[index],
+                  let baseline = fingerprints[crop.square] else { continue }
+            if previous.occupied(crop.square) {
+                let emptied = fingerprint.variance < baseline.variance * 0.55
+                result.set(crop.square, occupied: !emptied)
+            } else {
+                result.set(crop.square, occupied: true)
+            }
+        }
+        return result
+    }
+
     func isOccupied(_ fingerprint: SquareFingerprint, square: ChessSquare) -> Bool {
         let baseline = emptyBaseline[square] ?? globalEmpty
         if let baseline {
@@ -104,6 +146,23 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
             return meanDiff > meanDeltaThreshold || extraVariance > 60 || fingerprint.variance > max(varianceThreshold, baseline.variance * 3)
         }
         return fingerprint.variance > varianceThreshold
+    }
+}
+
+enum SquareChangeDetector {
+    static func score(current: SquareFingerprint, baseline: SquareFingerprint) -> Double {
+        abs(current.mean - baseline.mean) + 0.15 * abs(current.variance - baseline.variance)
+    }
+
+    /// Lighting-robust outliers: a square changed if it moved more than the board-wide median.
+    static func changedMask(scores: [Double], absoluteMin: Double = 14, k: Double = 2.2) -> [Bool] {
+        guard !scores.isEmpty else { return [] }
+        let sorted = scores.sorted()
+        let median = sorted[sorted.count / 2]
+        let deviations = scores.map { abs($0 - median) }.sorted()
+        let mad = deviations[deviations.count / 2]
+        let threshold = max(absoluteMin, median + k * max(mad, 4))
+        return scores.map { $0 >= threshold && $0 >= absoluteMin }
     }
 }
 

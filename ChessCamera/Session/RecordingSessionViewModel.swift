@@ -9,7 +9,8 @@ import UIKit
 
 @MainActor
 @Observable
-final class RecordingSessionViewModel {
+final class RecordingSessionViewModel: Identifiable {
+    nonisolated let id = UUID()
     var phase: SessionPhase = .idle
     var quad: Quadrilateral?
     var bufferSize: CGSize = .zero
@@ -29,11 +30,14 @@ final class RecordingSessionViewModel {
     var showShareSheet = false
     var alertMessage: String?
     var lastCommittedOccupancy = Occupancy.standardStart()
+    var liveOccupancy = Occupancy.standardStart()
     var ambiguousMoves: [Move] = []
     var editReplacesLast = false
     var settleDuration: Duration = .milliseconds(600)
     var previewImage: CGImage?
     var isVideoImport = false
+    var trackingWeak = false
+    var isCaptureRunning = false
 
     let engine = GameEngine()
     let pipeline = VisionPipeline()
@@ -47,6 +51,12 @@ final class RecordingSessionViewModel {
     private var lastProcessTime: ContinuousClock.Instant?
     private var pausedForBackground = false
     private var didAutoConfirmVideo = false
+    private var pendingFingerprintSnapshot = false
+    private var isDraggingCorner = false
+    private var needsTemplateCapture = true
+    private var cornerTracker = CornerTracker()
+    private var quadConsensus = QuadConsensus()
+    private var weakTrackFrames = 0
     private let imageContext = CIContext()
 
     var fen: String { engine.fen }
@@ -65,11 +75,27 @@ final class RecordingSessionViewModel {
         let camera = LiveCameraSource()
         liveCamera = camera
         frameSource = camera
-        phase = .detectingBoard
+        phase = .boardStudio
         detectStartedAt = ContinuousClock().now
+        needsTemplateCapture = true
+        cornerTracker.reset()
+        quadConsensus.reset()
+        weakTrackFrames = 0
+        startConsuming()
+        await Task.yield()
+        await startCaptureIfNeeded()
+        classifierAvailable = await pipeline.hasClassifier
+    }
+
+    func startCaptureIfNeeded() async {
+        guard !isVideoImport, let camera = liveCamera else { return }
+        if camera.captureSession.isRunning { return }
         do {
             try await camera.start()
             cameraUnavailable = false
+            isCaptureRunning = true
+            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+            updateVideoRotation(from: scene)
         } catch CaptureError.cameraUnavailable {
             cameraUnavailable = true
         } catch CaptureError.permissionDenied {
@@ -79,8 +105,6 @@ final class RecordingSessionViewModel {
             cameraUnavailable = true
             alertMessage = error.localizedDescription
         }
-        classifierAvailable = await pipeline.hasClassifier
-        startConsuming()
     }
 
     func importVideo(url: URL) async {
@@ -92,7 +116,7 @@ final class RecordingSessionViewModel {
         phase = .importingVideo
         do {
             try await source.start()
-            phase = .detectingBoard
+            phase = .boardStudio
             detectStartedAt = ContinuousClock().now
             classifierAvailable = await pipeline.hasClassifier
             startConsuming()
@@ -143,6 +167,42 @@ final class RecordingSessionViewModel {
         detectTimedOut = false
     }
 
+    func beginCornerDrag() {
+        isDraggingCorner = true
+    }
+
+    func finishCornerDrag() {
+        isDraggingCorner = false
+        needsTemplateCapture = true
+        weakTrackFrames = 0
+        trackingWeak = false
+    }
+
+    func rescanBoard() async {
+        quad = nil
+        warpedThumbnail = nil
+        trackingWeak = false
+        needsTemplateCapture = true
+        weakTrackFrames = 0
+        cornerTracker.reset()
+        quadConsensus.reset()
+        await pipeline.setLockedQuad(nil)
+        detectStartedAt = ContinuousClock().now
+        detectTimedOut = false
+    }
+
+    /// Timeout / manual path: plant editable inset corners for the user to drag.
+    func placeManualCorners() {
+        let size = bufferSize == .zero ? CGSize(width: 1280, height: 720) : bufferSize
+        quad = Quadrilateral.insetRect(in: size)
+        detectTimedOut = true
+        needsTemplateCapture = true
+        weakTrackFrames = 0
+        trackingWeak = false
+        cornerTracker.reset()
+        quadConsensus.reset()
+    }
+
     func setCorner(_ index: Int, bufferPoint: CGPoint) {
         guard var quad else { return }
         let clamped = CGPoint(
@@ -168,6 +228,7 @@ final class RecordingSessionViewModel {
         classifiedClasses = FenCodec.remapped(classifiedClasses, flippingOrientation: true)
         proposedFEN = FenCodec.fen(from: classifiedClasses)
         await pipeline.setOrientation(orientation)
+        needsTemplateCapture = true
     }
 
     func recapture() async {
@@ -207,6 +268,7 @@ final class RecordingSessionViewModel {
         settle = SettleDetector(config: .init(stableDuration: .milliseconds(SettleSettings.milliseconds)))
         lastSAN = nil
         trackingLost = false
+        pendingFingerprintSnapshot = true
         phase = .recording
         if let warpedThumbnail {
             Task {
@@ -239,6 +301,7 @@ final class RecordingSessionViewModel {
             lastCommittedOccupancy = engine.occupancy()
             lastSAN = engine.formattedLastSAN
             ambiguousMoves = []
+            pendingFingerprintSnapshot = true
             if phase == .awaitingEdit || phase == .gameOver {
                 phase = engine.isTerminal ? .gameOver : .recording
             }
@@ -263,6 +326,7 @@ final class RecordingSessionViewModel {
             lastSAN = engine.formattedLastSAN
             showEditSheet = false
             ambiguousMoves = []
+            pendingFingerprintSnapshot = true
             phase = engine.isTerminal ? .gameOver : .recording
             announceCommit()
         } catch {
@@ -271,7 +335,11 @@ final class RecordingSessionViewModel {
     }
 
     func handleBackground() {
+        // Presenting a fullScreenCover can report a false `.background` scene
+        // phase while the app is still active. Only pause the real camera then.
+        guard UIApplication.shared.applicationState == .background else { return }
         pausedForBackground = true
+        isCaptureRunning = false
         Task { await liveCamera?.pause() }
         if phase == .recording {
             phase = .disturbed
@@ -286,6 +354,7 @@ final class RecordingSessionViewModel {
             if isVideoImport { return }
             do {
                 try await liveCamera?.start()
+                isCaptureRunning = true
             } catch {
                 cameraUnavailable = true
             }
@@ -370,7 +439,8 @@ final class RecordingSessionViewModel {
 
     private func handle(frame: CapturedFrame) async {
         if isProcessingFrame { return }
-        if let lastProcessTime, frame.timestamp - lastProcessTime < .milliseconds(100) {
+        let minInterval: Duration = phase == .boardStudio ? .milliseconds(50) : .milliseconds(100)
+        if let lastProcessTime, frame.timestamp - lastProcessTime < minInterval {
             return
         }
         isProcessingFrame = true
@@ -382,6 +452,8 @@ final class RecordingSessionViewModel {
         )
 
         switch phase {
+        case .boardStudio:
+            await handleBoardStudio(frame)
         case .detectingBoard:
             await handleDetection(frame)
         case .calibratingCorners:
@@ -394,6 +466,60 @@ final class RecordingSessionViewModel {
             await handleConfirmPreview(frame)
         default:
             break
+        }
+    }
+
+    private func handleBoardStudio(_ frame: CapturedFrame) async {
+        if isVideoImport {
+            previewImage = image(from: frame.buffer)
+        }
+
+        if quad == nil {
+            if let detected = await pipeline.detectQuad(in: frame) {
+                if let consensus = quadConsensus.ingest(detected, imageSize: bufferSize) {
+                    quad = consensus
+                    needsTemplateCapture = true
+                    detectTimedOut = false
+                }
+            }
+            if quad == nil,
+               let detectStartedAt,
+               ContinuousClock().now - detectStartedAt >= .seconds(2) {
+                detectTimedOut = true
+            }
+        } else if !isDraggingCorner, let gray = GrayFrame.from(frame.buffer), let current = quad {
+            if needsTemplateCapture || !cornerTracker.hasTemplates {
+                cornerTracker.capture(from: gray, quad: current)
+                needsTemplateCapture = false
+                trackingWeak = false
+                weakTrackFrames = 0
+            } else {
+                let result = cornerTracker.track(in: gray, from: current)
+                if result.minConfidence < 0.55 {
+                    weakTrackFrames += 1
+                    trackingWeak = true
+                    // Brief updates, then freeze auto-moves until drag or Rescan.
+                    if weakTrackFrames < 3 {
+                        quad = result.quad
+                    }
+                } else {
+                    weakTrackFrames = 0
+                    trackingWeak = false
+                    quad = result.quad
+                }
+            }
+        }
+
+        if let quad, let warped = await pipeline.warp(frame, quad: quad) {
+            warpedThumbnail = warped.squareImage
+        }
+
+        if isVideoImport, let quad, !didAutoConfirmVideo {
+            if ContinuousClock().now - (detectStartedAt ?? ContinuousClock().now) >= .seconds(1) {
+                didAutoConfirmVideo = true
+                await confirmQuad()
+            }
+            _ = quad
         }
     }
 
@@ -427,32 +553,47 @@ final class RecordingSessionViewModel {
     }
 
     private func handleConfirmPreview(_ frame: CapturedFrame) async {
-        previewImage = image(from: frame.buffer)
-        if let quad, let warped = await pipeline.warp(frame, quad: quad) {
-            warpedThumbnail = warped.squareImage
+        if let detected = await pipeline.detectQuad(in: frame) {
+            quad = detected
+            if let warped = await pipeline.warp(frame, quad: detected) {
+                warpedThumbnail = warped.squareImage
+            }
         }
+        previewImage = image(from: frame.buffer)
     }
 
     private func handleLive(_ frame: CapturedFrame) async {
-        let observation = await pipeline.observation(from: frame, classify: false)
+        if pendingFingerprintSnapshot {
+            await pipeline.requestFingerprintSnapshot()
+            pendingFingerprintSnapshot = false
+        }
+        let observation = await pipeline.observation(
+            from: frame,
+            classify: false,
+            previousOccupancy: lastCommittedOccupancy
+        )
         if let observation {
             trackingLost = false
             quad = observation.quad
             warpedThumbnail = observation.warpedImage
+            liveOccupancy = observation.occupancy
             previewImage = image(from: frame.buffer)
-            ingest(observation)
+            await ingest(observation)
         } else {
             trackingLost = true
             previewImage = image(from: frame.buffer)
         }
     }
 
-    private func ingest(_ observation: BoardObservation) {
+    private func ingest(_ observation: BoardObservation) async {
         let motion = settle.ingest(observation.occupancy, at: observation.timestamp)
         let inference: InferenceResult
         if case .stable(let occ) = motion, phase == .disturbed {
             let distance = lastCommittedOccupancy.hammingDistance(to: occ)
-            if distance > 8 {
+            if distance == 0 {
+                trackingLost = false
+                inference = .none
+            } else if distance > 16 {
                 trackingLost = true
                 inference = .none
             } else {
@@ -475,10 +616,13 @@ final class RecordingSessionViewModel {
         case (.recording, .unique(let move)):
             do {
                 try engine.apply(move: move)
-                lastCommittedOccupancy = observation.occupancy
+                lastCommittedOccupancy = engine.occupancy()
                 lastSAN = engine.formattedLastSAN
                 phase = engine.isTerminal ? .gameOver : .recording
                 announceCommit()
+                if let warped = observation.warpedImage {
+                    await pipeline.snapshotFingerprints(from: warped)
+                }
                 if engine.isTerminal {
                     Task { await stopCapture() }
                 }
@@ -544,9 +688,18 @@ final class RecordingSessionViewModel {
         trackingLost = false
         detectTimedOut = false
         cameraUnavailable = false
+        isCaptureRunning = false
         confirmEndGame = false
         showEditSheet = false
         lastCommittedOccupancy = Occupancy.standardStart()
+        liveOccupancy = Occupancy.standardStart()
+        pendingFingerprintSnapshot = false
+        trackingWeak = false
+        isDraggingCorner = false
+        needsTemplateCapture = true
+        weakTrackFrames = 0
+        cornerTracker.reset()
+        quadConsensus.reset()
         ambiguousMoves = []
         engine.resetToStart()
         detectStartedAt = nil

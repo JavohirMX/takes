@@ -6,7 +6,6 @@ struct HistoryView: View {
     @Query(sort: \GameRecord.createdAt, order: .reverse) private var games: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @State private var session: RecordingSessionViewModel?
-    @State private var showSession = false
     @State private var showPrimer = false
     @State private var showPermission = false
     @State private var pendingVideo: PhotosPickerItem?
@@ -62,17 +61,15 @@ struct HistoryView: View {
         }
         .preferredColorScheme(.dark)
         .tint(Theme.accent)
-        .fullScreenCover(isPresented: $showSession, onDismiss: {
+        .fullScreenCover(item: $session, onDismiss: {
             Task { await session?.teardown() }
-            session = nil
-        }) {
-            if let session {
-                SessionFlowView(model: session) { record in
-                    if let record {
-                        modelContext.insert(record)
-                    }
-                    showSession = false
+        }) { session in
+            SessionFlowView(model: session) { record in
+                if let record {
+                    modelContext.insert(record)
                 }
+                Task { await session.teardown() }
+                self.session = nil
             }
         }
         .fullScreenCover(isPresented: $showPermission) {
@@ -133,7 +130,7 @@ struct HistoryView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(Theme.textSecondary)
                 .accessibilityHidden(true)
-            Text("Games you record will appear here.")
+            Text("Line up a board. New Game opens the camera.")
                 .font(.body)
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
@@ -186,7 +183,6 @@ struct HistoryView: View {
     private func startSession() {
         let model = RecordingSessionViewModel()
         session = model
-        showSession = true
         Task { await model.newGame() }
     }
 
@@ -198,7 +194,6 @@ struct HistoryView: View {
             }
             let model = RecordingSessionViewModel()
             session = model
-            showSession = true
             await model.importVideo(url: movie.url)
         } catch {
             // PhotosPicker already dismissed; surface via a new session alert if needed.

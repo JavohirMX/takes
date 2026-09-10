@@ -5,11 +5,12 @@ import Testing
     var d = SettleDetector(config: .init(stableDuration: .milliseconds(600)))
     let t0 = ContinuousClock().now
     let empty = Occupancy()
-    var e4 = Occupancy()
-    e4.set(ChessSquare.parse("e4")!, occupied: true)
+    var two = Occupancy()
+    two.set(ChessSquare.parse("e2")!, occupied: true)
+    two.set(ChessSquare.parse("e4")!, occupied: true)
     _ = d.ingest(empty, at: t0)
-    let m = d.ingest(e4, at: t0)
-    #expect(m == .disturbed(since: e4))
+    let m = d.ingest(two, at: t0)
+    #expect(m == .disturbed(since: two))
 }
 
 @Test func returnsStableAfterDurationWithSameBits() {
@@ -36,4 +37,16 @@ import Testing
     #expect(stillDisturbed == .disturbed(since: d4))
     let stable = d.ingest(d4, at: t0.advanced(by: .milliseconds(1000)))
     #expect(stable == .stable(d4))
+}
+
+@Test func oneBitFlickerDoesNotRestartSettle() {
+    var d = SettleDetector(config: .init(stableDuration: .milliseconds(600), maxHammingJitter: 1))
+    let t0 = ContinuousClock().now
+    var a = Occupancy.standardStart()
+    var b = a
+    b.set(ChessSquare.parse("e4")!, occupied: true)
+    _ = d.ingest(a, at: t0)
+    _ = d.ingest(b, at: t0.advanced(by: .milliseconds(100)))
+    let stable = d.ingest(a, at: t0.advanced(by: .milliseconds(600)))
+    #expect(stable == .stable(a))
 }

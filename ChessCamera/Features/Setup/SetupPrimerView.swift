@@ -16,23 +16,18 @@ struct SetupPrimerView: View {
 
                         primerRow(
                             symbol: "checkerboard.rectangle",
-                            title: "One set, standard start",
-                            body: "Use one chess set, indoor light, and the standard starting position."
-                        )
-                        primerRow(
-                            symbol: "iphone.rear.facing.camera",
                             title: "See every square",
-                            body: "Mount the iPhone so every square is visible. A tripod is best; a stand at an angle is fine."
+                            body: "Mount the phone so the whole board is visible. A stand is fine; the camera can be at an angle."
                         )
                         primerRow(
-                            symbol: "hand.raised",
-                            title: "Keep the phone still",
-                            body: "Do not move the phone during the game. Pause off the board between moves. The app waits until the position is still."
+                            symbol: "dot.viewfinder",
+                            title: "Put the four corners on the board",
+                            body: "Drag the numbered handles onto the four corners. The square view should show each piece inside its square."
                         )
                         primerRow(
-                            symbol: "arrow.uturn.backward",
-                            title: "Fix only when needed",
-                            body: "If a move is wrong, tap it and fix. You do not need to confirm every move."
+                            symbol: "arrow.up.left.and.arrow.down.right",
+                            title: "Nudge the phone",
+                            body: "The grid should follow small camera movement. If it slips, drag the corners again."
                         )
                     }
                     .padding(16)

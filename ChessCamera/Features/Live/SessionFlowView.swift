@@ -5,6 +5,7 @@ struct SessionFlowView: View {
     @Bindable var model: RecordingSessionViewModel
     var onFinished: (GameRecord?) -> Void
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var replayFromGameOver = false
 
     var body: some View {
@@ -17,10 +18,8 @@ struct SessionFlowView: View {
                         ProgressView()
                             .tint(Theme.accent)
                     }
-                case .detectingBoard:
-                    BoardDetectionView(model: model)
-                case .calibratingCorners:
-                    CornerCalibrationView(model: model)
+                case .boardStudio, .detectingBoard, .calibratingCorners:
+                    BoardStudioView(model: model)
                 case .confirmingStart:
                     ConfirmStartView(model: model)
                 case .recording, .disturbed, .awaitingEdit:
@@ -80,15 +79,20 @@ struct SessionFlowView: View {
                 break
             }
         }
-        .onAppear {
-            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-            model.updateVideoRotation(from: scene)
+        .onAppear { syncVideoRotation() }
+        .onChange(of: verticalSizeClass) { _, _ in
+            syncVideoRotation()
         }
+    }
+
+    private func syncVideoRotation() {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        model.updateVideoRotation(from: scene)
     }
 
     private var canCloseWithoutConfirm: Bool {
         switch model.phase {
-        case .detectingBoard, .calibratingCorners, .confirmingStart, .importingVideo:
+        case .detectingBoard, .calibratingCorners, .confirmingStart, .importingVideo, .boardStudio:
             true
         default:
             false
