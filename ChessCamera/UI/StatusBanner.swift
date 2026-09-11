@@ -5,6 +5,7 @@ enum StatusKind: Equatable {
     case recording(String)
     case disturbed
     case awaitingEdit
+    case softReject(String)
     case check(String)
     case trackingLost
     case classifying
@@ -13,7 +14,7 @@ enum StatusKind: Equatable {
         switch self {
         case .recording: "record.circle"
         case .disturbed: "hand.raised"
-        case .awaitingEdit: "exclamationmark.triangle"
+        case .awaitingEdit, .softReject: "exclamationmark.triangle"
         case .check: "checkmark.circle"
         case .trackingLost: "exclamationmark.triangle"
         case .classifying: "record.circle"
@@ -24,7 +25,7 @@ enum StatusKind: Equatable {
         switch self {
         case .recording, .check: Theme.accent
         case .disturbed: Theme.caution
-        case .awaitingEdit, .trackingLost: Theme.danger
+        case .awaitingEdit, .trackingLost, .softReject: Theme.danger
         case .classifying: Theme.textSecondary
         }
     }
@@ -34,6 +35,7 @@ enum StatusKind: Equatable {
         case .recording(let san): san
         case .disturbed: "Waiting for the board…"
         case .awaitingEdit: "Couldn’t read that move"
+        case .softReject(let message): message
         case .check(let san): "Check  \(san)"
         case .trackingLost: "Board lost"
         case .classifying: "Reading pieces…"
@@ -45,6 +47,8 @@ struct StatusBanner: View {
     var kind: StatusKind
     var showFix: Bool = false
     var onFix: (() -> Void)?
+    var showResume: Bool = false
+    var onResume: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -58,6 +62,14 @@ struct StatusBanner: View {
                 .minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
             Spacer(minLength: 0)
+            if showResume {
+                Button("Resume", action: { onResume?() })
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 44)
+                    .accessibilityLabel("Resume recording")
+            }
             if showFix {
                 Button("Fix", action: { onFix?() })
                     .font(.body.weight(.semibold))

@@ -7,6 +7,8 @@ struct BoardObservation: Sendable {
     var quad: Quadrilateral
     var occupancy: Occupancy
     var classes: [ChessSquare: PieceClass]
+    /// Squares the change detector flagged this frame (0 when using absolute/heuristic fallback).
+    var changedSquareCount: Int
     nonisolated(unsafe) var warpedImage: CGImage?
 }
 
@@ -17,17 +19,21 @@ actor VisionPipeline {
 
     private let localizer: any BoardLocalizer
     private let classifier: (any PieceClassifier)?
+    private let detector: (any PieceDetector)?
     private var needsFingerprintSnapshot = false
 
     init(
         localizer: any BoardLocalizer = VisionBoardLocalizer(),
-        classifier: (any PieceClassifier)? = CoreMLPieceClassifier.loadBundled()
+        classifier: (any PieceClassifier)? = CoreMLPieceClassifier.loadBundled(),
+        detector: (any PieceDetector)? = CoreMLPieceDetector.loadBundled()
     ) {
         self.localizer = localizer
         self.classifier = classifier
+        self.detector = detector
     }
 
-    var hasClassifier: Bool { classifier != nil }
+    var hasClassifier: Bool { detector != nil || classifier != nil }
+    var hasDetector: Bool { detector != nil }
 
     func setLockedQuad(_ quad: Quadrilateral?) {
         lockedQuad = quad
@@ -65,7 +71,15 @@ actor VisionPipeline {
         BoardWarper.warp(frame.buffer, quad: quad, size: 512)
     }
 
+    func detectPieceBoxes(in image: CGImage) async -> [PieceDetection.Box] {
+        guard let detector else { return [] }
+        return await detector.detectBoxes(in: image)
+    }
+
     func classifySquares(from warped: CGImage) async -> [ChessSquare: PieceClass] {
+        if let detector {
+            return await detector.detect(in: warped, orientation: orientation)
+        }
         guard let classifier else { return [:] }
         let crops = GridSampler.crops(from: warped, orientation: orientation)
         var classes: [ChessSquare: PieceClass] = [:]
@@ -91,20 +105,25 @@ actor VisionPipeline {
         }
 
         var classes: [ChessSquare: PieceClass] = [:]
-        if classify, classifier != nil {
+        if classify, detector != nil || classifier != nil {
             classes = await classifySquares(from: warped.squareImage)
         }
 
         let occupancy: Occupancy
+        let changedSquareCount: Int
         if occupancyEstimator.hasSnapshot {
-            occupancy = occupancyEstimator.occupancyApplyingChanges(
+            let change = occupancyEstimator.applyChanges(
                 crops: crops,
                 previous: previousOccupancy
             )
+            occupancy = change.occupancy
+            changedSquareCount = change.changedCount
         } else if classify, !classes.isEmpty {
             occupancy = occupancyEstimator.occupancy(crops: crops, classes: classes)
+            changedSquareCount = 0
         } else {
             occupancy = occupancyEstimator.occupancy(crops: crops, classes: nil)
+            changedSquareCount = 0
         }
 
         return BoardObservation(
@@ -112,6 +131,7 @@ actor VisionPipeline {
             quad: quad,
             occupancy: occupancy,
             classes: classes,
+            changedSquareCount: changedSquareCount,
             warpedImage: warped.squareImage
         )
     }

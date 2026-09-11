@@ -30,6 +30,8 @@ final class RecordingSessionViewModel: Identifiable {
     var cameraUnavailable = false
     var isClassifying = false
     var classifierAvailable = false
+    var pieceDetectorAvailable = false
+    var pieceBoxes: [PieceDetection.Box] = []
     var confirmEndGame = false
     var showEditSheet = false
     var shareItems: [Any] = []
@@ -46,6 +48,12 @@ final class RecordingSessionViewModel: Identifiable {
     var isCaptureRunning = false
     /// Shared with `CameraPreview` so preview layer and sample buffers rotate together.
     var previewRotationAngle: CGFloat = 90
+    /// Live capture diagnostics (phase / settle / Hamming / changed squares).
+    var liveDebugLine = ""
+    /// Brief soft-reject copy after an illegal settle (cleared on next commit or dismiss).
+    var softRejectMessage: String?
+    private var lastPieceDetectTime: ContinuousClock.Instant?
+    private var isPieceDetecting = false
 
     let engine = GameEngine()
     let pipeline = VisionPipeline()
@@ -60,6 +68,8 @@ final class RecordingSessionViewModel: Identifiable {
     private var pausedForBackground = false
     private var didAutoConfirmVideo = false
     private var pendingFingerprintSnapshot = false
+    /// Frames to wait after Start before locking fingerprints (avoids mid-gesture baselines).
+    private var fingerprintWarmupFramesRemaining = 0
     private var isDraggingCorner = false
     private var needsTemplateCapture = true
     private var cornerTracker = CornerTracker()
@@ -78,15 +88,28 @@ final class RecordingSessionViewModel: Identifiable {
         liveCamera?.captureSession
     }
     var isHeatmapLocalizerAvailable: Bool { heatmapLocalizer != nil }
+    var detectedPieceCount: Int {
+        classifiedClasses.values.filter { $0 != .empty }.count
+    }
 
     func newGame() async {
+        await startLiveCamera(phase: .boardStudio)
+    }
+
+    /// Full-bleed camera + live YOLO boxes. No confirm-start or recording.
+    func startPieceStudio() async {
+        await startLiveCamera(phase: .pieceStudio)
+        pieceBoxes = []
+    }
+
+    private func startLiveCamera(phase: SessionPhase) async {
         await teardown()
         isVideoImport = false
         resetGameState()
         let camera = LiveCameraSource()
         liveCamera = camera
         frameSource = camera
-        phase = .boardStudio
+        self.phase = phase
         detectStartedAt = ContinuousClock().now
         needsTemplateCapture = true
         cornerTracker.reset()
@@ -97,6 +120,7 @@ final class RecordingSessionViewModel: Identifiable {
         await Task.yield()
         await startCaptureIfNeeded()
         classifierAvailable = await pipeline.hasClassifier
+        pieceDetectorAvailable = await pipeline.hasDetector
     }
 
     func startCaptureIfNeeded() async {
@@ -305,10 +329,16 @@ final class RecordingSessionViewModel: Identifiable {
             engine.resetToStart()
         }
         lastCommittedOccupancy = engine.occupancy()
-        settle = SettleDetector(config: .init(stableDuration: .milliseconds(SettleSettings.milliseconds)))
+        settle = SettleDetector(config: .init(
+            stableDuration: .milliseconds(SettleSettings.milliseconds),
+            maxHammingJitter: 1
+        ))
         lastSAN = nil
         trackingLost = false
+        softRejectMessage = nil
+        liveDebugLine = ""
         pendingFingerprintSnapshot = true
+        fingerprintWarmupFramesRemaining = 5
         phase = .recording
         if let warpedThumbnail {
             Task {
@@ -341,13 +371,29 @@ final class RecordingSessionViewModel: Identifiable {
             lastCommittedOccupancy = engine.occupancy()
             lastSAN = engine.formattedLastSAN
             ambiguousMoves = []
+            softRejectMessage = nil
             pendingFingerprintSnapshot = true
+            fingerprintWarmupFramesRemaining = 3
             if phase == .awaitingEdit || phase == .gameOver {
                 phase = engine.isTerminal ? .gameOver : .recording
             }
         } catch {
             alertMessage = "Nothing to undo."
         }
+    }
+
+    /// Discard a bad settle and keep recording from the last committed position.
+    func resumeRecordingAfterReject() {
+        ambiguousMoves = []
+        softRejectMessage = nil
+        liveOccupancy = lastCommittedOccupancy
+        settle = SettleDetector(config: .init(
+            stableDuration: .milliseconds(SettleSettings.milliseconds),
+            maxHammingJitter: 1
+        ))
+        pendingFingerprintSnapshot = true
+        fingerprintWarmupFramesRemaining = 3
+        phase = .recording
     }
 
     func beginEdit(replacingLast: Bool) {
@@ -366,7 +412,9 @@ final class RecordingSessionViewModel: Identifiable {
             lastSAN = engine.formattedLastSAN
             showEditSheet = false
             ambiguousMoves = []
+            softRejectMessage = nil
             pendingFingerprintSnapshot = true
+            fingerprintWarmupFramesRemaining = 3
             phase = engine.isTerminal ? .gameOver : .recording
             announceCommit()
         } catch {
@@ -446,6 +494,9 @@ final class RecordingSessionViewModel: Identifiable {
     func teardown() async {
         consumeTask?.cancel()
         consumeTask = nil
+        isPieceDetecting = false
+        lastPieceDetectTime = nil
+        pieceBoxes = []
         await stopCapture()
         frameSource = nil
         liveCamera = nil
@@ -473,7 +524,9 @@ final class RecordingSessionViewModel: Identifiable {
 
     private func handle(frame: CapturedFrame) async {
         if isProcessingFrame { return }
-        let minInterval: Duration = phase == .boardStudio ? .milliseconds(50) : .milliseconds(100)
+        let minInterval: Duration = phase == .boardStudio
+            ? .milliseconds(50)
+            : .milliseconds(100)
         if let lastProcessTime, frame.timestamp - lastProcessTime < minInterval {
             return
         }
@@ -488,6 +541,8 @@ final class RecordingSessionViewModel: Identifiable {
         switch phase {
         case .boardStudio:
             await handleBoardStudio(frame)
+        case .pieceStudio:
+            schedulePieceBoxDetectIfNeeded(frame.buffer)
         case .detectingBoard:
             await handleDetection(frame)
         case .calibratingCorners:
@@ -561,12 +616,29 @@ final class RecordingSessionViewModel: Identifiable {
             warpedThumbnail = warped.squareImage
         }
 
-        if isVideoImport, let quad, !didAutoConfirmVideo {
+        if isVideoImport, phase == .boardStudio, let quad, !didAutoConfirmVideo {
             if ContinuousClock().now - (detectStartedAt ?? ContinuousClock().now) >= .seconds(1) {
                 didAutoConfirmVideo = true
                 await confirmQuad()
             }
             _ = quad
+        }
+    }
+
+    private func schedulePieceBoxDetectIfNeeded(_ buffer: CVPixelBuffer) {
+        guard pieceDetectorAvailable else { return }
+        if isPieceDetecting { return }
+        if let lastPieceDetectTime, ContinuousClock.now - lastPieceDetectTime < .milliseconds(150) {
+            return
+        }
+        guard let image = image(from: buffer) else { return }
+        isPieceDetecting = true
+        lastPieceDetectTime = ContinuousClock.now
+        Task { @MainActor in
+            defer { isPieceDetecting = false }
+            let boxes = await pipeline.detectPieceBoxes(in: image)
+            guard phase == .pieceStudio else { return }
+            pieceBoxes = boxes
         }
     }
 
@@ -611,6 +683,25 @@ final class RecordingSessionViewModel: Identifiable {
 
     private func handleLive(_ frame: CapturedFrame) async {
         if pendingFingerprintSnapshot {
+            if fingerprintWarmupFramesRemaining > 0 {
+                fingerprintWarmupFramesRemaining -= 1
+                if let preview = await pipeline.observation(
+                    from: frame,
+                    classify: false,
+                    previousOccupancy: lastCommittedOccupancy
+                ) {
+                    trackingLost = false
+                    quad = preview.quad
+                    warpedThumbnail = preview.warpedImage
+                    previewImage = image(from: frame.buffer)
+                } else {
+                    trackingLost = true
+                    previewImage = image(from: frame.buffer)
+                }
+                liveOccupancy = lastCommittedOccupancy
+                liveDebugLine = "warmup \(fingerprintWarmupFramesRemaining)  ham 0  Δ0"
+                return
+            }
             await pipeline.requestFingerprintSnapshot()
             pendingFingerprintSnapshot = false
         }
@@ -629,11 +720,23 @@ final class RecordingSessionViewModel: Identifiable {
         } else {
             trackingLost = true
             previewImage = image(from: frame.buffer)
+            liveDebugLine = "no observation"
         }
     }
 
     private func ingest(_ observation: BoardObservation) async {
         let motion = settle.ingest(observation.occupancy, at: observation.timestamp)
+        let hamming = lastCommittedOccupancy.hammingDistance(to: observation.occupancy)
+        let motionLabel: String
+        switch motion {
+        case .stable:
+            motionLabel = "stable"
+        case .disturbed:
+            motionLabel = "disturbed"
+        }
+        liveDebugLine =
+            "\(phaseLabel(phase))  \(motionLabel)  ham \(hamming)  Δ\(observation.changedSquareCount)"
+
         let inference: InferenceResult
         if case .stable(let occ) = motion, phase == .disturbed {
             let distance = lastCommittedOccupancy.hammingDistance(to: occ)
@@ -665,6 +768,7 @@ final class RecordingSessionViewModel: Identifiable {
                 try engine.apply(move: move)
                 lastCommittedOccupancy = engine.occupancy()
                 lastSAN = engine.formattedLastSAN
+                softRejectMessage = nil
                 phase = engine.isTerminal ? .gameOver : .recording
                 announceCommit()
                 if let warped = observation.warpedImage {
@@ -674,20 +778,47 @@ final class RecordingSessionViewModel: Identifiable {
                     Task { await stopCapture() }
                 }
             } catch {
-                phase = .awaitingEdit
+                softRejectMessage = "Couldn’t apply that move"
+                phase = .recording
+                settle = SettleDetector(config: .init(
+                    stableDuration: .milliseconds(SettleSettings.milliseconds),
+                    maxHammingJitter: 1
+                ))
             }
+        case (.recording, .illegal):
+            // Soft-reject: keep last committed occupancy and stay recording.
+            softRejectMessage = "Ignored bad settle"
+            liveOccupancy = lastCommittedOccupancy
+            phase = .recording
+            settle = SettleDetector(config: .init(
+                stableDuration: .milliseconds(SettleSettings.milliseconds),
+                maxHammingJitter: 1
+            ))
+            pendingFingerprintSnapshot = true
+            fingerprintWarmupFramesRemaining = 2
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
         case (.recording, .none):
             phase = .recording
         case (.awaitingEdit, .ambiguous(let moves)):
             ambiguousMoves = moves
-            phase = .awaitingEdit
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        case (.awaitingEdit, .illegal):
-            ambiguousMoves = []
+            softRejectMessage = nil
             phase = .awaitingEdit
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
         default:
+            if next == .disturbed {
+                softRejectMessage = nil
+            }
             phase = next
+        }
+    }
+
+    private func phaseLabel(_ phase: SessionPhase) -> String {
+        switch phase {
+        case .recording: "rec"
+        case .disturbed: "dist"
+        case .awaitingEdit: "edit"
+        case .gameOver: "over"
+        default: "\(phase)"
         }
     }
 
@@ -730,6 +861,10 @@ final class RecordingSessionViewModel: Identifiable {
         mlQuad = nil
         activeLocalizer = .vision
         studioFrameIndex = 0
+        lastPieceDetectTime = nil
+        isPieceDetecting = false
+        pieceBoxes = []
+        pieceDetectorAvailable = false
         warpedThumbnail = nil
         previewImage = nil
         previewRotationAngle = 90
@@ -753,10 +888,13 @@ final class RecordingSessionViewModel: Identifiable {
         cornerTracker.reset()
         quadConsensus.reset()
         ambiguousMoves = []
+        softRejectMessage = nil
+        liveDebugLine = ""
         engine.resetToStart()
         detectStartedAt = nil
         didAutoConfirmVideo = false
-        settle = SettleDetector(config: .init(stableDuration: settleDuration))
+        settle = SettleDetector(config: .init(stableDuration: settleDuration, maxHammingJitter: 1))
+        fingerprintWarmupFramesRemaining = 0
         Task {
             await pipeline.setLockedQuad(nil)
             await pipeline.setOrientation(.whiteAtBottom)

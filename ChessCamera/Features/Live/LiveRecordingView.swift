@@ -64,6 +64,12 @@ struct LiveRecordingView: View {
                 )
                 MoveListView(sans: model.engine.appliedSANs)
                 FenBar(fen: model.engine.fen, copyAction: model.copyFEN)
+                if !model.liveDebugLine.isEmpty {
+                    Text(model.liveDebugLine)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 hudControls
             }
             .padding(16)
@@ -117,8 +123,17 @@ struct LiveRecordingView: View {
             StatusBanner(
                 kind: statusKind,
                 showFix: model.phase == .awaitingEdit,
-                onFix: { model.beginEdit(replacingLast: false) }
+                onFix: { model.beginEdit(replacingLast: false) },
+                showResume: model.phase == .awaitingEdit,
+                onResume: { model.resumeRecordingAfterReject() }
             )
+            if !model.liveDebugLine.isEmpty {
+                Text(model.liveDebugLine)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Capture debug \(model.liveDebugLine)")
+            }
             FenBar(fen: model.engine.fen, copyAction: model.copyFEN)
             hudControls
         }
@@ -163,6 +178,9 @@ struct LiveRecordingView: View {
 
     private var statusKind: StatusKind {
         if model.trackingLost { return .trackingLost }
+        if let soft = model.softRejectMessage, model.phase == .recording || model.phase == .disturbed {
+            return .softReject(soft)
+        }
         switch model.phase {
         case .disturbed:
             return .disturbed

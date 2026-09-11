@@ -4,6 +4,7 @@ enum SessionPhase: Equatable, Sendable {
     case idle
     case importingVideo
     case boardStudio
+    case pieceStudio
     case detectingBoard
     case calibratingCorners
     case confirmingStart
@@ -29,9 +30,10 @@ struct SessionReducer {
         case .disturbed:
             guard case .stable = motion else { return .disturbed }
             switch inference {
-            case .unique, .none:
+            case .unique, .none, .illegal:
+                // Illegal deltas soft-reject so one bad settle does not kill auto-capture.
                 return .recording
-            case .illegal, .ambiguous:
+            case .ambiguous:
                 return .awaitingEdit
             }
         default:

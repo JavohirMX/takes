@@ -4,6 +4,7 @@ import UIKit
 struct WarpedBoardView: View {
     var image: CGImage?
     var orientation: BoardOrientation
+    var classes: [ChessSquare: PieceClass] = [:]
 
     var body: some View {
         GeometryReader { proxy in
@@ -24,6 +25,9 @@ struct WarpedBoardView: View {
                 }
                 grid(side: side)
                 labels(side: side)
+                if !classes.isEmpty {
+                    pieces(side: side)
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -46,6 +50,34 @@ struct WarpedBoardView: View {
         }
         .frame(width: side, height: side)
         .allowsHitTesting(false)
+    }
+
+    private func pieces(side: CGFloat) -> some View {
+        let cell = side / 8
+        return ZStack {
+            ForEach(0..<8, id: \.self) { rankFromImageTop in
+                ForEach(0..<8, id: \.self) { fileIndex in
+                    let square = GridSampler.square(
+                        fileIndex: fileIndex,
+                        rankFromImageTop: rankFromImageTop,
+                        orientation: orientation
+                    )
+                    if let piece = classes[square], piece != .empty {
+                        Text(piece.glyph)
+                            .font(.system(size: cell * 0.62))
+                            .foregroundStyle(piece.isWhite ? Color.white : Color.black)
+                            .shadow(color: .black.opacity(0.45), radius: 1)
+                            .position(
+                                x: cell * CGFloat(fileIndex) + cell / 2,
+                                y: cell * CGFloat(rankFromImageTop) + cell / 2
+                            )
+                    }
+                }
+            }
+        }
+        .frame(width: side, height: side)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func labels(side: CGFloat) -> some View {

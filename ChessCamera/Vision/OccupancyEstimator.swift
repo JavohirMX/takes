@@ -59,11 +59,19 @@ protocol OccupancyEstimator: Sendable {
     func occupancy(crops: [SquareCrop], classes: [ChessSquare: PieceClass]?) -> Occupancy
 }
 
+struct OccupancyChangeResult: Equatable, Sendable {
+    var occupancy: Occupancy
+    /// Squares the change detector flagged this frame (before emptied/fill decisions).
+    var changedCount: Int
+}
+
 struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
     var emptyBaseline: [ChessSquare: SquareFingerprint] = [:]
     var globalEmpty: SquareFingerprint?
     var varianceThreshold: Double = 80
     var meanDeltaThreshold: Double = 18
+    /// Variance ratio below which an occupied square is treated as emptied after a change flag.
+    var emptiedVarianceRatio: Double = 0.75
     private var fingerprints: [ChessSquare: SquareFingerprint] = [:]
 
     mutating func captureBaselines(crops: [SquareCrop], occupied: Occupancy) {
@@ -109,8 +117,15 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
     /// Known game occupancy, updated only on squares that changed vs the last snapshot.
     /// Independent empty/occupied classification is too noisy to ever match a legal move.
     func occupancyApplyingChanges(crops: [SquareCrop], previous: Occupancy) -> Occupancy {
+        applyChanges(crops: crops, previous: previous).occupancy
+    }
+
+    func applyChanges(crops: [SquareCrop], previous: Occupancy) -> OccupancyChangeResult {
         guard hasSnapshot, !crops.isEmpty else {
-            return occupancy(crops: crops, classes: nil)
+            return OccupancyChangeResult(
+                occupancy: occupancy(crops: crops, classes: nil),
+                changedCount: 0
+            )
         }
 
         var scores = [Double](repeating: 0, count: crops.count)
@@ -124,18 +139,42 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
         }
 
         let changed = SquareChangeDetector.changedMask(scores: scores)
+        let changedCount = changed.filter { $0 }.count
         var result = previous
         for (index, crop) in crops.enumerated() where changed[index] {
             guard let fingerprint = current[index],
                   let baseline = fingerprints[crop.square] else { continue }
             if previous.occupied(crop.square) {
-                let emptied = fingerprint.variance < baseline.variance * 0.55
+                let emptied = isEmptied(
+                    current: fingerprint,
+                    previous: baseline,
+                    square: crop.square
+                )
                 result.set(crop.square, occupied: !emptied)
             } else {
                 result.set(crop.square, occupied: true)
             }
         }
-        return result
+        return OccupancyChangeResult(occupancy: result, changedCount: changedCount)
+    }
+
+    /// Prefer empty-baseline proximity when available; fall back to softened variance drop.
+    func isEmptied(
+        current: SquareFingerprint,
+        previous: SquareFingerprint,
+        square: ChessSquare
+    ) -> Bool {
+        if let empty = emptyBaseline[square] ?? globalEmpty {
+            let toEmpty = SquareChangeDetector.score(current: current, baseline: empty)
+            let toPrevious = SquareChangeDetector.score(current: current, baseline: previous)
+            if toEmpty + 2 < toPrevious {
+                return true
+            }
+            if toPrevious + 2 < toEmpty {
+                return false
+            }
+        }
+        return current.variance < previous.variance * emptiedVarianceRatio
     }
 
     func isOccupied(_ fingerprint: SquareFingerprint, square: ChessSquare) -> Bool {
@@ -155,13 +194,18 @@ enum SquareChangeDetector {
     }
 
     /// Lighting-robust outliers: a square changed if it moved more than the board-wide median.
-    static func changedMask(scores: [Double], absoluteMin: Double = 14, k: Double = 2.2) -> [Bool] {
+    /// Defaults tuned for quiet piece moves on wood boards (lower than the original 14 / 2.2).
+    static func changedMask(
+        scores: [Double],
+        absoluteMin: Double = 8,
+        k: Double = 1.8
+    ) -> [Bool] {
         guard !scores.isEmpty else { return [] }
         let sorted = scores.sorted()
         let median = sorted[sorted.count / 2]
         let deviations = scores.map { abs($0 - median) }.sorted()
         let mad = deviations[deviations.count / 2]
-        let threshold = max(absoluteMin, median + k * max(mad, 4))
+        let threshold = max(absoluteMin, median + k * max(mad, 3))
         return scores.map { $0 >= threshold && $0 >= absoluteMin }
     }
 }

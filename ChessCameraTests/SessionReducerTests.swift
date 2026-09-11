@@ -30,13 +30,13 @@ import Testing
     #expect(next == .recording)
 }
 
-@Test func disturbedIllegalReturnsAwaitingEdit() {
+@Test func disturbedIllegalSoftRejectsToRecording() {
     let next = SessionReducer.next(
         phase: .disturbed,
         motion: .stable(Occupancy()),
         inference: .illegal
     )
-    #expect(next == .awaitingEdit)
+    #expect(next == .recording)
 }
 
 @Test func disturbedAmbiguousReturnsAwaitingEdit() {

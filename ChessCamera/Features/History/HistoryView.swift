@@ -12,6 +12,7 @@ struct HistoryView: View {
     @State private var replay: ReplayRoute?
     @State private var pendingDelete: GameRecord?
     @State private var startAfterPrimer = false
+    @State private var pendingPieceStudio = false
 
     var body: some View {
         NavigationStack {
@@ -41,6 +42,7 @@ struct HistoryView: View {
                         PhotosPicker(selection: $pendingVideo, matching: .videos) {
                             Label("Process a video…", systemImage: "film")
                         }
+                        Button("Test piece detector", action: beginPieceStudio)
                         Button("Setup tips") { showPrimer = true }
                         Menu("Settle duration") {
                             Button("300 ms") { SettleSettings.milliseconds = 300 }
@@ -76,9 +78,17 @@ struct HistoryView: View {
             CameraPermissionView(
                 onAuthorized: {
                     showPermission = false
-                    startSession()
+                    if pendingPieceStudio {
+                        pendingPieceStudio = false
+                        startPieceStudio()
+                    } else {
+                        startSession()
+                    }
                 },
-                onCancel: { showPermission = false }
+                onCancel: {
+                    pendingPieceStudio = false
+                    showPermission = false
+                }
             )
         }
         .sheet(isPresented: $showPrimer, onDismiss: {
@@ -137,6 +147,8 @@ struct HistoryView: View {
                 .padding(.horizontal, 16)
             PrimaryButton(title: "New Game", action: beginNewGame)
                 .padding(.horizontal, 16)
+            SecondaryButton(title: "Test piece detector", action: beginPieceStudio)
+                .padding(.horizontal, 16)
             Spacer()
         }
         .padding(16)
@@ -180,10 +192,26 @@ struct HistoryView: View {
         }
     }
 
+    private func beginPieceStudio() {
+        switch LiveCameraSource.authorizationStatus() {
+        case .authorized:
+            startPieceStudio()
+        default:
+            pendingPieceStudio = true
+            showPermission = true
+        }
+    }
+
     private func startSession() {
         let model = RecordingSessionViewModel()
         session = model
         Task { await model.newGame() }
+    }
+
+    private func startPieceStudio() {
+        let model = RecordingSessionViewModel()
+        session = model
+        Task { await model.startPieceStudio() }
     }
 
     private func importVideo(_ item: PhotosPickerItem) async {

@@ -28,8 +28,11 @@ struct BoardStudioView: View {
             cameraPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack(alignment: .center, spacing: 12) {
-                WarpedBoardView(image: model.warpedThumbnail, orientation: model.orientation)
-                    .frame(width: 140, height: 140)
+                WarpedBoardView(
+                    image: model.warpedThumbnail,
+                    orientation: model.orientation
+                )
+                .frame(width: 140, height: 140)
                 controls
             }
             .padding(12)
@@ -42,8 +45,11 @@ struct BoardStudioView: View {
             cameraPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             VStack(spacing: 12) {
-                WarpedBoardView(image: model.warpedThumbnail, orientation: model.orientation)
-                    .frame(maxWidth: 280, maxHeight: 280)
+                WarpedBoardView(
+                    image: model.warpedThumbnail,
+                    orientation: model.orientation
+                )
+                .frame(maxWidth: 280, maxHeight: 280)
                 controls
                 Spacer(minLength: 0)
             }

@@ -1,3 +1,4 @@
+import ChessKit
 import CoreGraphics
 import Foundation
 import Testing
@@ -79,6 +80,16 @@ import Testing
     #expect(changed[20])
 }
 
+@Test func changeDetectorFlagsMarginalQuietMoveScores() {
+    var scores = [Double](repeating: 3, count: 64)
+    scores[12] = 11
+    scores[20] = 12
+    let changed = SquareChangeDetector.changedMask(scores: scores)
+    #expect(changed[12])
+    #expect(changed[20])
+    #expect(changed.filter { $0 }.count == 2)
+}
+
 @Test func occupancyAppliesQuietMoveFromSnapshot() throws {
     let empty = try makeGrayImage(size: 32, value: 200)
     let busy = try makeCheckerImage(size: 32)
@@ -99,9 +110,121 @@ import Testing
     estimator.snapshot(crops: before)
     var previous = Occupancy()
     previous.set(e2, occupied: true)
-    let occupancy = estimator.occupancyApplyingChanges(crops: after, previous: previous)
-    #expect(!occupancy.occupied(e2))
-    #expect(occupancy.occupied(e4))
+    let change = estimator.applyChanges(crops: after, previous: previous)
+    #expect(change.changedCount == 2)
+    #expect(!change.occupancy.occupied(e2))
+    #expect(change.occupancy.occupied(e4))
+}
+
+@Test func emptiedUsesSoftVarianceRatio() {
+    var estimator = HeuristicOccupancyEstimator()
+    estimator.emptiedVarianceRatio = 0.75
+    let previous = SquareFingerprint(mean: 100, variance: 100)
+    let emptied = SquareFingerprint(mean: 100, variance: 70)
+    let stillBusy = SquareFingerprint(mean: 100, variance: 90)
+    let square = ChessSquare.parse("e2")!
+    #expect(estimator.isEmptied(current: emptied, previous: previous, square: square))
+    #expect(!estimator.isEmptied(current: stillBusy, previous: previous, square: square))
+}
+
+@Test func emptiedPrefersEmptyBaselineProximity() {
+    var estimator = HeuristicOccupancyEstimator()
+    let square = ChessSquare.parse("e2")!
+    let emptyLook = SquareFingerprint(mean: 180, variance: 20)
+    estimator.emptyBaseline[square] = emptyLook
+    let previousPiece = SquareFingerprint(mean: 90, variance: 120)
+    let afterLeave = SquareFingerprint(mean: 175, variance: 110)
+    #expect(estimator.isEmptied(current: afterLeave, previous: previousPiece, square: square))
+}
+
+@Test func quietMoveE2E4MatchesInferrer() throws {
+    let empty = try makeGrayImage(size: 32, value: 200)
+    let busy = try makeCheckerImage(size: 32)
+    let e2 = ChessSquare.parse("e2")!
+    let e4 = ChessSquare.parse("e4")!
+
+    var before: [SquareCrop] = []
+    var after: [SquareCrop] = []
+    let startOcc = Occupancy.standardStart()
+    for file in 0..<8 {
+        for rank in 0..<8 {
+            let square = ChessSquare(file: file, rank: rank)
+            let occupied = startOcc.occupied(square)
+            before.append(SquareCrop(square: square, image: occupied ? busy : empty))
+            var nextOccupied = occupied
+            if square == e2 { nextOccupied = false }
+            if square == e4 { nextOccupied = true }
+            after.append(SquareCrop(square: square, image: nextOccupied ? busy : empty))
+        }
+    }
+
+    var estimator = HeuristicOccupancyEstimator()
+    estimator.snapshot(crops: before)
+    let change = estimator.applyChanges(crops: after, previous: startOcc)
+    #expect(!change.occupancy.occupied(e2))
+    #expect(change.occupancy.occupied(e4))
+    #expect(startOcc.hammingDistance(to: change.occupancy) == 2)
+
+    var settle = SettleDetector(config: .init(stableDuration: .milliseconds(600)))
+    let t0 = ContinuousClock().now
+    _ = settle.ingest(startOcc, at: t0)
+    _ = settle.ingest(change.occupancy, at: t0.advanced(by: .milliseconds(50)))
+    let motion = settle.ingest(change.occupancy, at: t0.advanced(by: .milliseconds(700)))
+    guard case .stable(let settled) = motion else {
+        Issue.record("expected settled occupancy after quiet move")
+        return
+    }
+
+    let inference = MoveInferrer.infer(
+        delta: VisualDelta(previous: startOcc, current: settled, observedClasses: [:]),
+        board: Board()
+    )
+    guard case .unique(let move) = inference else {
+        Issue.record("expected unique e4, got \(inference)")
+        return
+    }
+    #expect(move.san == "e4")
+}
+
+@Test func captureAndCastleThroughChangePipeline() throws {
+    let empty = try makeGrayImage(size: 32, value: 200)
+    let busy = try makeCheckerImage(size: 32)
+
+    // Capture Bxc6: only origin clears (destination stays occupied).
+    let captureEngine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR w KQkq - 2 3")
+    let captureBefore = captureEngine.occupancy()
+    let b5 = ChessSquare.parse("b5")!
+    let cropsBeforeCapture = makeBoardCrops(occupancy: captureBefore, empty: empty, busy: busy)
+    var captureAfterOcc = captureBefore
+    captureAfterOcc.set(b5, occupied: false)
+    let cropsAfterCapture = makeBoardCrops(occupancy: captureAfterOcc, empty: empty, busy: busy)
+    var captureEstimator = HeuristicOccupancyEstimator()
+    captureEstimator.snapshot(crops: cropsBeforeCapture)
+    let captureChange = captureEstimator.applyChanges(crops: cropsAfterCapture, previous: captureBefore)
+    let captureInference = MoveInferrer.infer(
+        delta: VisualDelta(previous: captureBefore, current: captureChange.occupancy, observedClasses: [:]),
+        board: captureEngine.board
+    )
+    #expect(captureInference.san == Move(san: "Bxc6", position: captureEngine.board.position)?.san)
+
+    // Castling O-O: four-square occupancy delta.
+    let castleEngine = try GameEngine(fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
+    let castleBefore = castleEngine.occupancy()
+    var castleAfterOcc = castleBefore
+    castleAfterOcc.set(ChessSquare.parse("e1")!, occupied: false)
+    castleAfterOcc.set(ChessSquare.parse("h1")!, occupied: false)
+    castleAfterOcc.set(ChessSquare.parse("g1")!, occupied: true)
+    castleAfterOcc.set(ChessSquare.parse("f1")!, occupied: true)
+    let cropsBeforeCastle = makeBoardCrops(occupancy: castleBefore, empty: empty, busy: busy)
+    let cropsAfterCastle = makeBoardCrops(occupancy: castleAfterOcc, empty: empty, busy: busy)
+    var castleEstimator = HeuristicOccupancyEstimator()
+    castleEstimator.snapshot(crops: cropsBeforeCastle)
+    let castleChange = castleEstimator.applyChanges(crops: cropsAfterCastle, previous: castleBefore)
+    let castleInference = MoveInferrer.infer(
+        delta: VisualDelta(previous: castleBefore, current: castleChange.occupancy, observedClasses: [:]),
+        board: castleEngine.board
+    )
+    #expect(castleInference.san == Move(san: "O-O", position: castleEngine.board.position)?.san)
 }
 
 @Test func quadrilateralSimilarityAndBlend() {
@@ -128,6 +251,20 @@ import Testing
     #expect(!a.isSimilar(to: far, imageSize: size))
     let mixed = a.blended(with: b, t: 0.5)
     #expect(abs(mixed.topLeft.x - 12) < 0.01)
+}
+
+private func makeBoardCrops(occupancy: Occupancy, empty: CGImage, busy: CGImage) -> [SquareCrop] {
+    var crops: [SquareCrop] = []
+    for file in 0..<8 {
+        for rank in 0..<8 {
+            let square = ChessSquare(file: file, rank: rank)
+            crops.append(SquareCrop(
+                square: square,
+                image: occupancy.occupied(square) ? busy : empty
+            ))
+        }
+    }
+    return crops
 }
 
 private func makeGrayImage(size: Int, value: UInt8) throws -> CGImage {

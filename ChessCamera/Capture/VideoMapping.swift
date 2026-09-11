@@ -37,6 +37,22 @@ enum VideoMapping {
         )
     }
 
+    /// Maps a buffer-pixel rect onto the letterboxed video in view coordinates.
+    static func bufferToView(rect: CGRect, viewSize: CGSize, bufferSize: CGSize) -> CGRect {
+        let origin = bufferToView(point: rect.origin, viewSize: viewSize, bufferSize: bufferSize)
+        let corner = bufferToView(
+            point: CGPoint(x: rect.maxX, y: rect.maxY),
+            viewSize: viewSize,
+            bufferSize: bufferSize
+        )
+        return CGRect(
+            x: origin.x,
+            y: origin.y,
+            width: corner.x - origin.x,
+            height: corner.y - origin.y
+        )
+    }
+
     /// Clamps a view point to the letterboxed video rectangle.
     static func clampToVideo(point: CGPoint, viewSize: CGSize, bufferSize: CGSize) -> CGPoint {
         let videoRect = aspectFitRect(contentSize: bufferSize, in: viewSize)

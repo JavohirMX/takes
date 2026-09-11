@@ -3,6 +3,7 @@ import Foundation
 struct SettleConfig: Sendable {
     var stableDuration: Duration = .milliseconds(600)
     /// Occupancy flicker of this many bits is ignored so a still board can settle.
+    /// Must stay below quiet-move Hamming (2) or real moves never arm inference.
     var maxHammingJitter: Int = 1
 }
 

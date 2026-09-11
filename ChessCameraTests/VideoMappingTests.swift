@@ -53,6 +53,22 @@ import Testing
     #expect(abs((back?.y ?? 0) - 719) < 0.5)
 }
 
+@Test func bufferToViewMapsRectCorners() {
+    let view = CGSize(width: 900, height: 1600)
+    let buffer = CGSize(width: 1600, height: 900)
+    let rect = CGRect(x: 0, y: 0, width: 160, height: 90)
+    let mapped = VideoMapping.bufferToView(rect: rect, viewSize: view, bufferSize: buffer)
+    let origin = VideoMapping.bufferToView(point: rect.origin, viewSize: view, bufferSize: buffer)
+    let corner = VideoMapping.bufferToView(
+        point: CGPoint(x: rect.maxX, y: rect.maxY),
+        viewSize: view, bufferSize: buffer
+    )
+    #expect(abs(mapped.minX - origin.x) < 0.01)
+    #expect(abs(mapped.minY - origin.y) < 0.01)
+    #expect(abs(mapped.maxX - corner.x) < 0.01)
+    #expect(abs(mapped.maxY - corner.y) < 0.01)
+}
+
 @Test func landscapeSidebarPanePillarboxWhenTallerBuffer() {
     // Camera column beside a 300pt sidebar can be portrait-tall while buffer is landscape.
     let view = CGSize(width: 700, height: 900)

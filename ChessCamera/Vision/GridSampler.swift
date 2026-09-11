@@ -44,6 +44,26 @@ enum GridSampler {
         }
     }
 
+    /// Maps a pixel in a square warped board (top-left origin) to an algebraic square.
+    /// Points on the far right/bottom edge clamp into the last file/rank.
+    static func square(
+        containing point: CGPoint,
+        imageSize: CGFloat,
+        orientation: BoardOrientation
+    ) -> ChessSquare? {
+        guard imageSize > 0,
+              point.x >= 0, point.y >= 0,
+              point.x <= imageSize, point.y <= imageSize else { return nil }
+        let cell = imageSize / 8
+        let fileIndex = min(7, Int(point.x / cell))
+        let rankFromImageTop = min(7, Int(point.y / cell))
+        return square(
+            fileIndex: fileIndex,
+            rankFromImageTop: rankFromImageTop,
+            orientation: orientation
+        )
+    }
+
     /// 64 square crops from a square warped board. Inset avoids neighboring pieces and gutters.
     static func crops(
         from warped: CGImage,

@@ -50,3 +50,20 @@ import Testing
     let stable = d.ingest(a, at: t0.advanced(by: .milliseconds(600)))
     #expect(stable == .stable(a))
 }
+
+@Test func quietMoveHammingRestartsSettle() {
+    var d = SettleDetector(config: .init(stableDuration: .milliseconds(600)))
+    let t0 = ContinuousClock().now
+    var a = Occupancy.standardStart()
+    var b = a
+    b.set(ChessSquare.parse("e2")!, occupied: false)
+    b.set(ChessSquare.parse("e4")!, occupied: true)
+    #expect(a.hammingDistance(to: b) == 2)
+    _ = d.ingest(a, at: t0)
+    let disturbed = d.ingest(b, at: t0.advanced(by: .milliseconds(100)))
+    #expect(disturbed == .disturbed(since: b))
+    let still = d.ingest(b, at: t0.advanced(by: .milliseconds(400)))
+    #expect(still == .disturbed(since: b))
+    let stable = d.ingest(b, at: t0.advanced(by: .milliseconds(750)))
+    #expect(stable == .stable(b))
+}

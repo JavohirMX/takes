@@ -98,7 +98,7 @@ import Testing
         bottomLeft: CGPoint(x: 200, y: 400)
     )
     let localizer = StubLocalizer(quad: other)
-    let pipeline = VisionPipeline(localizer: localizer, classifier: nil)
+    let pipeline = VisionPipeline(localizer: localizer, classifier: nil, detector: nil)
     await pipeline.setLockedQuad(locked)
     let buffer = try makeBGRAPixelBuffer(width: 64, height: 64, gray: 80)
     let frame = CapturedFrame(buffer: buffer, timestamp: ContinuousClock().now)

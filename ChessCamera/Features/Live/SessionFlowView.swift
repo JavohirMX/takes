@@ -20,6 +20,8 @@ struct SessionFlowView: View {
                     }
                 case .boardStudio, .detectingBoard, .calibratingCorners:
                     BoardStudioView(model: model)
+                case .pieceStudio:
+                    PieceStudioView(model: model)
                 case .confirmingStart:
                     ConfirmStartView(model: model)
                 case .recording, .disturbed, .awaitingEdit:
@@ -101,7 +103,7 @@ struct SessionFlowView: View {
 
     private var canCloseWithoutConfirm: Bool {
         switch model.phase {
-        case .detectingBoard, .calibratingCorners, .confirmingStart, .importingVideo, .boardStudio:
+        case .detectingBoard, .calibratingCorners, .confirmingStart, .importingVideo, .boardStudio, .pieceStudio:
             true
         default:
             false
