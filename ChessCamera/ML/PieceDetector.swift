@@ -108,6 +108,29 @@ enum PieceDetection {
         }
     }
 
+    /// Bottom-center of a top-left buffer rect (piece base on the square).
+    static func pieceBase(of box: Box) -> CGPoint {
+        CGPoint(x: box.bufferRect.midX, y: box.bufferRect.maxY)
+    }
+
+    /// Occupied squares from detections. Class labels are ignored; boxes outside the quad are dropped.
+    static func occupancy(
+        from boxes: [Box],
+        quad: Quadrilateral,
+        orientation: BoardOrientation
+    ) -> Occupancy {
+        var occupancy = Occupancy()
+        for box in boxes {
+            guard box.confidence >= confidenceThreshold else { continue }
+            guard let square = quad.square(
+                containingCameraPoint: pieceBase(of: box),
+                orientation: orientation
+            ) else { continue }
+            occupancy.set(square, occupied: true)
+        }
+        return occupancy
+    }
+
     /// YOLO xywh is center format in `imgsz` pixels, top-left origin (same as CGImage).
     static func imagePoint(
         yoloCenterX cx: Float,

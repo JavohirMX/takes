@@ -337,10 +337,9 @@ final class RecordingSessionViewModel: Identifiable {
         trackingLost = false
         softRejectMessage = nil
         liveDebugLine = ""
-        pendingFingerprintSnapshot = true
-        fingerprintWarmupFramesRemaining = 5
+        armFingerprintSnapshot(warmup: 5)
         phase = .recording
-        if let warpedThumbnail {
+        if !pieceDetectorAvailable, let warpedThumbnail {
             Task {
                 await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
             }
@@ -372,8 +371,7 @@ final class RecordingSessionViewModel: Identifiable {
             lastSAN = engine.formattedLastSAN
             ambiguousMoves = []
             softRejectMessage = nil
-            pendingFingerprintSnapshot = true
-            fingerprintWarmupFramesRemaining = 3
+            armFingerprintSnapshot(warmup: 3)
             if phase == .awaitingEdit || phase == .gameOver {
                 phase = engine.isTerminal ? .gameOver : .recording
             }
@@ -391,8 +389,7 @@ final class RecordingSessionViewModel: Identifiable {
             stableDuration: .milliseconds(SettleSettings.milliseconds),
             maxHammingJitter: 1
         ))
-        pendingFingerprintSnapshot = true
-        fingerprintWarmupFramesRemaining = 3
+        armFingerprintSnapshot(warmup: 3)
         phase = .recording
     }
 
@@ -413,8 +410,7 @@ final class RecordingSessionViewModel: Identifiable {
             showEditSheet = false
             ambiguousMoves = []
             softRejectMessage = nil
-            pendingFingerprintSnapshot = true
-            fingerprintWarmupFramesRemaining = 3
+            armFingerprintSnapshot(warmup: 3)
             phase = engine.isTerminal ? .gameOver : .recording
             announceCommit()
         } catch {
@@ -682,7 +678,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func handleLive(_ frame: CapturedFrame) async {
-        if pendingFingerprintSnapshot {
+        if !pieceDetectorAvailable, pendingFingerprintSnapshot {
             if fingerprintWarmupFramesRemaining > 0 {
                 fingerprintWarmupFramesRemaining -= 1
                 if let preview = await pipeline.observation(
@@ -771,7 +767,7 @@ final class RecordingSessionViewModel: Identifiable {
                 softRejectMessage = nil
                 phase = engine.isTerminal ? .gameOver : .recording
                 announceCommit()
-                if let warped = observation.warpedImage {
+                if !pieceDetectorAvailable, let warped = observation.warpedImage {
                     await pipeline.snapshotFingerprints(from: warped)
                 }
                 if engine.isTerminal {
@@ -794,8 +790,7 @@ final class RecordingSessionViewModel: Identifiable {
                 stableDuration: .milliseconds(SettleSettings.milliseconds),
                 maxHammingJitter: 1
             ))
-            pendingFingerprintSnapshot = true
-            fingerprintWarmupFramesRemaining = 2
+            armFingerprintSnapshot(warmup: 2)
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
         case (.recording, .none):
             phase = .recording
@@ -840,6 +835,16 @@ final class RecordingSessionViewModel: Identifiable {
             occupancy.set(square, occupied: true)
         }
         return occupancy
+    }
+
+    private func armFingerprintSnapshot(warmup: Int) {
+        guard !pieceDetectorAvailable else {
+            pendingFingerprintSnapshot = false
+            fingerprintWarmupFramesRemaining = 0
+            return
+        }
+        pendingFingerprintSnapshot = true
+        fingerprintWarmupFramesRemaining = warmup
     }
 
     private func image(from buffer: CVPixelBuffer) -> CGImage? {

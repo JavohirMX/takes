@@ -21,6 +21,77 @@ struct Quadrilateral: Equatable, Sendable {
         return lerp(top, bottom, v)
     }
 
+    /// Inverse of `interpolated(u:v:)`. Nil when `point` is outside the quad.
+    func uv(containing point: CGPoint, epsilon: CGFloat = 1e-4) -> CGPoint? {
+        let a = topLeft
+        let b = topRight
+        let c = bottomRight
+        let d = bottomLeft
+        let e = CGPoint(x: b.x - a.x, y: b.y - a.y)
+        let f = CGPoint(x: d.x - a.x, y: d.y - a.y)
+        let g = CGPoint(x: a.x - b.x + c.x - d.x, y: a.y - b.y + c.y - d.y)
+        let h = CGPoint(x: point.x - a.x, y: point.y - a.y)
+
+        func cross(_ lhs: CGPoint, _ rhs: CGPoint) -> CGFloat {
+            lhs.x * rhs.y - lhs.y * rhs.x
+        }
+
+        func u(forV v: CGFloat) -> CGFloat? {
+            let denomX = e.x + g.x * v
+            let denomY = e.y + g.y * v
+            if abs(denomX) >= abs(denomY), abs(denomX) > 1e-10 {
+                return (h.x - f.x * v) / denomX
+            }
+            if abs(denomY) > 1e-10 {
+                return (h.y - f.y * v) / denomY
+            }
+            return nil
+        }
+
+        func clamped(_ u: CGFloat, _ v: CGFloat) -> CGPoint? {
+            guard u >= -epsilon, v >= -epsilon, u <= 1 + epsilon, v <= 1 + epsilon else {
+                return nil
+            }
+            return CGPoint(x: min(max(u, 0), 1), y: min(max(v, 0), 1))
+        }
+
+        let k2 = cross(g, f)
+        let k1 = cross(e, f) + cross(h, g)
+        let k0 = cross(h, e)
+
+        if abs(k2) < 1e-10 {
+            guard abs(k1) > 1e-10 else { return nil }
+            let v = -k0 / k1
+            guard let u = u(forV: v) else { return nil }
+            return clamped(u, v)
+        }
+
+        let discriminant = k1 * k1 - 4 * k0 * k2
+        guard discriminant >= 0 else { return nil }
+        let root = discriminant.squareRoot()
+        let vMinus = (-k1 - root) / (2 * k2)
+        let vPlus = (-k1 + root) / (2 * k2)
+        if let u = u(forV: vMinus), let uv = clamped(u, vMinus) {
+            return uv
+        }
+        if let u = u(forV: vPlus), let uv = clamped(u, vPlus) {
+            return uv
+        }
+        return nil
+    }
+
+    /// Camera-buffer point → algebraic square using the same bilinear grid as `BoardGridOverlay`.
+    func square(containingCameraPoint point: CGPoint, orientation: BoardOrientation) -> ChessSquare? {
+        guard let uv = uv(containing: point) else { return nil }
+        let fileIndex = min(7, Int(uv.x * 8))
+        let rankFromImageTop = min(7, Int(uv.y * 8))
+        return GridSampler.square(
+            fileIndex: fileIndex,
+            rankFromImageTop: rankFromImageTop,
+            orientation: orientation
+        )
+    }
+
     static func insetRect(in size: CGSize, fraction: CGFloat = 0.12) -> Quadrilateral {
         let dx = size.width * fraction
         let dy = size.height * fraction

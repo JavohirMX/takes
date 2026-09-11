@@ -17,6 +17,35 @@ import Testing
     #expect(abs(mid.y - 40) < 0.01)
 }
 
+@Test func inverseUvRoundTripsAxisAlignedQuad() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 0, y: 0),
+        topRight: CGPoint(x: 80, y: 0),
+        bottomRight: CGPoint(x: 80, y: 80),
+        bottomLeft: CGPoint(x: 0, y: 80)
+    )
+    let point = quad.interpolated(u: 0.25, v: 0.75)
+    let uv = quad.uv(containing: point)
+    #expect(uv != nil)
+    #expect(abs((uv?.x ?? -1) - 0.25) < 0.001)
+    #expect(abs((uv?.y ?? -1) - 0.75) < 0.001)
+    #expect(quad.uv(containing: CGPoint(x: -10, y: 40)) == nil)
+}
+
+@Test func inverseUvRoundTripsSkewedQuad() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 10, y: 20),
+        topRight: CGPoint(x: 90, y: 10),
+        bottomRight: CGPoint(x: 100, y: 80),
+        bottomLeft: CGPoint(x: 5, y: 90)
+    )
+    let point = quad.interpolated(u: 0.3, v: 0.7)
+    let uv = quad.uv(containing: point)
+    #expect(uv != nil)
+    #expect(abs((uv?.x ?? -1) - 0.3) < 0.01)
+    #expect(abs((uv?.y ?? -1) - 0.7) < 0.01)
+}
+
 @Test func correlationIsOneForIdenticalPatches() {
     let patch = [UInt8](0..<49)
     #expect(abs(NormalizedCorrelation.score(patch, patch) - 1) < 0.0001)

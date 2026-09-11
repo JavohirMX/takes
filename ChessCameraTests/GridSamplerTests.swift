@@ -167,3 +167,44 @@ import Testing
     #expect(kept[0].piece == .whitePawn)
     #expect(kept[0].id == 0)
 }
+
+@Test func occupancyIgnoresClassAndDropsOutsideQuad() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 0, y: 0),
+        topRight: CGPoint(x: 800, y: 0),
+        bottomRight: CGPoint(x: 800, y: 800),
+        bottomLeft: CGPoint(x: 0, y: 800)
+    )
+    let a1 = PieceDetection.Box(
+        id: 0,
+        piece: .whitePawn,
+        confidence: 0.9,
+        bufferRect: CGRect(x: 20, y: 650, width: 60, height: 100)
+    )
+    let a1WrongType = PieceDetection.Box(
+        id: 1,
+        piece: .blackQueen,
+        confidence: 0.4,
+        bufferRect: CGRect(x: 22, y: 652, width: 56, height: 96)
+    )
+    let h8 = PieceDetection.Box(
+        id: 2,
+        piece: .whiteKing,
+        confidence: 0.8,
+        bufferRect: CGRect(x: 720, y: 0, width: 60, height: 50)
+    )
+    let offBoard = PieceDetection.Box(
+        id: 3,
+        piece: .whiteRook,
+        confidence: 0.99,
+        bufferRect: CGRect(x: 900, y: 400, width: 40, height: 40)
+    )
+    let occupancy = PieceDetection.occupancy(
+        from: [a1, a1WrongType, h8, offBoard],
+        quad: quad,
+        orientation: .whiteAtBottom
+    )
+    #expect(occupancy.occupied(ChessSquare(file: 0, rank: 0)))
+    #expect(occupancy.occupied(ChessSquare(file: 7, rank: 7)))
+    #expect(occupancy.hammingDistance(to: Occupancy()) == 2)
+}

@@ -106,6 +106,32 @@ import Testing
     #expect(result == locked)
 }
 
+@Test func classifySquaresDoesNotCallDetector() async throws {
+    let detector = CountingDetector()
+    let pipeline = VisionPipeline(
+        localizer: StubLocalizer(quad: nil),
+        classifier: nil,
+        detector: detector
+    )
+    let image = try makeFlat(size: 64, gray: 128)
+    let classes = await pipeline.classifySquares(from: image)
+    #expect(classes.isEmpty)
+    #expect(detector.detectCount == 0)
+}
+
+private final class CountingDetector: PieceDetector, @unchecked Sendable {
+    var detectCount = 0
+
+    func detect(in warped: CGImage, orientation: BoardOrientation) async -> [ChessSquare: PieceClass] {
+        detectCount += 1
+        return [ChessSquare(file: 4, rank: 0): .whiteKing]
+    }
+
+    func detectBoxes(in image: CGImage) async -> [PieceDetection.Box] {
+        []
+    }
+}
+
 private struct StubLocalizer: BoardLocalizer {
     var quad: Quadrilateral?
     func detect(in buffer: CVPixelBuffer) async -> Quadrilateral? { quad }
