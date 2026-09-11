@@ -40,6 +40,61 @@ import Testing
     #expect(sq.algebraic == "h1")
 }
 
+@Test func whiteAtLeftMapsImageTopLeftToA1() {
+    let a1 = GridSampler.square(
+        fileIndex: 0,
+        rankFromImageTop: 0,
+        orientation: .whiteAtLeft
+    )
+    #expect(a1.algebraic == "a1")
+    let h1 = GridSampler.square(
+        fileIndex: 0,
+        rankFromImageTop: 7,
+        orientation: .whiteAtLeft
+    )
+    #expect(h1.algebraic == "h1")
+    let a8 = GridSampler.square(
+        fileIndex: 7,
+        rankFromImageTop: 0,
+        orientation: .whiteAtLeft
+    )
+    #expect(a8.algebraic == "a8")
+}
+
+@Test func whiteAtRightMapsImageBottomRightToA1() {
+    let a1 = GridSampler.square(
+        fileIndex: 7,
+        rankFromImageTop: 7,
+        orientation: .whiteAtRight
+    )
+    #expect(a1.algebraic == "a1")
+    let h1 = GridSampler.square(
+        fileIndex: 7,
+        rankFromImageTop: 0,
+        orientation: .whiteAtRight
+    )
+    #expect(h1.algebraic == "h1")
+    let a8 = GridSampler.square(
+        fileIndex: 0,
+        rankFromImageTop: 7,
+        orientation: .whiteAtRight
+    )
+    #expect(a8.algebraic == "a8")
+}
+
+@Test func imageIndicesRoundTripForEveryOrientation() {
+    let a1 = ChessSquare(file: 0, rank: 0)
+    for orientation in BoardOrientation.allCases {
+        let image = GridSampler.imageIndices(for: a1, orientation: orientation)
+        let mapped = GridSampler.square(
+            fileIndex: image.fileIndex,
+            rankFromImageTop: image.rankFromImageTop,
+            orientation: orientation
+        )
+        #expect(mapped.algebraic == "a1")
+    }
+}
+
 @Test func pointAtA1CenterMapsWhenWhiteAtBottom() {
     let sq = GridSampler.square(
         containing: CGPoint(x: 32, y: 480),

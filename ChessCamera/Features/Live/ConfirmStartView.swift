@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct ConfirmStartView: View {
     @Bindable var model: RecordingSessionViewModel
@@ -9,17 +8,18 @@ struct ConfirmStartView: View {
             Theme.background.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 24) {
-                    if let thumb = model.warpedThumbnail {
-                        Image(uiImage: UIImage(cgImage: thumb))
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Theme.border, lineWidth: 1)
-                            }
-                            .accessibilityLabel("Warped board")
+                    if model.warpedThumbnail != nil {
+                        WarpedBoardView(
+                            image: model.warpedThumbnail,
+                            orientation: model.orientation,
+                            grid: model.refinedGrid
+                        )
+                        .frame(maxHeight: 180)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Theme.border, lineWidth: 1)
+                        }
                     }
 
                     DigitalBoardView(
@@ -31,18 +31,18 @@ struct ConfirmStartView: View {
                     .frame(maxHeight: 320)
 
                     HStack(spacing: 12) {
-                        Image(systemName: "arrow.up.arrow.down")
+                        Image(systemName: "rotate.right")
                             .foregroundStyle(Theme.accent)
-                        Text("White on this side")
+                        Text("Rotate until the files match the camera")
                             .font(.body)
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
-                        Button("Flip") {
-                            Task { await model.flipBoard() }
+                        Button("Rotate") {
+                            Task { await model.rotateBoard() }
                         }
                         .font(.body.weight(.semibold))
                         .frame(minHeight: 44)
-                        .accessibilityLabel("Flip board")
+                        .accessibilityLabel("Rotate board")
                     }
                     .padding(16)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))

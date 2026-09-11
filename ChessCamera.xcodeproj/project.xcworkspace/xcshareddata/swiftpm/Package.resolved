@@ -1,5 +1,5 @@
 {
-  "originHash" : "8482943a8140e6df5aa5faa01161af6dca103656e7c89e0196d3cc73dbe62461",
+  "originHash" : "15b4aaa72dee8deb9946d635c39d44cebe8700a5a49cda95aa3614c4977a6d3b",
   "pins" : [
     {
       "identity" : "chesskit-swift",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "44ef7a1aa9da25bf0a9606a8960591a4dde3fad2",
         "version" : "0.17.0"
+      }
+    },
+    {
+      "identity" : "opencv-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/yeatse/opencv-spm.git",
+      "state" : {
+        "revision" : "106fd4aab9a0a83d46d3700b2dc3e2d6e6c93364",
+        "version" : "5.0.0"
       }
     }
   ],

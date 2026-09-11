@@ -53,7 +53,7 @@ stateDiagram-v2
 |---|---|---|---|
 | `newGame` | idle | detectingBoard | Start `LiveCameraSource`, reset `GameEngine` |
 | `confirmQuad` | detecting / calibrating | confirmingStart | Lock quad, warp, classify 64 squares, propose FEN + orientation |
-| `flipBoard` | confirmingStart | confirmingStart | Toggle `BoardOrientation`, remap FEN |
+| `rotateBoard` | confirmingStart | confirmingStart | Cycle `BoardOrientation` 90° CW, remap FEN |
 | `recapture` | confirmingStart | confirmingStart | Re-run classify (stay in phase) |
 | `startRecording` | confirmingStart | recording | Snapshot occupancy baseline, `lastCommitted = current` |
 | `endGame` | recording / disturbed | gameOver | Confirm if ≥1 move and not mate; save `GameRecord` |
@@ -126,7 +126,7 @@ Copy on the primer CTA: **Set up the board**. Then `newGame`.
 
 - Majority-vote 3 warped frames if time allows (< 1 s).
 - Illegal FEN: primary path is Recapture, not Start.
-- Flip is orientation only; it does not reclassify.
+- Rotate is orientation only; it does not reclassify.
 
 ### Live
 

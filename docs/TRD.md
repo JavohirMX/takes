@@ -1,7 +1,7 @@
 # Chess Camera — Technical Requirements Document
 
 **Companion to:** [PRD.md](PRD.md)
-**Stack:** Swift 6, SwiftUI, AVFoundation, Vision, Core ML, ChessKit, SwiftData, Swift Testing
+**Stack:** Swift 6, SwiftUI, AVFoundation, Vision, Core ML, ChessKit, OpenCV imgproc only, for grid refine at confirm-start, SwiftData, Swift Testing
 **Target:** iOS 18+, physical iPhone
 
 ---
@@ -27,6 +27,8 @@ MVVM with a deep vision pipeline behind a small seam. SwiftUI never talks to Vis
 └─────────────────────────────────────────────────────────────┘
 ```
 
+
+
 ### Data flow
 
 ```
@@ -43,21 +45,26 @@ User edits skip vision: they call `GameEngine.apply(san:)` / `undo()` directly.
 
 ---
 
+
+
 ## 2. Key design decisions
 
-| Decision | Rationale |
-|---|---|
-| ChessKit owns rules, FEN, PGN, special moves, checkmate | Do not reimplement chess. Focus on camera → state. |
+
+| Decision                                                                      | Rationale                                                                  |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| ChessKit owns rules, FEN, PGN, special moves, checkmate                       | Do not reimplement chess. Focus on camera → state.                         |
 | Classify **start** (and promotion / recovery); occupancy + rules after move 0 | 12-class every frame is the 10-day failure mode and duplicates waste-sort. |
-| Auto board detect + 4-corner fallback | Auto is the product; fallback is the demo insurance. |
-| Settle-then-infer, never frame-diff → move | Hands, lifts, and captures change many pixels. |
-| Unique legal-move match | Chess constraints resolve visual noise. 0 or >1 matches → do not commit. |
-| Process 5–10 Hz, not 30 | Square crops + Core ML on 64 tiles must stay off the main thread. |
-| Video import uses the same `FrameSource` seam | Repeatable tests without a live board. |
-| `@Observable` ViewModel + pipeline `actor` | iOS 17+ observation; isolation for Vision/Core ML. |
-| No OpenCV | Apple Vision + Core Image / `CIPerspectiveCorrection` / SIMD homography. |
+| Auto board detect + 4-corner fallback                                         | Auto is the product; fallback is the demo insurance.                       |
+| Settle-then-infer, never frame-diff → move                                    | Hands, lifts, and captures change many pixels.                             |
+| Unique legal-move match                                                       | Chess constraints resolve visual noise. 0 or >1 matches → do not commit.   |
+| Process 5–10 Hz, not 30                                                       | Square crops + Core ML on 64 tiles must stay off the main thread.          |
+| Video import uses the same `FrameSource` seam                                 | Repeatable tests without a live board.                                     |
+| `@Observable` ViewModel + pipeline `actor`                                    | iOS 17+ observation; isolation for Vision/Core ML.                         |
+
 
 ---
+
+
 
 ## 3. Module seams
 
@@ -90,6 +97,8 @@ protocol BoardLocalizer: Sendable {
 - Primary: Vision `VNDetectRectanglesRequest` (minimum aspect ratio ~0.8–1.25, maximum 1 rectangle that looks like a board). Optional follow-up: line grouping if rectangle quality is poor.
 - Fallback: user-supplied quad from the 4-corner UI, stored on the session.
 - Once a stable quad is accepted, **track** it (`VNTrackObjectRequest` or lock the quad if the phone is mounted). Do not re-detect from scratch every frame unless tracking is lost.
+
+
 
 ### 3.3 `BoardWarper`
 
@@ -234,6 +243,8 @@ Pin a specific ChessKit version in the Xcode project when adding the package. If
 
 ---
 
+
+
 ## 4. Domain types
 
 ```swift
@@ -245,7 +256,9 @@ struct ChessSquare: Hashable, Sendable, Codable {
 
 enum BoardOrientation: Sendable {
     case whiteAtBottom   // a1 image-bottom-left after warp
-    case whiteAtTop
+    case whiteAtLeft     // a1 image-top-left (camera on h-file)
+    case whiteAtTop      // a1 image-top-right
+    case whiteAtRight    // a1 image-bottom-right (camera on a-file)
 }
 
 struct BoardObservation: Sendable {
@@ -285,7 +298,11 @@ Replay is derived from PGN via `Game(pgn:)`; do not store a second move list unl
 
 ---
 
+
+
 ## 5. Board detection and orientation
+
+
 
 ### Detection
 
@@ -295,23 +312,31 @@ Replay is derived from PGN via `Game(pgn:)`; do not store a second move list unl
 4. If no candidate for ~2 seconds, prompt 4-corner fallback.
 5. User can always open “Adjust corners.”
 
+
+
 ### Homography
 
 Map the four corners to `(0,0), (S,0), (S,S), (0,S)`. Warp. The warped image is **camera-up**: which physical rank is at the top is unknown until orientation.
 
 ### Orientation from pieces (FR-8)
 
+The warped image stays **camera-up**. `BoardOrientation` maps grid indices to algebraic squares so the phone can sit on any of the four sides of the table (`whiteAtBottom` / `whiteAtLeft` / `whiteAtTop` / `whiteAtRight`). Rotate cycles 90° clockwise; it remaps FEN without re-classifying.
+
 After classifying all 64 squares at confirm-start:
 
-1. Find the rank (in image space) whose eight classes look like a White back rank (`rnbqkbnr` or `rnbkqbnr` allowing inner permutation only as a weak signal — **prefer**: the rank with two White rooks + White king).
-2. Simpler MVP: locate both kings; White king’s rank in image space closer to the bottom → `whiteAtBottom`, else `whiteAtTop`. User can Flip on the confirm screen.
-3. Apply orientation so `a1` is White’s queenside rook square in the **standard start**. If the classified FEN is the standard start rotated, Flip is enough; do not support 90° rotations (board must be axis-aligned enough that files run left-right).
+1. Locate the white king in image space (via the classify-time orientation). Pick the image edge it is closest to: bottom → `whiteAtBottom`, top → `whiteAtTop`, left → `whiteAtLeft`, right → `whiteAtRight`.
+2. Remap classified squares from the classify-time orientation to the inferred one, then build FEN.
+3. User can **Rotate** on Board Studio and Confirm Start until `a1` is White’s queenside rook square in the **standard start**.
 
 If the classified FEN is not the standard starting position, show it on the confirm screen. Demo path: user rearranges the physical pieces and taps Recapture. Mid-game start is a stretch (classifier + FEN), not the success bar.
 
 ---
 
+
+
 ## 6. Piece model (your set only)
+
+
 
 ### Training
 
@@ -325,16 +350,20 @@ Do not scrape a public dataset as the primary model. Transfer learning from a pu
 
 ### Runtime policy
 
-| Moment | Classifier | Occupancy | ChessKit |
-|---|---|---|---|
-| Confirm start | Required | Supporting | Build FEN; must be legal |
-| During game | Off by default | Required | Infer move |
-| Promotion | Destination square only | Required | Disambiguate piece |
-| Recovery | User-triggered recapture | Required | Compare to FEN; if mismatch, offer edit |
+
+| Moment        | Classifier               | Occupancy  | ChessKit                                |
+| ------------- | ------------------------ | ---------- | --------------------------------------- |
+| Confirm start | Required                 | Supporting | Build FEN; must be legal                |
+| During game   | Off by default           | Required   | Infer move                              |
+| Promotion     | Destination square only  | Required   | Disambiguate piece                      |
+| Recovery      | User-triggered recapture | Required   | Compare to FEN; if mismatch, offer edit |
+
 
 Empty-square baseline: when the user confirms start, store a downsampled fingerprint per square that the classifier called `empty`. Later occupancy can use distance-to-baseline to survive lighting drift better than a global threshold.
 
 ---
+
+
 
 ## 7. Settle and move commit
 
@@ -357,15 +386,19 @@ loop:
             phase = awaitingEdit // banner + tap to fix
 ```
 
+
+
 ### Special moves (how occupancy looks)
 
-| Event | Occupancy Hamming (typical) | Extra visual cue |
-|---|---|---|
-| Quiet move | 2 | — |
-| Capture | 2 (from empty, to still occupied) | Destination class may change color |
-| Castling | 4 | Two pieces moved |
-| En passant | 3 | Captured pawn square emptied, not the destination |
-| Promotion | 2 | Destination class ≠ pawn |
+
+| Event      | Occupancy Hamming (typical)       | Extra visual cue                                  |
+| ---------- | --------------------------------- | ------------------------------------------------- |
+| Quiet move | 2                                 | —                                                 |
+| Capture    | 2 (from empty, to still occupied) | Destination class may change color                |
+| Castling   | 4                                 | Two pieces moved                                  |
+| En passant | 3                                 | Captured pawn square emptied, not the destination |
+| Promotion  | 2                                 | Destination class ≠ pawn                          |
+
 
 ChessKit simulation is the matcher. Occupancy Hamming is only a hint for logging.
 
@@ -374,6 +407,8 @@ ChessKit simulation is the matcher. Occupancy Hamming is only a hint for logging
 Default settle **600 ms**. Expose in a debug settings pane (0.3–1.5 s) for demo day. Too short: mid-move commits. Too long: feels laggy.
 
 ---
+
+
 
 ## 8. Capture and performance
 
@@ -388,6 +423,8 @@ Video import: `AVAssetReader` → same `AsyncStream`. Clock timestamps from the 
 
 ---
 
+
+
 ## 9. Persistence and export
 
 - On End Game or checkmate/stalemate confirmed: insert `GameRecord`.
@@ -399,36 +436,46 @@ No iCloud. No backend.
 
 ---
 
+
+
 ## 10. Testing strategy
 
 Vision and Core ML are hard to unit-test. **Pure logic must be tested.** Camera and Vision are covered by video fixtures + a debug screen.
 
-| Layer | How |
-|---|---|
-| `ChessSquare`, occupancy bits, orientation mapping | Swift Testing, synthetic |
-| `SettleDetector` | Fake occupancy timelines |
-| `MoveInferrer` | ChessKit boards + constructed deltas for quiet, capture, O-O, O-O-O, e.p., promotion, illegal, ambiguous |
-| `GameEngine` undo / SAN / PGN round-trip | Swift Testing |
-| `GridSampler` index math | Known warped size → a1 pixel center |
-| Classifier | Manual on demo set; optional accuracy script on a held-out crop folder |
-| Full pipeline | 2–3 short recorded videos in `Fixtures/` (not huge binaries in git if avoidable — document how to record) |
+
+| Layer                                              | How                                                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ChessSquare`, occupancy bits, orientation mapping | Swift Testing, synthetic                                                                                  |
+| `SettleDetector`                                   | Fake occupancy timelines                                                                                  |
+| `MoveInferrer`                                     | ChessKit boards + constructed deltas for quiet, capture, O-O, O-O-O, e.p., promotion, illegal, ambiguous  |
+| `GameEngine` undo / SAN / PGN round-trip           | Swift Testing                                                                                             |
+| `GridSampler` index math                           | Known warped size → a1 pixel center                                                                       |
+| Classifier                                         | Manual on demo set; optional accuracy script on a held-out crop folder                                    |
+| Full pipeline                                      | 2–3 short recorded videos in `Fixtures/` (not huge binaries in git if avoidable — document how to record) |
+
 
 Do not snapshot entire camera frames in unit tests.
 
 ---
 
+
+
 ## 11. Failure modes
 
-| Symptom | Likely cause | Handling |
-|---|---|---|
-| Quad jumps | Bad rectangle / table edge | Tracking lock + “Adjust corners” |
-| Start FEN wrong | Classifier / lighting | Confirm screen: tap squares to cycle piece, Recapture, Flip |
+
+| Symptom           | Likely cause                       | Handling                                                           |
+| ----------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| Quad jumps        | Bad rectangle / table edge         | Tracking lock + “Adjust corners”                                   |
+| Start FEN wrong   | Classifier / lighting              | Confirm screen: tap squares to cycle piece, Recapture, Rotate      |
 | Move not detected | Settle too long / occupancy missed | Debug overlay of occupancy; lower settle; recapture empty baseline |
-| Extra move | Hands still; settle too short | Disturbed HUD; raise settle |
-| Castling missed | Inferrer occupancy mismatch | Fixture test; ensure simulated occupancy includes rook |
-| Desync mid-game | Missed move | Undo / edit last ply; optional recapture stretch |
+| Extra move        | Hands still; settle too short      | Disturbed HUD; raise settle                                        |
+| Castling missed   | Inferrer occupancy mismatch        | Fixture test; ensure simulated occupancy includes rook             |
+| Desync mid-game   | Missed move                        | Undo / edit last ply; optional recapture stretch                   |
+
 
 ---
+
+
 
 ## 12. Project structure (target)
 
@@ -475,15 +522,21 @@ ChessCameraTests/
 
 ---
 
+
+
 ## 13. Third-party packages
 
-| Package | Purpose |
-|---|---|
-| [chesskit-app/chesskit-swift](https://github.com/chesskit-app/chesskit-swift) | Legal moves, special moves, FEN, PGN, game state |
 
-No other SPM dependencies in MVP. No OpenCV. No Stockfish.
+| Package                                                                       | Purpose                                          |
+| ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| [chesskit-app/chesskit-swift](https://github.com/chesskit-app/chesskit-swift) | Legal moves, special moves, FEN, PGN, game state |
+| [yeatse/opencv-spm](https://github.com/yeatse/opencv-spm) | OpenCV imgproc only, for grid refine at confirm-start |
+
+No Stockfish. No iCloud.
 
 ---
+
+
 
 ## 14. Differentiation from waste-sort
 

@@ -30,7 +30,8 @@ struct BoardStudioView: View {
             HStack(alignment: .center, spacing: 12) {
                 WarpedBoardView(
                     image: model.warpedThumbnail,
-                    orientation: model.orientation
+                    orientation: model.orientation,
+                    grid: model.refinedGrid
                 )
                 .frame(width: 140, height: 140)
                 controls
@@ -47,7 +48,8 @@ struct BoardStudioView: View {
             VStack(spacing: 12) {
                 WarpedBoardView(
                     image: model.warpedThumbnail,
-                    orientation: model.orientation
+                    orientation: model.orientation,
+                    grid: model.refinedGrid
                 )
                 .frame(maxWidth: 280, maxHeight: 280)
                 controls
@@ -93,7 +95,11 @@ struct BoardStudioView: View {
                         )
                     }
                     if let quad = model.quad {
-                        BoardGridOverlay(quad: quad, bufferSize: model.bufferSize)
+                        BoardGridOverlay(
+                            quad: quad,
+                            bufferSize: model.bufferSize,
+                            grid: model.refinedGrid
+                        )
                         handles(in: proxy.size)
                     }
                 }
@@ -130,11 +136,11 @@ struct BoardStudioView: View {
                     Task { await model.rescanBoard() }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44)
-                Button("Flip") {
-                    Task { await model.flipBoard() }
+                Button("Rotate") {
+                    Task { await model.rotateBoard() }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .accessibilityLabel("Flip board")
+                .accessibilityLabel("Rotate board")
             }
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)

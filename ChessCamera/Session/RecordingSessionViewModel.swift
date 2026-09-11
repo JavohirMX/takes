@@ -21,6 +21,7 @@ final class RecordingSessionViewModel: Identifiable {
     var activeLocalizer: BoardLocalizerSource = .vision
     var bufferSize: CGSize = .zero
     var warpedThumbnail: CGImage?
+    var refinedGrid: RefinedBoardGrid?
     var orientation: BoardOrientation = .whiteAtBottom
     var proposedFEN = FenCodec.standard
     var classifiedClasses: [ChessSquare: PieceClass] = FenCodec.standardClasses()
@@ -78,6 +79,7 @@ final class RecordingSessionViewModel: Identifiable {
     private let imageContext = CIContext()
     private let heatmapLocalizer: HeatmapBoardLocalizer? = HeatmapBoardLocalizer.loadBundled()
     private var studioFrameIndex = 0
+    nonisolated(unsafe) private var lastSampleBuffer: CVPixelBuffer?
 
     var fen: String { engine.fen }
     var pgn: String { engine.pgn }
@@ -164,17 +166,20 @@ final class RecordingSessionViewModel: Identifiable {
 
     func confirmQuad() async {
         guard let quad else { return }
-        await pipeline.setLockedQuad(quad)
+        await refineGridSnappingQuad()
+        await pipeline.setLockedQuad(self.quad ?? quad)
         await pipeline.setOrientation(orientation)
         isClassifying = true
         phase = .confirmingStart
         if classifierAvailable, let warpedThumbnail {
             let classes = await pipeline.classifySquares(from: warpedThumbnail)
             if !classes.isEmpty {
-                classifiedClasses = classes
-                orientation = FenCodec.inferOrientation(from: classes)
+                let classifiedAs = orientation
+                let inferred = FenCodec.inferOrientation(from: classes, classifiedAs: classifiedAs)
+                classifiedClasses = FenCodec.remapped(classes, from: classifiedAs, to: inferred)
+                orientation = inferred
                 await pipeline.setOrientation(orientation)
-                proposedFEN = FenCodec.fen(from: classes)
+                proposedFEN = FenCodec.fen(from: classifiedClasses)
             } else {
                 useStandardPositionClasses()
             }
@@ -188,6 +193,35 @@ final class RecordingSessionViewModel: Identifiable {
             )
         }
         isClassifying = false
+    }
+
+    private func refineGridSnappingQuad() async {
+        guard let current = quad, let warped = warpedThumbnail else {
+            refinedGrid = nil
+            await pipeline.setRefinedGrid(nil)
+            return
+        }
+        guard let first = OpenCVGridRefiner.refine(warped), first.isMonotonic else {
+            refinedGrid = nil
+            await pipeline.setRefinedGrid(nil)
+            return
+        }
+        let snapped = first.cameraQuad(mappingWith: current)
+        if let buffer = lastSampleBuffer,
+           let rewarped = BoardWarper.warp(buffer, quad: snapped, size: 512) {
+            quad = snapped
+            visionQuad = snapped
+            await pipeline.setLockedQuad(snapped)
+            warpedThumbnail = rewarped.squareImage
+            if let second = OpenCVGridRefiner.refine(rewarped.squareImage), second.isMonotonic {
+                refinedGrid = second
+            } else {
+                refinedGrid = .even(imageSize: CGFloat(rewarped.squareImage.width))
+            }
+        } else {
+            refinedGrid = first
+        }
+        await pipeline.setRefinedGrid(refinedGrid)
     }
 
     func adjustCorners() {
@@ -219,6 +253,7 @@ final class RecordingSessionViewModel: Identifiable {
         visionQuad = nil
         mlQuad = nil
         warpedThumbnail = nil
+        refinedGrid = nil
         trackingWeak = false
         needsTemplateCapture = true
         weakTrackFrames = 0
@@ -277,6 +312,8 @@ final class RecordingSessionViewModel: Identifiable {
         default: break
         }
         self.quad = quad
+        refinedGrid = nil
+        Task { await pipeline.setRefinedGrid(nil) }
         switch activeLocalizer {
         case .vision: visionQuad = quad
         case .ml: mlQuad = quad
@@ -287,18 +324,26 @@ final class RecordingSessionViewModel: Identifiable {
         await confirmQuad()
     }
 
-    func flipBoard() async {
-        orientation = orientation == .whiteAtBottom ? .whiteAtTop : .whiteAtBottom
-        classifiedClasses = FenCodec.remapped(classifiedClasses, flippingOrientation: true)
+    func rotateBoard() async {
+        let next = orientation.rotatedClockwise
+        classifiedClasses = FenCodec.remapped(classifiedClasses, from: orientation, to: next)
+        orientation = next
         proposedFEN = FenCodec.fen(from: classifiedClasses)
         await pipeline.setOrientation(orientation)
         needsTemplateCapture = true
     }
 
     func recapture() async {
-        guard classifierAvailable, let warpedThumbnail else { return }
+        guard classifierAvailable, warpedThumbnail != nil else { return }
+        if refinedGrid == nil {
+            await refineGridSnappingQuad()
+        } else if let current = warpedThumbnail, let grid = OpenCVGridRefiner.refine(current), grid.isMonotonic {
+            refinedGrid = grid
+            await pipeline.setRefinedGrid(grid)
+        }
+        guard let current = warpedThumbnail else { return }
         isClassifying = true
-        let classes = await pipeline.classifySquares(from: warpedThumbnail)
+        let classes = await pipeline.classifySquares(from: current)
         if !classes.isEmpty {
             classifiedClasses = classes
             proposedFEN = FenCodec.fen(from: classes)
@@ -529,6 +574,7 @@ final class RecordingSessionViewModel: Identifiable {
         isProcessingFrame = true
         defer { isProcessingFrame = false }
         lastProcessTime = frame.timestamp
+        lastSampleBuffer = frame.buffer
         bufferSize = CGSize(
             width: CVPixelBufferGetWidth(frame.buffer),
             height: CVPixelBufferGetHeight(frame.buffer)
@@ -871,6 +917,7 @@ final class RecordingSessionViewModel: Identifiable {
         pieceBoxes = []
         pieceDetectorAvailable = false
         warpedThumbnail = nil
+        refinedGrid = nil
         previewImage = nil
         previewRotationAngle = 90
         orientation = .whiteAtBottom

@@ -117,15 +117,21 @@ enum PieceDetection {
     static func occupancy(
         from boxes: [Box],
         quad: Quadrilateral,
-        orientation: BoardOrientation
+        orientation: BoardOrientation,
+        grid: RefinedBoardGrid? = nil
     ) -> Occupancy {
         var occupancy = Occupancy()
         for box in boxes {
             guard box.confidence >= confidenceThreshold else { continue }
-            guard let square = quad.square(
-                containingCameraPoint: pieceBase(of: box),
-                orientation: orientation
-            ) else { continue }
+            let base = pieceBase(of: box)
+            let square: ChessSquare?
+            if let grid, let uv = quad.uv(containing: base) {
+                let warped = CGPoint(x: uv.x * grid.imageSize, y: uv.y * grid.imageSize)
+                square = grid.square(containingWarped: warped, orientation: orientation)
+            } else {
+                square = quad.square(containingCameraPoint: base, orientation: orientation)
+            }
+            guard let square else { continue }
             occupancy.set(square, occupied: true)
         }
         return occupancy

@@ -16,6 +16,9 @@ packages:
   ChessKit:
     url: https://github.com/chesskit-app/chesskit-swift
     from: 0.17.0
+  OpenCV:
+    url: https://github.com/yeatse/opencv-spm.git
+    from: 5.0.0
 targets:
   ChessCamera:
     type: application
@@ -29,8 +32,14 @@ targets:
     dependencies:
       - package: ChessKit
         product: ChessKit
+      - package: OpenCV
+        product: OpenCV
     settings:
       base:
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        CLANG_CXX_LIBRARY: libc++
+        SWIFT_OBJC_BRIDGING_HEADER: ChessCamera/ChessCamera-Bridging-Header.h
+        HEADER_SEARCH_PATHS: $(SRCROOT)/ChessCamera $(SRCROOT)/ChessCamera/Vision/OpenCV
         PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.ChessCamera
         PRODUCT_NAME: ChessCamera
         PRODUCT_MODULE_NAME: ChessCamera

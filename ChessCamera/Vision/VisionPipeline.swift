@@ -17,6 +17,7 @@ actor VisionPipeline {
     var lockedQuad: Quadrilateral?
     var orientation: BoardOrientation = .whiteAtBottom
     var occupancyEstimator = HeuristicOccupancyEstimator()
+    var refinedGrid: RefinedBoardGrid?
 
     private let localizer: any BoardLocalizer
     private let classifier: (any PieceClassifier)?
@@ -39,6 +40,13 @@ actor VisionPipeline {
 
     func setLockedQuad(_ quad: Quadrilateral?) {
         lockedQuad = quad
+        if quad == nil {
+            refinedGrid = nil
+        }
+    }
+
+    func setRefinedGrid(_ grid: RefinedBoardGrid?) {
+        refinedGrid = grid
     }
 
     func setOrientation(_ orientation: BoardOrientation) {
@@ -157,7 +165,8 @@ actor VisionPipeline {
             occupancy = PieceDetection.occupancy(
                 from: boxes,
                 quad: quad,
-                orientation: orientation
+                orientation: orientation,
+                grid: refinedGrid
             )
         } else {
             occupancy = Occupancy()

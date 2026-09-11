@@ -91,6 +91,13 @@ struct LiveRecordingView: View {
                 style: model.trackingLost ? .poor : .locked,
                 pulse: false
             )
+            if let quad = model.quad {
+                BoardGridOverlay(
+                    quad: quad,
+                    bufferSize: model.bufferSize,
+                    grid: model.refinedGrid
+                )
+            }
             VStack {
                 HStack {
                     Spacer()

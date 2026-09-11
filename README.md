@@ -33,7 +33,7 @@ xcodebuild -scheme ChessCamera -destination 'platform=iOS Simulator,name=iPhone 
 ## Locked scope
 
 - **Platform:** iPhone, iOS 18+, SwiftUI, AVFoundation
-- **Vision:** Vision + optional Core ML on *your* chess set. No OpenCV, no paid AI APIs, no Stockfish, no iCloud
+- **Vision:** Vision + optional Core ML on *your* chess set. OpenCV imgproc only, for grid refine at confirm-start. No paid AI APIs, no Stockfish, no iCloud
 - **Game:** standard start → occupancy changes + chess rules → full-game PGN
 - **Calibration:** auto board detect, 4-corner fallback
 - **UX:** auto-accept moves; edit/undo last ply; wait until the board is still

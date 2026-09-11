@@ -30,18 +30,23 @@ enum GridSampler {
     /// Maps a camera-space grid index to an algebraic square after orientation.
     ///
     /// - `whiteAtBottom`: image bottom-left is a1 (file 0 left, rank 1 at image bottom).
-    /// - `whiteAtTop`: image top is rank 1 and files are mirrored (h-file on the left).
+    /// - `whiteAtLeft`: image top-left is a1 (files run top→bottom).
+    /// - `whiteAtTop`: image top-right is a1 (files mirrored, rank 1 at image top).
+    /// - `whiteAtRight`: image bottom-right is a1 (files run bottom→top).
     static func square(
         fileIndex: Int,
         rankFromImageTop: Int,
         orientation: BoardOrientation
     ) -> ChessSquare {
-        switch orientation {
-        case .whiteAtBottom:
-            ChessSquare(file: fileIndex, rank: 7 - rankFromImageTop)
-        case .whiteAtTop:
-            ChessSquare(file: 7 - fileIndex, rank: rankFromImageTop)
-        }
+        orientation.square(fileIndex: fileIndex, rankFromImageTop: rankFromImageTop)
+    }
+
+    /// Inverse of `square(fileIndex:rankFromImageTop:orientation:)`.
+    static func imageIndices(
+        for square: ChessSquare,
+        orientation: BoardOrientation
+    ) -> (fileIndex: Int, rankFromImageTop: Int) {
+        orientation.imageIndices(for: square)
     }
 
     /// Maps a pixel in a square warped board (top-left origin) to an algebraic square.

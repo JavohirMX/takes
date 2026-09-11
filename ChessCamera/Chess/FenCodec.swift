@@ -72,19 +72,40 @@ enum FenCodec {
         return placement == standardPlacement
     }
 
-    static func remapped(_ classes: [ChessSquare: PieceClass], flippingOrientation: Bool) -> [ChessSquare: PieceClass] {
-        guard flippingOrientation else { return classes }
+    /// Re-keys classified pieces from one camera orientation to another without re-running ML.
+    static func remapped(
+        _ classes: [ChessSquare: PieceClass],
+        from: BoardOrientation,
+        to: BoardOrientation
+    ) -> [ChessSquare: PieceClass] {
+        guard from != to else { return classes }
         var remapped: [ChessSquare: PieceClass] = [:]
+        remapped.reserveCapacity(classes.count)
         for (square, piece) in classes {
-            remapped[ChessSquare(file: 7 - square.file, rank: 7 - square.rank)] = piece
+            let image = from.imageIndices(for: square)
+            remapped[to.square(fileIndex: image.fileIndex, rankFromImageTop: image.rankFromImageTop)] = piece
         }
         return remapped
     }
 
-    static func inferOrientation(from classes: [ChessSquare: PieceClass]) -> BoardOrientation {
+    /// Infers which image edge is White from the white king’s position.
+    /// `classifiedAs` is the orientation used to key `classes`.
+    static func inferOrientation(
+        from classes: [ChessSquare: PieceClass],
+        classifiedAs: BoardOrientation = .whiteAtBottom
+    ) -> BoardOrientation {
         let whiteKings = classes.filter { $0.value == .whiteKing }.map(\.key)
         guard let king = whiteKings.first else { return .whiteAtBottom }
-        return king.rank <= 3 ? .whiteAtBottom : .whiteAtTop
+        let image = classifiedAs.imageIndices(for: king)
+        let distBottom = 7 - image.rankFromImageTop
+        let distTop = image.rankFromImageTop
+        let distLeft = image.fileIndex
+        let distRight = 7 - image.fileIndex
+        let best = min(distBottom, distTop, distLeft, distRight)
+        if distBottom == best { return .whiteAtBottom }
+        if distTop == best { return .whiteAtTop }
+        if distLeft == best { return .whiteAtLeft }
+        return .whiteAtRight
     }
 }
 

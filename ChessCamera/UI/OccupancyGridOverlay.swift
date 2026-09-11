@@ -11,19 +11,10 @@ struct OccupancyGridOverlay: View {
             for file in 0..<8 {
                 for rank in 0..<8 {
                     let square = ChessSquare(file: file, rank: rank)
-                    let imageFile: Int
-                    let imageRankFromTop: Int
-                    switch orientation {
-                    case .whiteAtBottom:
-                        imageFile = file
-                        imageRankFromTop = 7 - rank
-                    case .whiteAtTop:
-                        imageFile = 7 - file
-                        imageRankFromTop = rank
-                    }
+                    let image = GridSampler.imageIndices(for: square, orientation: orientation)
                     let rect = CGRect(
-                        x: CGFloat(imageFile) * cell,
-                        y: CGFloat(imageRankFromTop) * cell,
+                        x: CGFloat(image.fileIndex) * cell,
+                        y: CGFloat(image.rankFromImageTop) * cell,
                         width: cell,
                         height: cell
                     )
