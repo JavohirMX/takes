@@ -54,6 +54,7 @@
 		7C8C667EB0A8122D70D4012A /* BoardGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71CEBD9D619FAE0AF196B22 /* BoardGridOverlay.swift */; };
 		7E55A474CDB7FA8EDD927F5C /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */; };
 		803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD0BB7A070EF2EA30CBA486 /* OccupancyEstimator.swift */; };
+		843281A2FC510344DEC475B5 /* BoardOrientationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D04751849CF4BD146A1E0FD5 /* BoardOrientationTests.swift */; };
 		8554B04A6BBBF140977C7C10 /* OccupancySmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118ED9F8776E455CADADE520 /* OccupancySmoother.swift */; };
 		87C933EE14608D2821E26A91 /* QuadConsensus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3936A0383D656F012C17CAB4 /* QuadConsensus.swift */; };
 		8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */; };
@@ -184,6 +185,7 @@
 		CC4B8B6CB46C6015CAE68B5B /* ChessPieceYOLO.mlpackage */ = {isa = PBXFileReference; path = ChessPieceYOLO.mlpackage; sourceTree = "<group>"; };
 		CC7264E35F2622519CD7AFD5 /* PieceClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceClassifier.swift; sourceTree = "<group>"; };
 		CE05831C1E3E1CD9E1F967AC /* ChessPieceYOLO.classes.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ChessPieceYOLO.classes.txt; sourceTree = "<group>"; };
+		D04751849CF4BD146A1E0FD5 /* BoardOrientationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardOrientationTests.swift; sourceTree = "<group>"; };
 		D153B0C245C35784202078C0 /* ReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayView.swift; sourceTree = "<group>"; };
 		D319D0AC3281B999D0BAC505 /* VideoMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoMappingTests.swift; sourceTree = "<group>"; };
 		D39FA674F81051DA52142E5F /* ChessCamera-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ChessCamera-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -329,6 +331,7 @@
 			children = (
 				4C726BCA95E4671B37E10784 /* BoardAppearanceTests.swift */,
 				35825408D250867B93B29B53 /* BoardLocalizerScoreTests.swift */,
+				D04751849CF4BD146A1E0FD5 /* BoardOrientationTests.swift */,
 				AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */,
 				D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */,
 				8605047E01558457D314F050 /* FenCodecTests.swift */,
@@ -555,6 +558,7 @@
 			files = (
 				01EC86C634C572610C769823 /* BoardAppearanceTests.swift in Sources */,
 				1DAB9F3D1E04ECF934F17493 /* BoardLocalizerScoreTests.swift in Sources */,
+				843281A2FC510344DEC475B5 /* BoardOrientationTests.swift in Sources */,
 				4818C00D3247ABE67102D9D2 /* ChessSquareTests.swift in Sources */,
 				B2AD095917287D559B0DB25B /* CornerTrackerTests.swift in Sources */,
 				A891B110A7BF198578A319A8 /* FenCodecTests.swift in Sources */,

@@ -7,15 +7,16 @@ struct WarpedBoardView: View {
     var classes: [ChessSquare: PieceClass] = [:]
     var grid: RefinedBoardGrid?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
             ZStack {
-                if let image {
-                    Image(uiImage: UIImage(cgImage: image))
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: side, height: side)
+                if image != nil {
+                    cameraSpace(side: side)
+                        .rotationEffect(.degrees(orientation.previewRotationDegrees))
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: orientation)
                 } else {
                     Theme.surfaceMuted
                         .frame(width: side, height: side)
@@ -24,16 +25,28 @@ struct WarpedBoardView: View {
                         .foregroundStyle(Theme.textSecondary)
                         .padding(16)
                 }
-                grid(side: side)
                 labels(side: side)
-                if !classes.isEmpty {
-                    pieces(side: side)
-                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityLabel("Top-down chessboard")
+    }
+
+    private func cameraSpace(side: CGFloat) -> some View {
+        ZStack {
+            if let image {
+                Image(uiImage: UIImage(cgImage: image))
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: side, height: side)
+            }
+            grid(side: side)
+            if !classes.isEmpty {
+                pieces(side: side)
+            }
+        }
+        .frame(width: side, height: side)
     }
 
     private func grid(side: CGFloat) -> some View {
@@ -94,47 +107,24 @@ struct WarpedBoardView: View {
     }
 
     private func labels(side: CGFloat) -> some View {
-        let filesRunHorizontally: Bool = {
-            switch orientation {
-            case .whiteAtBottom, .whiteAtTop: true
-            case .whiteAtLeft, .whiteAtRight: false
-            }
-        }()
+        let files = Array("abcdefgh")
         let cell = side / 8
         return ZStack {
             ForEach(0..<8, id: \.self) { i in
-                let bottomSquare = GridSampler.square(
-                    fileIndex: i,
-                    rankFromImageTop: 7,
-                    orientation: orientation
-                )
-                let leftSquare = GridSampler.square(
-                    fileIndex: 0,
-                    rankFromImageTop: i,
-                    orientation: orientation
-                )
-                let bottomText = filesRunHorizontally
-                    ? String(bottomSquare.algebraic.prefix(1))
-                    : "\(bottomSquare.rank + 1)"
-                let leftText = filesRunHorizontally
-                    ? "\(leftSquare.rank + 1)"
-                    : String(leftSquare.algebraic.prefix(1))
-                let fileCenter = grid?.cellCenter(fileIndex: i, rankFromImageTop: 7, side: side)
-                    ?? CGPoint(x: cell * CGFloat(i) + cell / 2, y: side - 10)
-                let rankCenter = grid?.cellCenter(fileIndex: 0, rankFromImageTop: i, side: side)
-                    ?? CGPoint(x: 10, y: cell * CGFloat(i) + cell / 2)
-                Text(bottomText)
+                Text(String(files[i]))
                     .font(.caption2.monospaced().weight(.semibold))
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 4)
                     .background(Theme.accent.opacity(0.85), in: Capsule())
-                    .position(x: fileCenter.x, y: side - 10)
-                Text(leftText)
+                    .position(x: cell * CGFloat(i) + cell / 2, y: side - 10)
+                    .accessibilityHidden(true)
+                Text("\(8 - i)")
                     .font(.caption2.monospaced().weight(.semibold))
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 4)
                     .background(Theme.accent.opacity(0.85), in: Capsule())
-                    .position(x: 10, y: rankCenter.y)
+                    .position(x: 10, y: cell * CGFloat(i) + cell / 2)
+                    .accessibilityHidden(true)
             }
         }
         .frame(width: side, height: side)

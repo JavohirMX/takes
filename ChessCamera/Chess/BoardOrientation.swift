@@ -19,6 +19,25 @@ enum BoardOrientation: Sendable, Equatable, CaseIterable {
         }
     }
 
+    var rotatedCounterClockwise: BoardOrientation {
+        switch self {
+        case .whiteAtBottom: .whiteAtRight
+        case .whiteAtRight: .whiteAtTop
+        case .whiteAtTop: .whiteAtLeft
+        case .whiteAtLeft: .whiteAtBottom
+        }
+    }
+
+    /// Clockwise degrees to draw the camera-up warp with White at the bottom of the view.
+    var previewRotationDegrees: Double {
+        switch self {
+        case .whiteAtBottom: 0
+        case .whiteAtRight: 90
+        case .whiteAtTop: 180
+        case .whiteAtLeft: 270
+        }
+    }
+
     /// Maps a camera-up grid index to an algebraic square.
     func square(fileIndex: Int, rankFromImageTop: Int) -> ChessSquare {
         switch self {

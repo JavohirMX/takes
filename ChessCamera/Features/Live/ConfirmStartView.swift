@@ -24,7 +24,7 @@ struct ConfirmStartView: View {
 
                     DigitalBoardView(
                         fen: model.proposedFEN,
-                        orientation: model.orientation,
+                        orientation: .whiteAtBottom,
                         interactive: true,
                         onTap: { model.cyclePiece(at: $0) }
                     )
@@ -33,7 +33,7 @@ struct ConfirmStartView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "rotate.right")
                             .foregroundStyle(Theme.accent)
-                        Text("Rotate until the files match the camera")
+                        Text("Rotate until White is at the bottom.")
                             .font(.body)
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()

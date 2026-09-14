@@ -330,7 +330,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func rotateBoard() async {
-        let next = orientation.rotatedClockwise
+        let next = orientation.rotatedCounterClockwise
         classifiedClasses = FenCodec.remapped(classifiedClasses, from: orientation, to: next)
         orientation = next
         proposedFEN = FenCodec.fen(from: classifiedClasses)
