@@ -37,7 +37,10 @@ import Testing
     let start = engine.occupancy()
     #expect(prior.clearable.occupied(ChessSquare.parse("e2")!))
     #expect(prior.fillable.occupied(ChessSquare.parse("e4")!))
+    #expect(prior.clearable.occupied(ChessSquare.parse("e7")!))
+    #expect(prior.fillable.occupied(ChessSquare.parse("e5")!))
     #expect(!prior.clearable.occupied(ChessSquare.parse("a1")!))
+    #expect(prior.maxNewClears == 4)
 
     var missA1 = start
     missA1.set(ChessSquare.parse("a1")!, occupied: false)

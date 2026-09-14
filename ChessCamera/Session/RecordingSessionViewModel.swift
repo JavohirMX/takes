@@ -944,12 +944,14 @@ final class RecordingSessionViewModel: Identifiable {
 
         let next = SessionReducer.next(phase: phase, motion: motion, inference: inference)
         switch (next, inference) {
-        case (.recording, .unique(let move)):
+        case (.recording, .unique(let moves)):
             do {
-                try commit(move: move)
+                for move in moves {
+                    try commit(move: move)
+                }
                 phase = engine.isTerminal ? .gameOver : .recording
                 setKeepsScreenAwake(phase == .recording)
-                announceCommit()
+                announceCommit(sans: moves.map(\.san))
                 if !pieceDetectorAvailable, let warped = observation.warpedImage {
                     await pipeline.snapshotFingerprints(from: warped)
                 }
@@ -1002,13 +1004,15 @@ final class RecordingSessionViewModel: Identifiable {
         }
     }
 
-    private func announceCommit() {
+    private func announceCommit(sans: [String]? = nil) {
+        let spoken = sans ?? engine.appliedSANs.last.map { [$0] } ?? []
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        if let lastSAN {
-            UIAccessibility.post(notification: .announcement, argument: lastSAN)
+        if !spoken.isEmpty {
+            UIAccessibility.post(notification: .announcement, argument: spoken.joined(separator: " "))
         }
-        if SpeechSettings.speakMoves, let san = engine.appliedSANs.last {
-            moveSpeaker.speak(SANSpeech.speak(san))
+        if SpeechSettings.speakMoves {
+            let phrase = spoken.map { SANSpeech.speak($0) }.joined(separator: ". ")
+            moveSpeaker.speak(phrase)
         }
     }
 

@@ -16,7 +16,7 @@ import Testing
     let next = SessionReducer.next(
         phase: .disturbed,
         motion: .stable(Occupancy.standardStart()),
-        inference: .unique(move)
+        inference: .unique([move])
     )
     #expect(next == .recording)
 }

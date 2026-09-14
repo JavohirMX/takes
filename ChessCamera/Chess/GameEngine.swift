@@ -201,12 +201,33 @@ final class GameEngine {
         return occupancy
     }
 
-    /// Squares a legal move can fill or empty. Used to gate YOLO occupancy.
-    static func occupancyPrior(of board: Board, maxNewClears: Int = 2) -> OccupancyPrior {
+    /// Squares a legal move or fast opponent reply can fill or empty. Used to gate YOLO occupancy.
+    static func occupancyPrior(of board: Board, maxNewClears: Int = 4) -> OccupancyPrior {
         let before = occupancy(of: board)
         var fillable = Occupancy()
         var clearable = Occupancy()
+
+        func accumulate(_ after: Board) {
+            let afterOcc = occupancy(of: after)
+            clearable.bits |= before.bits & ~afterOcc.bits
+            fillable.bits |= afterOcc.bits & ~before.bits
+        }
+
+        for afterFirst in legalSuccessorBoards(board) {
+            accumulate(afterFirst)
+            for afterSecond in legalSuccessorBoards(afterFirst) {
+                accumulate(afterSecond)
+            }
+        }
+        return OccupancyPrior(fillable: fillable, clearable: clearable, maxNewClears: maxNewClears)
+    }
+
+    /// Queen promotions only: occupancy does not distinguish promo piece.
+    private static func legalSuccessorBoards(_ board: Board) -> [Board] {
+        var boards: [Board] = []
+        let side = board.position.sideToMove
         for start in Square.allCases {
+            guard board.position.piece(at: start)?.color == side else { continue }
             for end in board.legalMoves(forPieceAt: start) {
                 var trial = board
                 guard trial.move(pieceAt: start, to: end) != nil else { continue }
@@ -214,14 +235,13 @@ final class GameEngine {
                     var promo = board
                     guard let base = promo.move(pieceAt: start, to: end) else { continue }
                     _ = promo.completePromotion(of: base, to: .queen)
-                    trial = promo
+                    boards.append(promo)
+                } else {
+                    boards.append(trial)
                 }
-                let after = occupancy(of: trial)
-                clearable.bits |= before.bits & ~after.bits
-                fillable.bits |= after.bits & ~before.bits
             }
         }
-        return OccupancyPrior(fillable: fillable, clearable: clearable, maxNewClears: maxNewClears)
+        return boards
     }
 
     private func rebuildFromAppliedMoves() throws {

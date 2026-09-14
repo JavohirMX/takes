@@ -185,11 +185,11 @@ import Testing
         delta: VisualDelta(previous: startOcc, current: settled, observedClasses: [:]),
         board: Board()
     )
-    guard case .unique(let move) = inference else {
+    guard case .unique(let moves) = inference, moves.count == 1 else {
         Issue.record("expected unique e4, got \(inference)")
         return
     }
-    #expect(move.san == "e4")
+    #expect(moves[0].san == "e4")
 }
 
 @Test func captureAndCastleThroughChangePipeline() throws {

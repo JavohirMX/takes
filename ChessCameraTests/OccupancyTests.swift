@@ -74,3 +74,26 @@ import Testing
     let result = prior.apply(detected: noisy, previous: start)
     #expect(result == start)
 }
+
+@Test func occupancyPriorAllowsCastlePlusReplyClearsAndDropsFiveNoisyClears() throws {
+    let castle = try GameEngine(fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
+    let prior = GameEngine.occupancyPrior(of: castle.board)
+    let start = castle.occupancy()
+    var both = start
+    both.set(ChessSquare.parse("e1")!, occupied: false)
+    both.set(ChessSquare.parse("h1")!, occupied: false)
+    both.set(ChessSquare.parse("g1")!, occupied: true)
+    both.set(ChessSquare.parse("f1")!, occupied: true)
+    both.set(ChessSquare.parse("e8")!, occupied: false)
+    both.set(ChessSquare.parse("e7")!, occupied: true)
+    let gated = prior.apply(detected: both, previous: start)
+    #expect(gated == both)
+
+    let startEngine = GameEngine()
+    let startPrior = GameEngine.occupancyPrior(of: startEngine.board)
+    var noisy = startEngine.occupancy()
+    for name in ["a2", "b2", "c2", "d2", "e2"] {
+        noisy.set(ChessSquare.parse(name)!, occupied: false)
+    }
+    #expect(startPrior.apply(detected: noisy, previous: startEngine.occupancy()) == startEngine.occupancy())
+}

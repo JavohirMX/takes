@@ -208,6 +208,76 @@ import Testing
     #expect(MoveInferrer.debugSans(for: result).hasPrefix("amb "))
 }
 
+@Test func infersE4AndE5AsTwoPlyFromStart() throws {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e2")!, occupied: false)
+    after.set(ChessSquare.parse("e4")!, occupied: true)
+    after.set(ChessSquare.parse("e7")!, occupied: false)
+    after.set(ChessSquare.parse("e5")!, occupied: true)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .unique(let moves) = result else {
+        Issue.record("expected unique e4 then e5, got \(result)")
+        return
+    }
+    #expect(moves.count == 2)
+    guard moves.count == 2 else { return }
+    #expect(moves[0].san == canonicalSAN("e4", on: engine.board))
+    let mid = GameEngine()
+    try mid.apply(san: "e4")
+    #expect(moves[1].san == canonicalSAN("e5", on: mid.board))
+}
+
+@Test func infersOnlyE5WhenE4AlreadyCommitted() throws {
+    let engine = GameEngine()
+    try engine.apply(san: "e4")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e7")!, occupied: false)
+    after.set(ChessSquare.parse("e5")!, occupied: true)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .unique(let moves) = result else {
+        Issue.record("expected unique e5, got \(result)")
+        return
+    }
+    #expect(moves.count == 1)
+    #expect(moves[0].san == canonicalSAN("e5", on: engine.board))
+}
+
+@Test func infersCastleAndOpponentQuietAsTwoPly() throws {
+    let engine = try GameEngine(fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e1")!, occupied: false)
+    after.set(ChessSquare.parse("h1")!, occupied: false)
+    after.set(ChessSquare.parse("g1")!, occupied: true)
+    after.set(ChessSquare.parse("f1")!, occupied: true)
+    after.set(ChessSquare.parse("e8")!, occupied: false)
+    after.set(ChessSquare.parse("e7")!, occupied: true)
+    #expect(before.hammingDistance(to: after) == 6)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .unique(let moves) = result else {
+        Issue.record("expected unique O-O then Ke7, got \(result)")
+        return
+    }
+    #expect(moves.count == 2)
+    guard moves.count == 2 else { return }
+    #expect(moves[0].san == canonicalSAN("O-O", on: engine.board))
+    let mid = try GameEngine(fen: engine.fen)
+    try mid.apply(san: "O-O")
+    #expect(moves[1].san == canonicalSAN("Ke7", on: mid.board))
+}
+
 private func canonicalSAN(_ san: String, on board: Board) -> String? {
     Move(san: san, position: board.position)?.san
 }
