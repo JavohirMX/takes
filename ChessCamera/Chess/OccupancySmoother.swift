@@ -1,46 +1,52 @@
 import Foundation
 
-/// Majority-vote occupancy over a short frame window so 1-square flicker does not reset settle.
+/// Per-square hysteresis so brief YOLO misses do not empty a piece.
+/// Harder to clear an occupied square than to fill an empty one.
 struct OccupancySmoother: Sendable {
-    var windowSize: Int
-    private var frames: [Occupancy] = []
+    var emptyConfirmFrames: Int
+    var fillConfirmFrames: Int
 
-    init(windowSize: Int = 3) {
-        self.windowSize = windowSize
+    private var sticky = Occupancy()
+    private var emptyStreak = [UInt8](repeating: 0, count: 64)
+    private var fillStreak = [UInt8](repeating: 0, count: 64)
+
+    init(emptyConfirmFrames: Int = 5, fillConfirmFrames: Int = 2) {
+        self.emptyConfirmFrames = max(1, emptyConfirmFrames)
+        self.fillConfirmFrames = max(1, fillConfirmFrames)
     }
 
     mutating func ingest(_ occupancy: Occupancy) -> Occupancy {
-        frames.append(occupancy)
-        if frames.count > windowSize {
-            frames.removeFirst(frames.count - windowSize)
+        for index in 0..<64 {
+            let mask = UInt64(1) << index
+            let observed = occupancy.bits & mask != 0
+            let held = sticky.bits & mask != 0
+            if observed == held {
+                emptyStreak[index] = 0
+                fillStreak[index] = 0
+                continue
+            }
+            if held {
+                fillStreak[index] = 0
+                emptyStreak[index] = emptyStreak[index] &+ 1
+                if Int(emptyStreak[index]) >= emptyConfirmFrames {
+                    sticky.bits &= ~mask
+                    emptyStreak[index] = 0
+                }
+            } else {
+                emptyStreak[index] = 0
+                fillStreak[index] = fillStreak[index] &+ 1
+                if Int(fillStreak[index]) >= fillConfirmFrames {
+                    sticky.bits |= mask
+                    fillStreak[index] = 0
+                }
+            }
         }
-        return majority()
+        return sticky
     }
 
     mutating func reset(seeding occupancy: Occupancy? = nil) {
-        if let occupancy {
-            frames = [occupancy]
-        } else {
-            frames = []
-        }
-    }
-
-    private func majority() -> Occupancy {
-        guard let first = frames.first else { return Occupancy() }
-        guard frames.count > 1 else { return first }
-
-        let need = (frames.count + 1) / 2
-        var bits: UInt64 = 0
-        for index in 0..<64 {
-            let mask = UInt64(1) << index
-            var votes = 0
-            for frame in frames where frame.bits & mask != 0 {
-                votes += 1
-            }
-            if votes >= need {
-                bits |= mask
-            }
-        }
-        return Occupancy(bits: bits)
+        sticky = occupancy ?? Occupancy()
+        emptyStreak = [UInt8](repeating: 0, count: 64)
+        fillStreak = [UInt8](repeating: 0, count: 64)
     }
 }

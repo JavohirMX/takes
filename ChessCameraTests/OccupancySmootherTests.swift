@@ -1,20 +1,59 @@
 import Testing
 @testable import ChessCamera
 
-@Test func majorityDropsOneSquareFlicker() {
-    var smoother = OccupancySmoother(windowSize: 3)
+@Test func twoFrameMissOnOccupiedSquareStaysOccupied() {
+    var smoother = OccupancySmoother()
     let start = Occupancy.standardStart()
-    var flicker = start
-    flicker.set(ChessSquare.parse("e4")!, occupied: true)
+    smoother.reset(seeding: start)
+    var missingA1 = start
+    missingA1.set(ChessSquare.parse("a1")!, occupied: false)
 
-    _ = smoother.ingest(start)
-    _ = smoother.ingest(start)
-    let smoothed = smoother.ingest(flicker)
-    #expect(smoothed == start)
+    _ = smoother.ingest(missingA1)
+    let stillHeld = smoother.ingest(missingA1)
+    #expect(stillHeld.occupied(ChessSquare.parse("a1")!))
+    #expect(stillHeld == start)
+}
+
+@Test func fiveFrameEmptyClearsOccupiedSquare() {
+    var smoother = OccupancySmoother()
+    let start = Occupancy.standardStart()
+    smoother.reset(seeding: start)
+    var missingA1 = start
+    missingA1.set(ChessSquare.parse("a1")!, occupied: false)
+
+    var result = Occupancy()
+    for _ in 0..<5 {
+        result = smoother.ingest(missingA1)
+    }
+    #expect(!result.occupied(ChessSquare.parse("a1")!))
+}
+
+@Test func oneFrameGhostOnEmptySquareStaysEmpty() {
+    var smoother = OccupancySmoother()
+    let start = Occupancy.standardStart()
+    smoother.reset(seeding: start)
+    var ghostE4 = start
+    ghostE4.set(ChessSquare.parse("e4")!, occupied: true)
+
+    let result = smoother.ingest(ghostE4)
+    #expect(!result.occupied(ChessSquare.parse("e4")!))
+    #expect(result == start)
+}
+
+@Test func twoFrameFillOccupiesEmptySquare() {
+    var smoother = OccupancySmoother()
+    let start = Occupancy.standardStart()
+    smoother.reset(seeding: start)
+    var e4 = start
+    e4.set(ChessSquare.parse("e4")!, occupied: true)
+
+    _ = smoother.ingest(e4)
+    let result = smoother.ingest(e4)
+    #expect(result.occupied(ChessSquare.parse("e4")!))
 }
 
 @Test func resetSeedsCommittedOccupancy() {
-    var smoother = OccupancySmoother(windowSize: 3)
+    var smoother = OccupancySmoother()
     let start = Occupancy.standardStart()
     var e4 = start
     e4.set(ChessSquare.parse("e2")!, occupied: false)
