@@ -38,3 +38,12 @@ enum SettleSettings {
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 }
+
+enum SpeechSettings {
+    static let key = "speakCommittedMoves"
+
+    static var speakMoves: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}

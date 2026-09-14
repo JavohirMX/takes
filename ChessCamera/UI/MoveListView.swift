@@ -85,17 +85,73 @@ struct RecentPlyStrip: View {
 
 enum SANSpeech {
     static func speak(_ san: String) -> String {
-        san
-            .replacingOccurrences(of: "K", with: "king ")
-            .replacingOccurrences(of: "Q", with: "queen ")
-            .replacingOccurrences(of: "R", with: "rook ")
-            .replacingOccurrences(of: "B", with: "bishop ")
-            .replacingOccurrences(of: "N", with: "knight ")
-            .replacingOccurrences(of: "x", with: " takes ")
-            .replacingOccurrences(of: "O-O-O", with: "long castle")
-            .replacingOccurrences(of: "O-O", with: "short castle")
-            .replacingOccurrences(of: "+", with: " check")
-            .replacingOccurrences(of: "#", with: " mate")
-            .replacingOccurrences(of: "=", with: " promotes to ")
+        let trimmed = san.trimmingCharacters(in: .whitespacesAndNewlines)
+            .filter { $0 != "!" && $0 != "?" }
+        guard !trimmed.isEmpty else { return "" }
+
+        if trimmed.hasPrefix("O-O-O") || trimmed.hasPrefix("0-0-0") {
+            return castlePhrase("long castle", san: trimmed)
+        }
+        if trimmed.hasPrefix("O-O") || trimmed.hasPrefix("0-0") {
+            return castlePhrase("short castle", san: trimmed)
+        }
+
+        var rest = trimmed
+        var suffix = ""
+        if rest.hasSuffix("#") {
+            suffix = " mate"
+            rest.removeLast()
+        } else if rest.hasSuffix("+") {
+            suffix = " check"
+            rest.removeLast()
+        }
+
+        var promotion = ""
+        if let eq = rest.firstIndex(of: "=") {
+            let promoIndex = rest.index(after: eq)
+            if promoIndex < rest.endIndex {
+                promotion = " promotes to \(pieceName(rest[promoIndex]))"
+            }
+            rest = String(rest[..<eq])
+        }
+
+        let piece: String
+        if let first = rest.first, "KQRBN".contains(first) {
+            piece = pieceName(first)
+            rest.removeFirst()
+        } else {
+            piece = "pawn"
+        }
+
+        let capture = rest.contains("x")
+        rest.removeAll { $0 == "x" }
+
+        guard rest.count >= 2 else { return piece + suffix }
+        let destination = String(rest.suffix(2))
+        let disambiguation = String(rest.dropLast(2))
+        let verb = capture ? "takes" : "to"
+        var phrase = piece
+        if piece != "pawn", !disambiguation.isEmpty {
+            phrase += " \(disambiguation)"
+        }
+        phrase += " \(verb) \(destination)"
+        return phrase + promotion + suffix
+    }
+
+    private static func pieceName(_ char: Character) -> String {
+        switch char {
+        case "K": "king"
+        case "Q": "queen"
+        case "R": "rook"
+        case "B": "bishop"
+        case "N": "knight"
+        default: "pawn"
+        }
+    }
+
+    private static func castlePhrase(_ castle: String, san: String) -> String {
+        if san.contains("#") { return "\(castle) mate" }
+        if san.contains("+") { return "\(castle) check" }
+        return castle
     }
 }

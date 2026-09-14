@@ -88,11 +88,13 @@
 		C57CA4E9BABDF8C9BD21EE68 /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE9A5A8A196054CB608A014 /* GameEngine.swift */; };
 		C6B0C6D517AC61A0E199D596 /* FenCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B7B146A7B69AED646C6ACF /* FenCodec.swift */; };
 		CF91F0EB3BEF44E87E5FFF06 /* SettleDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F3D98EC612F6962407582C /* SettleDetectorTests.swift */; };
+		DF1A2B3C4D5E6F708192A3B4 /* SANSpeechTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1A2B3C4D5E6F708192A3B4 /* SANSpeechTests.swift */; };
 		E19E0E60BDE4C5F84ADDEFEC /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5205AE72ECC8A76BCD8EFCE7 /* ShareSheet.swift */; };
 		E4C8382C44C0123BC07874B3 /* PieceClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC7264E35F2622519CD7AFD5 /* PieceClassifier.swift */; };
 		E89AF36505E4C612017789E7 /* WarpedBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4830D1AEC7276C133B59756F /* WarpedBoardView.swift */; };
 		EB8A71718C2C2C199A9018A3 /* GameEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4DF6AAD7DFA7C4AFFB57BA /* GameEngineTests.swift */; };
 		EE982BA48D41A96F96BE4F63 /* MoveListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 345B8F34C0C137F732B2A45F /* MoveListView.swift */; };
+		EF1A2B3C4D5E6F708192A3B4 /* MoveSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1A2B3C4D5E6F708192A3B4 /* MoveSpeaker.swift */; };
 		F1902E8630C19010F90C22A5 /* GridSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F133624111158A6BC81A9525 /* GridSampler.swift */; };
 		F295EA609CA9D7AEDEEC3177 /* BoardWarper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F60C51FC76184F806DA689F /* BoardWarper.swift */; };
 		F7B547D92B8D3599F90F22A5 /* GameOverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AE7AECECBB5E3BC7AF3222 /* GameOverView.swift */; };
@@ -122,6 +124,8 @@
 		27762E892A116A0129F170C2 /* AssetVideoSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetVideoSource.swift; sourceTree = "<group>"; };
 		2F906397F6B499ED9F74D0D6 /* CornerHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerHandle.swift; sourceTree = "<group>"; };
 		345B8F34C0C137F732B2A45F /* MoveListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveListView.swift; sourceTree = "<group>"; };
+		AF1A2B3C4D5E6F708192A3B4 /* MoveSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveSpeaker.swift; sourceTree = "<group>"; };
+		BF1A2B3C4D5E6F708192A3B4 /* SANSpeechTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SANSpeechTests.swift; sourceTree = "<group>"; };
 		3473998CE0E1820B4E0BB537 /* OpenCVGridRefinerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCVGridRefinerTests.swift; sourceTree = "<group>"; };
 		35825408D250867B93B29B53 /* BoardLocalizerScoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLocalizerScoreTests.swift; sourceTree = "<group>"; };
 		36251CC5D72DF61397D4FC42 /* PieceStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceStudioView.swift; sourceTree = "<group>"; };
@@ -353,6 +357,7 @@
 				CF4094742F62027B112F3812 /* PaddedBoardRefinerTests.swift */,
 				B4432BD4303DF4EC47BC4094 /* QuadrilateralTests.swift */,
 				D65B166F12A837493B468D1B /* RecordingSessionViewModelTests.swift */,
+				BF1A2B3C4D5E6F708192A3B4 /* SANSpeechTests.swift */,
 				885774EC391C6A091B692228 /* SessionReducerTests.swift */,
 				42F3D98EC612F6962407582C /* SettleDetectorTests.swift */,
 				D319D0AC3281B999D0BAC505 /* VideoMappingTests.swift */,
@@ -416,6 +421,7 @@
 				7AB2C097D4F49229B6F0C6E9 /* DigitalBoardView.swift */,
 				77D0BFBF62F1C1BE14BABFA4 /* FenBar.swift */,
 				345B8F34C0C137F732B2A45F /* MoveListView.swift */,
+				AF1A2B3C4D5E6F708192A3B4 /* MoveSpeaker.swift */,
 				B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */,
 				CB4E96C0AE884220A03AB795 /* PieceBoxOverlay.swift */,
 				E88F6D020E04902CA18FB91F /* PieceView.swift */,
@@ -582,6 +588,7 @@
 				45B50531A62FD55929DDF7E6 /* QuadrilateralTests.swift in Sources */,
 				49CEA303F77A810443C60A38 /* RecordingSessionViewModelTests.swift in Sources */,
 				196738630B87B3F96068CEF0 /* SessionReducerTests.swift in Sources */,
+				DF1A2B3C4D5E6F708192A3B4 /* SANSpeechTests.swift in Sources */,
 				CF91F0EB3BEF44E87E5FFF06 /* SettleDetectorTests.swift in Sources */,
 				3BFA2E61456376388504D61A /* VideoMappingTests.swift in Sources */,
 			);
@@ -629,6 +636,7 @@
 				B45E2E887B33396EA01523BD /* LiveRecordingView.swift in Sources */,
 				29EA8CF6D8ED8595F28747DD /* MoveInferrer.swift in Sources */,
 				EE982BA48D41A96F96BE4F63 /* MoveListView.swift in Sources */,
+				EF1A2B3C4D5E6F708192A3B4 /* MoveSpeaker.swift in Sources */,
 				A1C3A2F6D053D4FC266969BF /* Occupancy.swift in Sources */,
 				803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */,
 				8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */,

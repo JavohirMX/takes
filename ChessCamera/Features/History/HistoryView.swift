@@ -17,6 +17,7 @@ struct HistoryView: View {
     @State private var showAppearance = false
     @State private var shareItems: [Any] = []
     @State private var showShare = false
+    @AppStorage(SpeechSettings.key) private var speakMoves = false
 
     var body: some View {
         NavigationStack {
@@ -45,6 +46,14 @@ struct HistoryView: View {
                     Menu {
                         Button("Board appearance", systemImage: "checkerboard.rectangle") {
                             showAppearance = true
+                        }
+                        Button {
+                            speakMoves.toggle()
+                        } label: {
+                            Label(
+                                "Speak moves",
+                                systemImage: speakMoves ? "checkmark" : "speaker.wave.2"
+                            )
                         }
                         Menu("Debug") {
                             PhotosPicker(selection: $pendingVideo, matching: .videos) {

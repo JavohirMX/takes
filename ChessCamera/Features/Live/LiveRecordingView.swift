@@ -8,6 +8,7 @@ struct LiveRecordingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var previewSwap
     @State private var warpIsPrimary = false
+    @AppStorage(SpeechSettings.key) private var speakMoves = false
 
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
@@ -256,6 +257,14 @@ struct LiveRecordingView: View {
             .accessibilityLabel("Undo last move")
 
             Menu {
+                Button {
+                    speakMoves.toggle()
+                } label: {
+                    Label(
+                        "Speak moves",
+                        systemImage: speakMoves ? "checkmark" : "speaker.wave.2"
+                    )
+                }
                 Button("Adjust corners") { model.adjustCorners() }
                 Button("Fix last move") { model.beginEdit(replacingLast: true) }
                     .disabled(model.committedPlyCount == 0)

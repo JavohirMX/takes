@@ -69,6 +69,7 @@ final class RecordingSessionViewModel: Identifiable {
     private var settle = SettleDetector()
     private var occupancySmoother = OccupancySmoother()
     private var occupancyPrior = OccupancyPrior.unconstrained
+    private let moveSpeaker = MoveSpeaker()
     private let earlyCommitDuration: Duration = .milliseconds(250)
     private var isProcessingFrame = false
     private var lastProcessTime: ContinuousClock.Instant?
@@ -1005,6 +1006,9 @@ final class RecordingSessionViewModel: Identifiable {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         if let lastSAN {
             UIAccessibility.post(notification: .announcement, argument: lastSAN)
+        }
+        if SpeechSettings.speakMoves, let san = engine.appliedSANs.last {
+            moveSpeaker.speak(SANSpeech.speak(san))
         }
     }
 
