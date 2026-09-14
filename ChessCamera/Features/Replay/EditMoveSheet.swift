@@ -34,7 +34,6 @@ struct EditMoveSheet: View {
 
                         DigitalBoardView(
                             fen: boardFEN,
-                            orientation: model.orientation,
                             selected: from,
                             interactive: true,
                             onTap: handleTap

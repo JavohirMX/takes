@@ -52,10 +52,6 @@ struct ReplayView: View {
                 MoveListView(sans: sans, selectedPly: plyIndex == 0 ? nil : plyIndex - 1) { index in
                     plyIndex = index + 1
                 }
-
-                FenBar(fen: currentFEN) {
-                    UIPasteboard.general.string = currentFEN
-                }
             }
             .padding(.bottom, 16)
         }
@@ -66,7 +62,8 @@ struct ReplayView: View {
                 Menu {
                     Button("Share PGN") { sharePGN() }
                     Button("Copy PGN") { UIPasteboard.general.string = pgn }
-                    Button("Copy FEN") { UIPasteboard.general.string = currentFEN }
+                    Button("Copy FEN") { UIPasteboard.general.string = finalFEN }
+                    Button("Copy current position FEN") { UIPasteboard.general.string = currentFEN }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .frame(width: 44, height: 44)
@@ -88,6 +85,10 @@ struct ReplayView: View {
             return initialFen ?? FenCodec.standard
         }
         return fens[plyIndex]
+    }
+
+    private var finalFEN: String {
+        fens.last ?? initialFen ?? FenCodec.standard
     }
 
     private var lastMoveHighlight: (from: ChessSquare, to: ChessSquare)? {

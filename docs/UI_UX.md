@@ -57,7 +57,7 @@ Digital board squares live on `BoardStyle` (user-chosen, persisted). Default **T
 | Blue | `#DEE3E6` | `#8CA2AD` |
 | Slate | `#E2E8F0` | `#475569` |
 
-Last-move highlight is a translucent tint owned by the style (Slate uses accent at 35%). Pieces are bundled CBurnett SVGs (`wK`…`bP`), not Unicode. Coordinates a–h / 1–8 sit on the near edges and are hidden from VoiceOver. `Theme.boardLight` / `boardDark` / `lastMove` remain Slate aliases.
+Last-move highlight is a translucent tint owned by the style (Slate uses accent at 35%). Pieces are bundled CBurnett SVGs (`wK`…`bP`), not Unicode. The digital board is always a classical diagram (White at the bottom, a–h along the near rank). Coordinates a–h / 1–8 sit on the near edges and are hidden from VoiceOver. `Theme.boardLight` / `boardDark` / `lastMove` remain Slate aliases. Camera-relative orientation applies only to warped previews and occupancy overlays, not `DigitalBoardView`.
 
 **Contrast:** `textPrimary` on `background` and `textPrimary` on `surface` must stay ≥ 4.5:1. Accent green is for controls and highlights, not body text on dark navy.
 
@@ -113,7 +113,6 @@ Minimum readable size: do not use `.caption2` for primary move text. Support Dyn
 │                  │  digital board  │
 │     camera       ├─────────────────┤
 │     + quad       │  move list      │
-│                  │  FEN            │
 │                  │  [End] [Undo]   │
 └──────────────────┴─────────────────┘
 ```
@@ -198,11 +197,11 @@ Controls (all labeled, not icon-only unless 44 pt + `accessibilityLabel`):
 
 - **Undo** — last ply; disabled at start
 - **End** — ends game, confirm if not mate
-- Overflow: Adjust corners, Recapture position (stretch), Import is not here
+- Overflow: Adjust corners, Fix last move, Copy FEN, Export 64 crops. Import is not here.
 
 Last move: highlight from/to on the **digital** board. Optional faint arrow on camera overlay if the quad is locked (skip if noisy).
 
-FEN is a single-line monospaced field, selectable, with **Copy**.
+Live HUD has no FEN field. Copy FEN is in More.
 
 Haptic: light impact on successful commit. None on disturbed. Warning on illegal/ambiguous. Honor Reduce Motion (no pulse on the quad if set).
 
@@ -223,7 +222,7 @@ Full-screen on `surface`. Result (Checkmate — White wins / Draw / Game ended).
 
 ### 6.9 Replay
 
-Digital board + slider or step buttons (`chevron.left` / `chevron.right`) + move list (tap a ply to jump). Toolbar: Share. FEN for the shown position, copyable.
+Digital board + slider or step buttons (`chevron.left` / `chevron.right`) + move list (tap a ply to jump). Toolbar share menu: Share PGN, Copy PGN, Copy FEN (final position), Copy current position FEN (scrubber ply). No FEN bar on Replay.
 
 Autoplay is optional stretch; if present, respect Reduce Motion (no autoplay by default).
 
@@ -308,7 +307,7 @@ Avoid: “Neural engine”, “AI sees all”, “Perfect chess vision.”
 |---|---|
 | `DigitalBoardView` | Confirm, Live, Replay, Edit, History cards, appearance picker |
 | `MoveListView` | Live (landscape), Replay |
-| `FenBar` | Live, Replay, Game over |
+| `FenBar` | Game over |
 | `CameraPreview` | Detect, Corners, Live |
 | `BoardQuadOverlay` | Detect, Live |
 | `StatusBanner` | Live HUD |

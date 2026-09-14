@@ -5,6 +5,9 @@ import UIKit
 struct LiveRecordingView: View {
     @Bindable var model: RecordingSessionViewModel
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var previewSwap
+    @State private var warpIsPrimary = false
 
     var body: some View {
         Group {
@@ -16,6 +19,7 @@ struct LiveRecordingView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .onAppear { warpIsPrimary = false }
         .safeAreaInset(edge: .bottom) {
             if verticalSizeClass != .compact {
                 hud
@@ -44,7 +48,6 @@ struct LiveRecordingView: View {
                 .layoutPriority(1)
             DigitalBoardView(
                 fen: model.engine.fen,
-                orientation: model.orientation,
                 lastMove: model.engine.lastMoveSquares
             )
             .padding(.horizontal, 16)
@@ -63,11 +66,9 @@ struct LiveRecordingView: View {
             VStack(spacing: 12) {
                 DigitalBoardView(
                     fen: model.engine.fen,
-                    orientation: model.orientation,
                     lastMove: model.engine.lastMoveSquares
                 )
                 MoveListView(sans: model.committedSANs)
-                FenBar(fen: model.engine.fen, copyAction: model.copyFEN)
                 if !model.liveDebugLine.isEmpty {
                     Text(model.liveDebugLine)
                         .font(.caption.monospaced())
@@ -84,47 +85,107 @@ struct LiveRecordingView: View {
 
     private var cameraBlock: some View {
         ZStack {
+            largePreview
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: togglePreview)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(warpIsPrimary ? "Show camera" : "Show board preview")
+
+            VStack {
+                HStack {
+                    Spacer()
+                    cornerPreview
+                        .frame(width: 96, height: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Theme.border, lineWidth: 1)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: togglePreview)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel(warpIsPrimary ? "Show camera" : "Show board preview")
+                        .padding(12)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var largePreview: some View {
+        if warpIsPrimary {
+            warpFeed
+                .matchedGeometryEffect(id: "warp", in: previewSwap)
+                .clipped()
+        } else {
+            cameraFeed(showOverlays: true)
+                .matchedGeometryEffect(id: "camera", in: previewSwap)
+        }
+    }
+
+    @ViewBuilder
+    private var cornerPreview: some View {
+        if warpIsPrimary {
+            cameraFeed(showOverlays: false)
+                .matchedGeometryEffect(id: "camera", in: previewSwap)
+        } else {
+            warpFeed
+                .matchedGeometryEffect(id: "warp", in: previewSwap)
+        }
+    }
+
+    private func cameraFeed(showOverlays: Bool) -> some View {
+        ZStack {
             CameraPreview(
                 session: model.liveCaptureSession,
                 stillImage: model.previewImage,
                 videoRotationAngle: model.previewRotationAngle
             )
-            BoardQuadOverlay(
-                quad: model.quad,
-                bufferSize: model.bufferSize,
-                style: model.trackingLost ? .poor : .locked,
-                pulse: false
-            )
-            if let quad = model.quad {
-                BoardGridOverlay(
-                    quad: quad,
+            if showOverlays {
+                BoardQuadOverlay(
+                    quad: model.quad,
                     bufferSize: model.bufferSize,
-                    grid: model.refinedGrid
+                    style: model.trackingLost ? .poor : .locked,
+                    pulse: false
                 )
-            }
-            VStack {
-                HStack {
-                    Spacer()
-                    ZStack {
-                        if let thumb = model.warpedThumbnail {
-                            Image(uiImage: UIImage(cgImage: thumb))
-                                .resizable()
-                                .scaledToFit()
-                        }
-                        OccupancyGridOverlay(
-                            occupancy: model.liveOccupancy,
-                            orientation: model.orientation
-                        )
-                    }
-                    .frame(width: 96, height: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Theme.border, lineWidth: 1)
-                    }
-                    .padding(12)
+                if let quad = model.quad {
+                    BoardGridOverlay(
+                        quad: quad,
+                        bufferSize: model.bufferSize,
+                        grid: model.refinedGrid
+                    )
                 }
-                Spacer()
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var warpFeed: some View {
+        ZStack {
+            if let thumb = model.warpedThumbnail {
+                Image(uiImage: UIImage(cgImage: thumb))
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } else {
+                Theme.surfaceMuted
+            }
+            OccupancyGridOverlay(
+                occupancy: model.liveOccupancy,
+                orientation: model.orientation
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func togglePreview() {
+        if reduceMotion {
+            warpIsPrimary.toggle()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) {
+                warpIsPrimary.toggle()
             }
         }
     }
@@ -146,7 +207,6 @@ struct LiveRecordingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityLabel("Capture debug \(model.liveDebugLine)")
             }
-            FenBar(fen: model.engine.fen, copyAction: model.copyFEN)
             hudControls
         }
         .padding(16)
@@ -178,6 +238,7 @@ struct LiveRecordingView: View {
                 Button("Adjust corners") { model.adjustCorners() }
                 Button("Fix last move") { model.beginEdit(replacingLast: true) }
                     .disabled(model.committedPlyCount == 0)
+                Button("Copy FEN") { model.copyFEN() }
                 Button("Export 64 crops") { model.exportCrops() }
             } label: {
                 Image(systemName: "ellipsis")

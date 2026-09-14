@@ -16,7 +16,6 @@ struct GameOverView: View {
 
                 DigitalBoardView(
                     fen: model.engine.fen,
-                    orientation: model.orientation,
                     lastMove: model.engine.lastMoveSquares
                 )
                 .frame(maxHeight: 280)

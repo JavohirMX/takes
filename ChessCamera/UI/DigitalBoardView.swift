@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DigitalBoardView: View {
     var fen: String
+    /// Display mapping. Call sites should keep the default so the diagram stays White-at-bottom.
     var orientation: BoardOrientation = .whiteAtBottom
     var lastMove: (from: ChessSquare, to: ChessSquare)?
     var selected: ChessSquare?
