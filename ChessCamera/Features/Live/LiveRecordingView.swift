@@ -50,6 +50,10 @@ struct LiveRecordingView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .frame(maxHeight: .infinity)
+            RecentPlyStrip(sans: model.committedSANs)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .id(model.committedPlyCount)
         }
     }
 
@@ -62,7 +66,7 @@ struct LiveRecordingView: View {
                     orientation: model.orientation,
                     lastMove: model.engine.lastMoveSquares
                 )
-                MoveListView(sans: model.engine.appliedSANs)
+                MoveListView(sans: model.committedSANs)
                 FenBar(fen: model.engine.fen, copyAction: model.copyFEN)
                 if !model.liveDebugLine.isEmpty {
                     Text(model.liveDebugLine)
@@ -134,6 +138,7 @@ struct LiveRecordingView: View {
                 showResume: model.phase == .awaitingEdit,
                 onResume: { model.resumeRecordingAfterReject() }
             )
+            .id("\(model.committedPlyCount)-\(model.lastSAN ?? "")-\(model.phase)")
             if !model.liveDebugLine.isEmpty {
                 Text(model.liveDebugLine)
                     .font(.caption.monospaced())
@@ -172,7 +177,7 @@ struct LiveRecordingView: View {
             Menu {
                 Button("Adjust corners") { model.adjustCorners() }
                 Button("Fix last move") { model.beginEdit(replacingLast: true) }
-                    .disabled(model.engine.plyCount == 0)
+                    .disabled(model.committedPlyCount == 0)
                 Button("Export 64 crops") { model.exportCrops() }
             } label: {
                 Image(systemName: "ellipsis")
@@ -190,14 +195,14 @@ struct LiveRecordingView: View {
         }
         switch model.phase {
         case .disturbed:
-            return .disturbed
+            return .disturbed(holding: model.lastSAN)
         case .awaitingEdit:
             return .awaitingEdit
         case .recording:
             if case .check = model.engine.state {
-                return .check(model.lastSAN ?? model.engine.formattedLastSAN ?? "")
+                return .check(model.lastSAN ?? "")
             }
-            return .recording(model.lastSAN ?? model.engine.formattedLastSAN ?? "Recording")
+            return .recording(model.lastSAN ?? "Recording")
         default:
             return .recording(model.lastSAN ?? "Recording")
         }

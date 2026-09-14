@@ -23,6 +23,16 @@ import Testing
     #expect(occ.bits == UInt64(1) << 63)
 }
 
-@Test func standardStartHas32Pieces() {
-    #expect(Occupancy.standardStart().bits.nonzeroBitCount == 32)
+@Test func occupancyFromClassesMatchesStandardStart() {
+    #expect(Occupancy.from(classes: FenCodec.standardClasses()) == Occupancy.standardStart())
+}
+
+@Test func occupancyFromClassesTracksQuietPawnPush() {
+    var classes = FenCodec.standardClasses()
+    classes[ChessSquare.parse("e2")!] = .empty
+    classes[ChessSquare.parse("e4")!] = .whitePawn
+    let occ = Occupancy.from(classes: classes)
+    #expect(occ.hammingDistance(to: Occupancy.standardStart()) == 2)
+    #expect(!occ.occupied(ChessSquare.parse("e2")!))
+    #expect(occ.occupied(ChessSquare.parse("e4")!))
 }

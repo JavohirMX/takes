@@ -16,6 +16,14 @@ struct Occupancy: Equatable, Sendable {
         (bits ^ other.bits).nonzeroBitCount
     }
 
+    static func from(classes: [ChessSquare: PieceClass]) -> Occupancy {
+        var occupancy = Occupancy()
+        for (square, piece) in classes where piece != .empty {
+            occupancy.set(square, occupied: true)
+        }
+        return occupancy
+    }
+
     /// Occupied squares of a standard chess starting position (ranks 1, 2, 7, 8).
     static func standardStart() -> Occupancy {
         var occupancy = Occupancy()

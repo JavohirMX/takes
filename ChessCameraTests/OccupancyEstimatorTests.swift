@@ -56,6 +56,12 @@ import Testing
     #expect(preview == "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6")
 }
 
+@Test func pgnPreviewTrailingStartsAtLatestPlies() {
+    let sans = ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Bxc6"]
+    let preview = PGNMoveList.preview(sans: sans, maxPlies: 4, trailing: true)
+    #expect(preview == "2... Nc6 3. Bb5 a6 4. Bxc6")
+}
+
 @Test func gridSamplerExportsSixtyFourCrops() throws {
     let image = try makeGrayImage(size: 512, value: 90)
     let crops = GridSampler.crops(from: image, orientation: .whiteAtBottom, inset: 0)

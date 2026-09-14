@@ -1,5 +1,4 @@
 import CoreGraphics
-import CoreImage
 import CoreVideo
 import Foundation
 
@@ -23,7 +22,6 @@ actor VisionPipeline {
     private let classifier: (any PieceClassifier)?
     private let detector: (any PieceDetector)?
     private var needsFingerprintSnapshot = false
-    private let imageContext = CIContext(options: [.useSoftwareRenderer: false])
 
     init(
         localizer: any BoardLocalizer = VisionBoardLocalizer(),
@@ -159,31 +157,21 @@ actor VisionPipeline {
         warped: WarpedBoard,
         previousOccupancy: Occupancy
     ) async -> BoardObservation {
-        let occupancy: Occupancy
-        if let image = cgImage(from: frame.buffer) {
-            let boxes = await detectPieceBoxes(in: image)
-            occupancy = PieceDetection.occupancy(
-                from: boxes,
-                quad: quad,
-                orientation: orientation,
-                grid: refinedGrid
-            )
+        let classes: [ChessSquare: PieceClass]
+        if let detector {
+            classes = await detector.detect(in: warped.squareImage, orientation: orientation)
         } else {
-            occupancy = Occupancy()
+            classes = [:]
         }
+        let occupancy = Occupancy.from(classes: classes)
         return BoardObservation(
             timestamp: frame.timestamp,
             quad: quad,
             occupancy: occupancy,
-            classes: [:],
+            classes: classes,
             changedSquareCount: previousOccupancy.hammingDistance(to: occupancy),
             warpedImage: warped.squareImage
         )
-    }
-
-    private func cgImage(from buffer: CVPixelBuffer) -> CGImage? {
-        let image = CIImage(cvPixelBuffer: buffer)
-        return imageContext.createCGImage(image, from: image.extent)
     }
 
     func crops(from warped: CGImage) -> [SquareCrop] {

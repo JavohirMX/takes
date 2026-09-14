@@ -26,6 +26,9 @@ final class RecordingSessionViewModel: Identifiable {
     var proposedFEN = FenCodec.standard
     var classifiedClasses: [ChessSquare: PieceClass] = FenCodec.standardClasses()
     var lastSAN: String?
+    /// Snapshot of `engine.appliedSANs` assigned as a new array on each commit so SwiftUI HUD observes it.
+    var committedSANs: [String] = []
+    var committedPlyCount: Int { committedSANs.count }
     var trackingLost = false
     var detectTimedOut = false
     var cameraUnavailable = false
@@ -64,6 +67,8 @@ final class RecordingSessionViewModel: Identifiable {
     private var consumeTask: Task<Void, Never>?
     private var detectStartedAt: ContinuousClock.Instant?
     private var settle = SettleDetector()
+    private var occupancySmoother = OccupancySmoother()
+    private let earlyCommitDuration: Duration = .milliseconds(250)
     private var isProcessingFrame = false
     private var lastProcessTime: ContinuousClock.Instant?
     private var pausedForBackground = false
@@ -85,7 +90,7 @@ final class RecordingSessionViewModel: Identifiable {
     var pgn: String { engine.pgn }
     var isLegalProposedFEN: Bool { FenCodec.isLegal(proposedFEN) }
     var isStandardStart: Bool { FenCodec.isStandardStart(proposedFEN) }
-    var canUndo: Bool { engine.plyCount > 0 && (phase == .recording || phase == .awaitingEdit || phase == .disturbed || phase == .gameOver) }
+    var canUndo: Bool { committedPlyCount > 0 && (phase == .recording || phase == .awaitingEdit || phase == .disturbed || phase == .gameOver) }
     var liveCaptureSession: AVCaptureSession? {
         liveCamera?.captureSession
     }
@@ -374,11 +379,12 @@ final class RecordingSessionViewModel: Identifiable {
             engine.resetToStart()
         }
         lastCommittedOccupancy = engine.occupancy()
+        occupancySmoother.reset(seeding: lastCommittedOccupancy)
         settle = SettleDetector(config: .init(
             stableDuration: .milliseconds(SettleSettings.milliseconds),
             maxHammingJitter: 1
         ))
-        lastSAN = nil
+        syncCommittedNotation()
         trackingLost = false
         softRejectMessage = nil
         liveDebugLine = ""
@@ -413,7 +419,8 @@ final class RecordingSessionViewModel: Identifiable {
         do {
             try engine.undo()
             lastCommittedOccupancy = engine.occupancy()
-            lastSAN = engine.formattedLastSAN
+            occupancySmoother.reset(seeding: lastCommittedOccupancy)
+            syncCommittedNotation()
             ambiguousMoves = []
             softRejectMessage = nil
             armFingerprintSnapshot(warmup: 3)
@@ -430,6 +437,7 @@ final class RecordingSessionViewModel: Identifiable {
         ambiguousMoves = []
         softRejectMessage = nil
         liveOccupancy = lastCommittedOccupancy
+        occupancySmoother.reset(seeding: lastCommittedOccupancy)
         settle = SettleDetector(config: .init(
             stableDuration: .milliseconds(SettleSettings.milliseconds),
             maxHammingJitter: 1
@@ -439,8 +447,21 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func beginEdit(replacingLast: Bool) {
-        editReplacesLast = replacingLast && engine.plyCount > 0
+        editReplacesLast = replacingLast && committedPlyCount > 0
         showEditSheet = true
+    }
+
+    func commit(move: Move) throws {
+        try engine.apply(move: move)
+        lastCommittedOccupancy = engine.occupancy()
+        occupancySmoother.reset(seeding: lastCommittedOccupancy)
+        syncCommittedNotation()
+        softRejectMessage = nil
+    }
+
+    private func syncCommittedNotation() {
+        committedSANs = Array(engine.appliedSANs)
+        lastSAN = engine.formattedLastSAN
     }
 
     func applyEdit(san: String) {
@@ -451,7 +472,8 @@ final class RecordingSessionViewModel: Identifiable {
                 try engine.apply(san: san)
             }
             lastCommittedOccupancy = engine.occupancy()
-            lastSAN = engine.formattedLastSAN
+            occupancySmoother.reset(seeding: lastCommittedOccupancy)
+            syncCommittedNotation()
             showEditSheet = false
             ambiguousMoves = []
             softRejectMessage = nil
@@ -741,7 +763,8 @@ final class RecordingSessionViewModel: Identifiable {
                     previewImage = image(from: frame.buffer)
                 }
                 liveOccupancy = lastCommittedOccupancy
-                liveDebugLine = "warmup \(fingerprintWarmupFramesRemaining)  ham 0  Δ0"
+                occupancySmoother.reset(seeding: lastCommittedOccupancy)
+                liveDebugLine = "warmup \(fingerprintWarmupFramesRemaining)  ham 0  Δ0  ply \(committedPlyCount)  \(lastSAN ?? "-")"
                 return
             }
             await pipeline.requestFingerprintSnapshot()
@@ -756,7 +779,6 @@ final class RecordingSessionViewModel: Identifiable {
             trackingLost = false
             quad = observation.quad
             warpedThumbnail = observation.warpedImage
-            liveOccupancy = observation.occupancy
             previewImage = image(from: frame.buffer)
             await ingest(observation)
         } else {
@@ -767,8 +789,10 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func ingest(_ observation: BoardObservation) async {
-        let motion = settle.ingest(observation.occupancy, at: observation.timestamp)
-        let hamming = lastCommittedOccupancy.hammingDistance(to: observation.occupancy)
+        let smoothed = occupancySmoother.ingest(observation.occupancy)
+        liveOccupancy = smoothed
+        var motion = settle.ingest(smoothed, at: observation.timestamp)
+        let hamming = lastCommittedOccupancy.hammingDistance(to: smoothed)
         let motionLabel: String
         switch motion {
         case .stable:
@@ -777,40 +801,54 @@ final class RecordingSessionViewModel: Identifiable {
             motionLabel = "disturbed"
         }
         liveDebugLine =
-            "\(phaseLabel(phase))  \(motionLabel)  ham \(hamming)  Δ\(observation.changedSquareCount)"
+            "\(phaseLabel(phase))  \(motionLabel)  ham \(hamming)  Δ\(observation.changedSquareCount)  ply \(committedPlyCount)  \(lastSAN ?? "-")"
 
-        let inference: InferenceResult
-        if case .stable(let occ) = motion, phase == .disturbed {
-            let distance = lastCommittedOccupancy.hammingDistance(to: occ)
-            if distance == 0 {
-                trackingLost = false
-                inference = .none
-            } else if distance > 16 {
-                trackingLost = true
-                inference = .none
+        var inference: InferenceResult = .none
+        if phase == .disturbed {
+            let candidate: Occupancy?
+            if case .stable(let occ) = motion {
+                candidate = occ
+            } else if settle.quietElapsed(at: observation.timestamp) >= earlyCommitDuration {
+                candidate = smoothed
             } else {
-                trackingLost = false
-                inference = MoveInferrer.infer(
-                    delta: VisualDelta(
-                        previous: lastCommittedOccupancy,
-                        current: occ,
-                        observedClasses: observation.classes
-                    ),
-                    board: engine.board
-                )
+                candidate = nil
             }
-        } else {
-            inference = .none
+
+            if let occ = candidate {
+                let distance = lastCommittedOccupancy.hammingDistance(to: occ)
+                if distance == 0 {
+                    trackingLost = false
+                    inference = .none
+                } else if distance > 16 {
+                    trackingLost = true
+                    inference = .none
+                } else {
+                    trackingLost = false
+                    let result = MoveInferrer.infer(
+                        delta: VisualDelta(
+                            previous: lastCommittedOccupancy,
+                            current: occ,
+                            observedClasses: observation.classes
+                        ),
+                        board: engine.board
+                    )
+                    if case .stable = motion {
+                        inference = result
+                    } else if case .unique = result {
+                        inference = result
+                        motion = .stable(occ)
+                    } else {
+                        inference = .none
+                    }
+                }
+            }
         }
 
         let next = SessionReducer.next(phase: phase, motion: motion, inference: inference)
         switch (next, inference) {
         case (.recording, .unique(let move)):
             do {
-                try engine.apply(move: move)
-                lastCommittedOccupancy = engine.occupancy()
-                lastSAN = engine.formattedLastSAN
-                softRejectMessage = nil
+                try commit(move: move)
                 phase = engine.isTerminal ? .gameOver : .recording
                 announceCommit()
                 if !pieceDetectorAvailable, let warped = observation.warpedImage {
@@ -822,6 +860,7 @@ final class RecordingSessionViewModel: Identifiable {
             } catch {
                 softRejectMessage = "Couldn’t apply that move"
                 phase = .recording
+                occupancySmoother.reset(seeding: lastCommittedOccupancy)
                 settle = SettleDetector(config: .init(
                     stableDuration: .milliseconds(SettleSettings.milliseconds),
                     maxHammingJitter: 1
@@ -831,6 +870,7 @@ final class RecordingSessionViewModel: Identifiable {
             // Soft-reject: keep last committed occupancy and stay recording.
             softRejectMessage = "Ignored bad settle"
             liveOccupancy = lastCommittedOccupancy
+            occupancySmoother.reset(seeding: lastCommittedOccupancy)
             phase = .recording
             settle = SettleDetector(config: .init(
                 stableDuration: .milliseconds(SettleSettings.milliseconds),
@@ -876,11 +916,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func occupancyFromClasses() -> Occupancy {
-        var occupancy = Occupancy()
-        for (square, piece) in classifiedClasses where piece != .empty {
-            occupancy.set(square, occupied: true)
-        }
-        return occupancy
+        Occupancy.from(classes: classifiedClasses)
     }
 
     private func armFingerprintSnapshot(warmup: Int) {
@@ -924,6 +960,7 @@ final class RecordingSessionViewModel: Identifiable {
         proposedFEN = FenCodec.standard
         classifiedClasses = FenCodec.standardClasses()
         lastSAN = nil
+        committedSANs = []
         trackingLost = false
         detectTimedOut = false
         cameraUnavailable = false
@@ -946,6 +983,7 @@ final class RecordingSessionViewModel: Identifiable {
         detectStartedAt = nil
         didAutoConfirmVideo = false
         settle = SettleDetector(config: .init(stableDuration: settleDuration, maxHammingJitter: 1))
+        occupancySmoother.reset()
         fingerprintWarmupFramesRemaining = 0
         Task {
             await pipeline.setLockedQuad(nil)

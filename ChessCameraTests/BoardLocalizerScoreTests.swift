@@ -119,8 +119,37 @@ import Testing
     #expect(detector.detectCount == 0)
 }
 
+@Test func liveObservationUsesWarpedDetectNotFullFrameBoxes() async throws {
+    let detector = CountingDetector()
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 8, y: 8),
+        topRight: CGPoint(x: 248, y: 8),
+        bottomRight: CGPoint(x: 248, y: 248),
+        bottomLeft: CGPoint(x: 8, y: 248)
+    )
+    let pipeline = VisionPipeline(
+        localizer: StubLocalizer(quad: quad),
+        classifier: nil,
+        detector: detector
+    )
+    await pipeline.setLockedQuad(quad)
+    let buffer = try makeBGRAPixelBuffer(width: 256, height: 256, gray: 90)
+    let frame = CapturedFrame(buffer: buffer, timestamp: ContinuousClock().now)
+    let observation = await pipeline.observation(
+        from: frame,
+        classify: false,
+        previousOccupancy: Occupancy.standardStart()
+    )
+    #expect(observation != nil)
+    #expect(detector.detectCount == 1)
+    #expect(detector.boxesCount == 0)
+    #expect(observation?.occupancy.occupied(ChessSquare(file: 4, rank: 0)) == true)
+    #expect(observation?.classes[ChessSquare(file: 4, rank: 0)] == .whiteKing)
+}
+
 private final class CountingDetector: PieceDetector, @unchecked Sendable {
     var detectCount = 0
+    var boxesCount = 0
 
     func detect(in warped: CGImage, orientation: BoardOrientation) async -> [ChessSquare: PieceClass] {
         detectCount += 1
@@ -128,7 +157,8 @@ private final class CountingDetector: PieceDetector, @unchecked Sendable {
     }
 
     func detectBoxes(in image: CGImage) async -> [PieceDetection.Box] {
-        []
+        boxesCount += 1
+        return []
     }
 }
 

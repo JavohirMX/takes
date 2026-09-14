@@ -3,7 +3,7 @@ import UIKit
 
 enum StatusKind: Equatable {
     case recording(String)
-    case disturbed
+    case disturbed(holding: String?)
     case awaitingEdit
     case softReject(String)
     case check(String)
@@ -32,13 +32,24 @@ enum StatusKind: Equatable {
 
     var copy: String {
         switch self {
-        case .recording(let san): san
-        case .disturbed: "Waiting for the board…"
-        case .awaitingEdit: "Couldn’t read that move"
-        case .softReject(let message): message
-        case .check(let san): "Check  \(san)"
-        case .trackingLost: "Board lost"
-        case .classifying: "Reading pieces…"
+        case .recording(let san):
+            san
+        case .disturbed(let san):
+            if let san, !san.isEmpty {
+                "\(san)  … waiting"
+            } else {
+                "Waiting for the board…"
+            }
+        case .awaitingEdit:
+            "Couldn’t read that move"
+        case .softReject(let message):
+            message
+        case .check(let san):
+            "Check  \(san)"
+        case .trackingLost:
+            "Board lost"
+        case .classifying:
+            "Reading pieces…"
         }
     }
 }

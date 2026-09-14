@@ -114,6 +114,54 @@ import Testing
     #expect(result == .illegal)
 }
 
+@Test func infersE4WhenOneGhostSquareIsOccupied() {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e2")!, occupied: false)
+    after.set(ChessSquare.parse("e4")!, occupied: true)
+    after.set(ChessSquare.parse("a3")!, occupied: true)
+    #expect(after.hammingDistance(to: before) == 3)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result.san == canonicalSAN("e4", on: engine.board))
+}
+
+@Test func infersE5WhenOneGhostSquareIsOccupied() throws {
+    let engine = GameEngine()
+    try engine.apply(san: "e4")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e7")!, occupied: false)
+    after.set(ChessSquare.parse("e5")!, occupied: true)
+    after.set(ChessSquare.parse("h6")!, occupied: true)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result.san == canonicalSAN("e5", on: engine.board))
+}
+
+@Test func infersIllegalWhenHammingIsSix() {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("a1")!, occupied: false)
+    after.set(ChessSquare.parse("b1")!, occupied: false)
+    after.set(ChessSquare.parse("c3")!, occupied: true)
+    after.set(ChessSquare.parse("f5")!, occupied: true)
+    after.set(ChessSquare.parse("g6")!, occupied: true)
+    after.set(ChessSquare.parse("h8")!, occupied: false)
+    #expect(after.hammingDistance(to: before) == 6)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result == .illegal)
+}
+
 private func canonicalSAN(_ san: String, on board: Board) -> String? {
     Move(san: san, position: board.position)?.san
 }

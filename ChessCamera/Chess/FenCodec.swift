@@ -143,12 +143,27 @@ enum PGNMoveList {
     }
 
     static func preview(_ pgn: String, maxPlies: Int = 6) -> String {
-        let moves = Array(sans(from: pgn).prefix(maxPlies))
-        guard !moves.isEmpty else { return "" }
+        preview(sans: sans(from: pgn), maxPlies: maxPlies, trailing: false)
+    }
+
+    static func preview(sans: [String], maxPlies: Int = 6, trailing: Bool = true) -> String {
+        guard !sans.isEmpty else { return "" }
+        let start: Int
+        let slice: ArraySlice<String>
+        if trailing, sans.count > maxPlies {
+            start = sans.count - maxPlies
+            slice = sans.suffix(maxPlies)
+        } else {
+            start = 0
+            slice = sans.prefix(maxPlies)
+        }
         var parts: [String] = []
-        for (index, san) in moves.enumerated() {
+        for (offset, san) in slice.enumerated() {
+            let index = start + offset
             if index.isMultiple(of: 2) {
                 parts.append("\(index / 2 + 1). \(san)")
+            } else if parts.isEmpty {
+                parts.append("\(index / 2 + 1)... \(san)")
             } else {
                 parts.append(san)
             }

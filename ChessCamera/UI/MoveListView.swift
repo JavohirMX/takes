@@ -67,6 +67,22 @@ struct MoveListView: View {
     }
 }
 
+struct RecentPlyStrip: View {
+    var sans: [String]
+    var maxPlies: Int = 6
+
+    var body: some View {
+        Text(sans.isEmpty ? "No moves yet" : PGNMoveList.preview(sans: sans, maxPlies: maxPlies, trailing: true))
+            .font(.body.monospaced())
+            .foregroundStyle(sans.isEmpty ? Theme.textSecondary : Theme.textPrimary)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(sans.isEmpty ? "No moves yet" : PGNMoveList.preview(sans: sans, maxPlies: maxPlies, trailing: true))
+            .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
 enum SANSpeech {
     static func speak(_ san: String) -> String {
         san

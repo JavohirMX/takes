@@ -22,10 +22,16 @@ enum InferenceResult: Equatable, Sendable {
 }
 
 enum MoveInferrer {
-    static func infer(delta: VisualDelta, board: Board) -> InferenceResult {
+    static let defaultHammingSlack = 2
+
+    static func infer(
+        delta: VisualDelta,
+        board: Board,
+        maxHammingSlack: Int = defaultHammingSlack
+    ) -> InferenceResult {
         guard delta.previous != delta.current else { return .none }
 
-        var matches: [Move] = []
+        var scored: [(move: Move, distance: Int)] = []
 
         for start in Square.allCases {
             for end in board.legalMoves(forPieceAt: start) {
@@ -38,16 +44,25 @@ enum MoveInferrer {
                         var promoTrial = board
                         guard let base = promoTrial.move(pieceAt: start, to: end) else { continue }
                         let completed = promoTrial.completePromotion(of: base, to: kind)
-                        if GameEngine.occupancy(of: promoTrial) == delta.current {
-                            matches.append(completed)
+                        let distance = GameEngine.occupancy(of: promoTrial).hammingDistance(to: delta.current)
+                        if distance == 0 || distance <= maxHammingSlack {
+                            scored.append((completed, distance))
                         }
                     }
-                } else if GameEngine.occupancy(of: trial) == delta.current {
-                    matches.append(executed)
+                } else {
+                    let distance = GameEngine.occupancy(of: trial).hammingDistance(to: delta.current)
+                    if distance == 0 || distance <= maxHammingSlack {
+                        scored.append((executed, distance))
+                    }
                 }
             }
         }
 
+        guard let bestDistance = scored.map(\.distance).min() else {
+            return .illegal
+        }
+
+        var matches = scored.filter { $0.distance == bestDistance }.map(\.move)
         matches = disambiguatePromotions(matches, observedClasses: delta.observedClasses)
 
         switch matches.count {

@@ -67,3 +67,17 @@ import Testing
     let stable = d.ingest(b, at: t0.advanced(by: .milliseconds(750)))
     #expect(stable == .stable(b))
 }
+
+@Test func quietElapsedTracksTimeSinceLastRealChange() {
+    var d = SettleDetector(config: .init(stableDuration: .milliseconds(600), maxHammingJitter: 1))
+    let t0 = ContinuousClock().now
+    let start = Occupancy.standardStart()
+    _ = d.ingest(start, at: t0)
+    #expect(d.quietElapsed(at: t0.advanced(by: .milliseconds(250))) >= .milliseconds(250))
+    var moved = start
+    moved.set(ChessSquare.parse("e2")!, occupied: false)
+    moved.set(ChessSquare.parse("e4")!, occupied: true)
+    _ = d.ingest(moved, at: t0.advanced(by: .milliseconds(300)))
+    #expect(d.quietElapsed(at: t0.advanced(by: .milliseconds(400))) < .milliseconds(200))
+    #expect(d.quietElapsed(at: t0.advanced(by: .milliseconds(560))) >= .milliseconds(250))
+}

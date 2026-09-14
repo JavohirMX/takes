@@ -21,6 +21,7 @@
 		214BB437FEE30A0FA1133B33 /* BoardOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F34291011A15555B73F460 /* BoardOrientation.swift */; };
 		25FFFB7619F4FF686BFFEDCA /* FrameSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA39EB2AE3A09A5E91A53FE /* FrameSource.swift */; };
 		29EA8CF6D8ED8595F28747DD /* MoveInferrer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B3E77CD23B263A99D0C954 /* MoveInferrer.swift */; };
+		2B3373F78CB9AFF7480BA85C /* OccupancySmootherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454550B05DA45D5D293795A3 /* OccupancySmootherTests.swift */; };
 		34378F577714DF609FDC131A /* OccupancyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BC96D9A76DCA39603BC639 /* OccupancyTests.swift */; };
 		3659DFF731728761CDB532E4 /* Quadrilateral.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CED534D304BB42852031DD1 /* Quadrilateral.swift */; };
 		37206928B6D3C62354AC1A26 /* ReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D153B0C245C35784202078C0 /* ReplayView.swift */; };
@@ -32,6 +33,7 @@
 		43530378565097A5867B7EF1 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0EB3CE243B9B1352369C63 /* AppContainer.swift */; };
 		47D3241FF1811188B7C6D343 /* PieceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88F6D020E04902CA18FB91F /* PieceView.swift */; };
 		4818C00D3247ABE67102D9D2 /* ChessSquareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */; };
+		49CEA303F77A810443C60A38 /* RecordingSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65B166F12A837493B468D1B /* RecordingSessionViewModelTests.swift */; };
 		4A4F8EC1D11327B3062A6D14 /* ChessboardUNet.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 7B333AFC7CB178DA4A35D5A6 /* ChessboardUNet.mlpackage */; };
 		4B05BFE888C05B43F364B189 /* ChessKit in Frameworks */ = {isa = PBXBuildFile; productRef = F9C6DB4342DC94DB08F37C45 /* ChessKit */; };
 		52C0873690FA20966CD1193E /* CameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 641EB4B86D2BBBE963570277 /* CameraPreview.swift */; };
@@ -52,6 +54,7 @@
 		7C8C667EB0A8122D70D4012A /* BoardGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71CEBD9D619FAE0AF196B22 /* BoardGridOverlay.swift */; };
 		7E55A474CDB7FA8EDD927F5C /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */; };
 		803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD0BB7A070EF2EA30CBA486 /* OccupancyEstimator.swift */; };
+		8554B04A6BBBF140977C7C10 /* OccupancySmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118ED9F8776E455CADADE520 /* OccupancySmoother.swift */; };
 		87C933EE14608D2821E26A91 /* QuadConsensus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3936A0383D656F012C17CAB4 /* QuadConsensus.swift */; };
 		8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */; };
 		959C5DA854160E6EE6C2CE56 /* BoardAppearanceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEFCDEA2F431BD8FDA05C41 /* BoardAppearanceSheet.swift */; };
@@ -107,6 +110,7 @@
 /* Begin PBXFileReference section */
 		0CED534D304BB42852031DD1 /* Quadrilateral.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Quadrilateral.swift; sourceTree = "<group>"; };
 		0E48CF6C220FF6B94508C5A2 /* OccupancyEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyEstimatorTests.swift; sourceTree = "<group>"; };
+		118ED9F8776E455CADADE520 /* OccupancySmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancySmoother.swift; sourceTree = "<group>"; };
 		130C59A61979D7C44565CFD3 /* ChessCameraTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ChessCameraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		136134940AEE54A92F2C9DEF /* PieceClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceClass.swift; sourceTree = "<group>"; };
 		143835A5BEE7D877E323E5D1 /* RefinedBoardGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinedBoardGrid.swift; sourceTree = "<group>"; };
@@ -123,6 +127,7 @@
 		3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
 		42F3D98EC612F6962407582C /* SettleDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettleDetectorTests.swift; sourceTree = "<group>"; };
 		4366B489D9995754DA91A995 /* LiveRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRecordingView.swift; sourceTree = "<group>"; };
+		454550B05DA45D5D293795A3 /* OccupancySmootherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancySmootherTests.swift; sourceTree = "<group>"; };
 		47C2D4FB6153013B0037F4DC /* BoardQuadOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardQuadOverlay.swift; sourceTree = "<group>"; };
 		4830D1AEC7276C133B59756F /* WarpedBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarpedBoardView.swift; sourceTree = "<group>"; };
 		4C726BCA95E4671B37E10784 /* BoardAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardAppearanceTests.swift; sourceTree = "<group>"; };
@@ -182,6 +187,7 @@
 		D153B0C245C35784202078C0 /* ReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayView.swift; sourceTree = "<group>"; };
 		D319D0AC3281B999D0BAC505 /* VideoMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoMappingTests.swift; sourceTree = "<group>"; };
 		D39FA674F81051DA52142E5F /* ChessCamera-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ChessCamera-Bridging-Header.h"; sourceTree = "<group>"; };
+		D65B166F12A837493B468D1B /* RecordingSessionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSessionViewModelTests.swift; sourceTree = "<group>"; };
 		D8BC96D9A76DCA39603BC639 /* OccupancyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyTests.swift; sourceTree = "<group>"; };
 		D8CAED125FB37E264AF34D9C /* LiveCameraSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCameraSource.swift; sourceTree = "<group>"; };
 		D92EB850B56B89077875BFBE /* SettleDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettleDetector.swift; sourceTree = "<group>"; };
@@ -303,6 +309,7 @@
 				5EE9A5A8A196054CB608A014 /* GameEngine.swift */,
 				86B3E77CD23B263A99D0C954 /* MoveInferrer.swift */,
 				4ECF8CD0493C1DF86F812C65 /* Occupancy.swift */,
+				118ED9F8776E455CADADE520 /* OccupancySmoother.swift */,
 				D92EB850B56B89077875BFBE /* SettleDetector.swift */,
 			);
 			path = Chess;
@@ -330,8 +337,10 @@
 				CB29D9EA63E620A3ED0BA7E6 /* HeatmapCornerDecodeTests.swift */,
 				F385A1C6D000AE9DFF229B3E /* MoveInferrerTests.swift */,
 				0E48CF6C220FF6B94508C5A2 /* OccupancyEstimatorTests.swift */,
+				454550B05DA45D5D293795A3 /* OccupancySmootherTests.swift */,
 				D8BC96D9A76DCA39603BC639 /* OccupancyTests.swift */,
 				3473998CE0E1820B4E0BB537 /* OpenCVGridRefinerTests.swift */,
+				D65B166F12A837493B468D1B /* RecordingSessionViewModelTests.swift */,
 				885774EC391C6A091B692228 /* SessionReducerTests.swift */,
 				42F3D98EC612F6962407582C /* SettleDetectorTests.swift */,
 				D319D0AC3281B999D0BAC505 /* VideoMappingTests.swift */,
@@ -554,8 +563,10 @@
 				01676DFB420EB52DE4C151BA /* HeatmapCornerDecodeTests.swift in Sources */,
 				373DD7FC3FF8B3988C8AB518 /* MoveInferrerTests.swift in Sources */,
 				A7BF2FCA5A0175597D2ABB85 /* OccupancyEstimatorTests.swift in Sources */,
+				2B3373F78CB9AFF7480BA85C /* OccupancySmootherTests.swift in Sources */,
 				34378F577714DF609FDC131A /* OccupancyTests.swift in Sources */,
 				97817461BFBF1385E1174B11 /* OpenCVGridRefinerTests.swift in Sources */,
+				49CEA303F77A810443C60A38 /* RecordingSessionViewModelTests.swift in Sources */,
 				196738630B87B3F96068CEF0 /* SessionReducerTests.swift in Sources */,
 				CF91F0EB3BEF44E87E5FFF06 /* SettleDetectorTests.swift in Sources */,
 				3BFA2E61456376388504D61A /* VideoMappingTests.swift in Sources */,
@@ -607,6 +618,7 @@
 				A1C3A2F6D053D4FC266969BF /* Occupancy.swift in Sources */,
 				803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */,
 				8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */,
+				8554B04A6BBBF140977C7C10 /* OccupancySmoother.swift in Sources */,
 				4009267E113C398F52805F9A /* OpenCVGridRefiner.mm in Sources */,
 				B905D1E14D5BC3E6E27208FB /* OpenCVGridRefiner.swift in Sources */,
 				078A440A75E25415DFF56FD8 /* PieceBoxOverlay.swift in Sources */,

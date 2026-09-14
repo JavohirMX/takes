@@ -43,4 +43,9 @@ struct SettleDetector: Sendable {
         }
         return .disturbed(since: occupancy)
     }
+
+    func quietElapsed(at time: ContinuousClock.Instant) -> Duration {
+        guard let lastChangeTime else { return .zero }
+        return time - lastChangeTime
+    }
 }
