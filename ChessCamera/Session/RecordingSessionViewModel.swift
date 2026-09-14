@@ -390,6 +390,7 @@ final class RecordingSessionViewModel: Identifiable {
         liveDebugLine = ""
         armFingerprintSnapshot(warmup: 5)
         phase = .recording
+        setKeepsScreenAwake(true)
         if !pieceDetectorAvailable, let warpedThumbnail {
             Task {
                 await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
@@ -412,6 +413,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func finishGame() {
         phase = .gameOver
+        setKeepsScreenAwake(false)
         Task { await stopCapture() }
     }
 
@@ -426,6 +428,7 @@ final class RecordingSessionViewModel: Identifiable {
             armFingerprintSnapshot(warmup: 3)
             if phase == .awaitingEdit || phase == .gameOver {
                 phase = engine.isTerminal ? .gameOver : .recording
+                setKeepsScreenAwake(phase == .recording)
             }
         } catch {
             alertMessage = "Nothing to undo."
@@ -479,6 +482,7 @@ final class RecordingSessionViewModel: Identifiable {
             softRejectMessage = nil
             armFingerprintSnapshot(warmup: 3)
             phase = engine.isTerminal ? .gameOver : .recording
+            setKeepsScreenAwake(phase == .recording)
             announceCommit()
         } catch {
             alertMessage = "Couldn’t apply that move. Try another square."
@@ -501,6 +505,12 @@ final class RecordingSessionViewModel: Identifiable {
         guard pausedForBackground else { return }
         pausedForBackground = false
         guard phase != .idle, phase != .gameOver, phase != .replay else { return }
+        switch phase {
+        case .recording, .disturbed, .awaitingEdit:
+            setKeepsScreenAwake(true)
+        default:
+            break
+        }
         Task {
             if isVideoImport { return }
             do {
@@ -565,6 +575,7 @@ final class RecordingSessionViewModel: Identifiable {
         liveCamera = nil
         await pipeline.setLockedQuad(nil)
         phase = .idle
+        setKeepsScreenAwake(false)
     }
 
     func updateVideoRotation(from scene: UIWindowScene?) {
@@ -850,6 +861,7 @@ final class RecordingSessionViewModel: Identifiable {
             do {
                 try commit(move: move)
                 phase = engine.isTerminal ? .gameOver : .recording
+                setKeepsScreenAwake(phase == .recording)
                 announceCommit()
                 if !pieceDetectorAvailable, let warped = observation.warpedImage {
                     await pipeline.snapshotFingerprints(from: warped)
@@ -908,6 +920,10 @@ final class RecordingSessionViewModel: Identifiable {
         if let lastSAN {
             UIAccessibility.post(notification: .announcement, argument: lastSAN)
         }
+    }
+
+    private func setKeepsScreenAwake(_ awake: Bool) {
+        UIApplication.shared.isIdleTimerDisabled = awake
     }
 
     private func useStandardPositionClasses() {
@@ -980,6 +996,7 @@ final class RecordingSessionViewModel: Identifiable {
         softRejectMessage = nil
         liveDebugLine = ""
         engine.resetToStart()
+        setKeepsScreenAwake(false)
         detectStartedAt = nil
         didAutoConfirmVideo = false
         settle = SettleDetector(config: .init(stableDuration: settleDuration, maxHammingJitter: 1))
