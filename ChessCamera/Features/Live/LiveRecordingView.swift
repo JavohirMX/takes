@@ -18,7 +18,7 @@ struct LiveRecordingView: View {
         layout {
             cameraBlock
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .layoutPriority(1)
+                .layoutPriority(isLandscape ? 0 : 1)
             accessory
         }
         .background(Theme.background.ignoresSafeArea())
@@ -49,23 +49,7 @@ struct LiveRecordingView: View {
     @ViewBuilder
     private var accessory: some View {
         if isLandscape {
-            VStack(spacing: 12) {
-                DigitalBoardView(
-                    fen: model.engine.fen,
-                    lastMove: model.engine.lastMoveSquares
-                )
-                MoveListView(sans: model.committedSANs)
-                if !model.liveDebugLine.isEmpty {
-                    Text(model.liveDebugLine)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(Theme.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                hudControls
-            }
-            .padding(16)
-            .frame(maxWidth: 360)
-            .background(Theme.background)
+            landscapeSidebar
         } else {
             VStack(spacing: 0) {
                 DigitalBoardView(
@@ -84,10 +68,38 @@ struct LiveRecordingView: View {
         }
     }
 
+    private var landscapeSidebar: some View {
+        VStack(spacing: 12) {
+            statusBanner
+            DigitalBoardView(
+                fen: model.engine.fen,
+                lastMove: model.engine.lastMoveSquares
+            )
+            .frame(maxWidth: 180, maxHeight: 180)
+            .frame(maxWidth: .infinity)
+            MoveListView(sans: model.committedSANs)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            hudControls
+        }
+        .padding(16)
+        .frame(minWidth: 340, maxWidth: 400)
+        .frame(maxHeight: .infinity)
+        .background(Theme.background)
+    }
+
     private var cameraBlock: some View {
         ZStack {
-            largePreview
+            cameraFeed(showOverlays: !warpIsPrimary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if warpIsPrimary {
+                warpFeed
+                    .matchedGeometryEffect(id: "warp", in: previewSwap)
+                    .clipped()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(perform: togglePreview)
                 .accessibilityAddTraits(.isButton)
@@ -96,45 +108,33 @@ struct LiveRecordingView: View {
             VStack {
                 HStack {
                     Spacer()
-                    cornerPreview
-                        .frame(width: 96, height: 96)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Theme.border, lineWidth: 1)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture(perform: togglePreview)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityLabel(warpIsPrimary ? "Show camera" : "Show board preview")
-                        .padding(12)
+                    cornerPIP
                 }
                 Spacer()
             }
         }
     }
 
-    @ViewBuilder
-    private var largePreview: some View {
-        if warpIsPrimary {
-            warpFeed
-                .matchedGeometryEffect(id: "warp", in: previewSwap)
-                .clipped()
-        } else {
-            cameraFeed(showOverlays: true)
-                .matchedGeometryEffect(id: "camera", in: previewSwap)
+    private var cornerPIP: some View {
+        Group {
+            if warpIsPrimary {
+                cameraStill
+            } else {
+                warpFeed
+                    .matchedGeometryEffect(id: "warp", in: previewSwap)
+            }
         }
-    }
-
-    @ViewBuilder
-    private var cornerPreview: some View {
-        if warpIsPrimary {
-            cameraFeed(showOverlays: false)
-                .matchedGeometryEffect(id: "camera", in: previewSwap)
-        } else {
-            warpFeed
-                .matchedGeometryEffect(id: "warp", in: previewSwap)
+        .frame(width: 96, height: 96)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: togglePreview)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(warpIsPrimary ? "Show camera" : "Show board preview")
+        .padding(12)
     }
 
     private func cameraFeed(showOverlays: Bool) -> some View {
@@ -158,6 +158,20 @@ struct LiveRecordingView: View {
                         grid: model.refinedGrid
                     )
                 }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var cameraStill: some View {
+        ZStack {
+            if let preview = model.previewImage {
+                Image(uiImage: UIImage(cgImage: preview))
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } else {
+                Theme.surfaceMuted
             }
         }
         .allowsHitTesting(false)
@@ -193,6 +207,15 @@ struct LiveRecordingView: View {
 
     private var hud: some View {
         VStack(spacing: 12) {
+            statusBanner
+            hudControls
+        }
+        .padding(16)
+        .background(UIAccessibility.isReduceTransparencyEnabled ? Theme.surface : Theme.overlayScrim)
+    }
+
+    private var statusBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
             StatusBanner(
                 kind: statusKind,
                 showFix: model.phase == .awaitingEdit,
@@ -208,10 +231,7 @@ struct LiveRecordingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityLabel("Capture debug \(model.liveDebugLine)")
             }
-            hudControls
         }
-        .padding(16)
-        .background(UIAccessibility.isReduceTransparencyEnabled ? Theme.surface : Theme.overlayScrim)
     }
 
     private var hudControls: some View {
