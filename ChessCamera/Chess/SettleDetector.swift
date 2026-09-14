@@ -49,3 +49,24 @@ struct SettleDetector: Sendable {
         return time - lastChangeTime
     }
 }
+
+/// Inter-frame jitter stays at 1 bit so flicker does not restart settle.
+/// Captures are also 1 bit vs the committed mask, so arm `.disturbed` from
+/// commit Hamming instead of waiting for a 2-bit transient (or a hand wave).
+enum CommitRelativeMotion {
+    static let maxInferHamming = 16
+
+    static func arm(
+        phase: SessionPhase,
+        motion: BoardMotion,
+        occupancy: Occupancy,
+        commitHamming: Int
+    ) -> BoardMotion {
+        guard phase == .recording,
+              (1...maxInferHamming).contains(commitHamming),
+              case .stable = motion else {
+            return motion
+        }
+        return .disturbed(since: occupancy)
+    }
+}

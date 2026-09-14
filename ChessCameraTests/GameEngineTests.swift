@@ -31,6 +31,26 @@ import Testing
     #expect(engine.occupancy() == Occupancy.standardStart())
 }
 
+@Test func occupancyPriorAllowsE2E4AndHoldsBlockedRimRook() {
+    let engine = GameEngine()
+    let prior = GameEngine.occupancyPrior(of: engine.board)
+    let start = engine.occupancy()
+    #expect(prior.clearable.occupied(ChessSquare.parse("e2")!))
+    #expect(prior.fillable.occupied(ChessSquare.parse("e4")!))
+    #expect(!prior.clearable.occupied(ChessSquare.parse("a1")!))
+
+    var missA1 = start
+    missA1.set(ChessSquare.parse("a1")!, occupied: false)
+    #expect(prior.apply(detected: missA1, previous: start) == start)
+
+    var e4 = start
+    e4.set(ChessSquare.parse("e2")!, occupied: false)
+    e4.set(ChessSquare.parse("e4")!, occupied: true)
+    let gated = prior.apply(detected: e4, previous: start)
+    #expect(!gated.occupied(ChessSquare.parse("e2")!))
+    #expect(gated.occupied(ChessSquare.parse("e4")!))
+}
+
 @Test func replaceLastPlyUpdatesPGN() throws {
     let engine = GameEngine()
     try engine.apply(san: "e4")

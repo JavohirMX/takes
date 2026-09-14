@@ -162,6 +162,52 @@ import Testing
     #expect(result == .illegal)
 }
 
+@Test func capturePlusGhostRimSquareStaysUnique() throws {
+    let engine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR w KQkq - 2 3")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("b5")!, occupied: false)
+    after.set(ChessSquare.parse("h8")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 2)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result.san == canonicalSAN("Bxc6", on: engine.board))
+}
+
+@Test func checkCaptureBxc6IsUnique() throws {
+    let engine = try GameEngine(fen: "4k3/8/2n5/1B6/8/8/8/4K3 w - - 0 1")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("b5")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 1)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    let expected = canonicalSAN("Bxc6+", on: engine.board) ?? canonicalSAN("Bxc6", on: engine.board)
+    #expect(result.san == expected)
+}
+
+@Test func twoCapturesFromSameOriginStayAmbiguous() throws {
+    let engine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 2 3")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("h5")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 1)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .ambiguous(let moves) = result else {
+        Issue.record("expected ambiguous queen captures, got \(result)")
+        return
+    }
+    #expect(moves.count >= 2)
+    #expect(MoveInferrer.debugSans(for: result).hasPrefix("amb "))
+}
+
 private func canonicalSAN(_ san: String, on board: Board) -> String? {
     Move(san: san, position: board.position)?.san
 }

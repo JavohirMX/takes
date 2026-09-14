@@ -31,6 +31,9 @@ enum MoveInferrer {
     ) -> InferenceResult {
         guard delta.previous != delta.current else { return .none }
 
+        let visualHamming = delta.previous.hammingDistance(to: delta.current)
+        let slack = visualHamming <= 1 ? 0 : maxHammingSlack
+
         var scored: [(move: Move, distance: Int)] = []
 
         for start in Square.allCases {
@@ -45,13 +48,13 @@ enum MoveInferrer {
                         guard let base = promoTrial.move(pieceAt: start, to: end) else { continue }
                         let completed = promoTrial.completePromotion(of: base, to: kind)
                         let distance = GameEngine.occupancy(of: promoTrial).hammingDistance(to: delta.current)
-                        if distance == 0 || distance <= maxHammingSlack {
+                        if distance <= slack {
                             scored.append((completed, distance))
                         }
                     }
                 } else {
                     let distance = GameEngine.occupancy(of: trial).hammingDistance(to: delta.current)
-                    if distance == 0 || distance <= maxHammingSlack {
+                    if distance <= slack {
                         scored.append((executed, distance))
                     }
                 }
@@ -72,6 +75,16 @@ enum MoveInferrer {
             return .unique(matches[0])
         default:
             return .ambiguous(matches)
+        }
+    }
+
+    static func debugSans(for result: InferenceResult, limit: Int = 3) -> String {
+        switch result {
+        case .ambiguous(let moves):
+            let sans = moves.prefix(limit).map(\.san)
+            return sans.isEmpty ? "" : "amb \(sans.joined(separator: ","))"
+        default:
+            return ""
         }
     }
 

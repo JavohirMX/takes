@@ -38,6 +38,36 @@ import Testing
     }
 }
 
+@Test func expandedIfFitsDoesNotShearClippedBoards() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 4, y: 4),
+        topRight: CGPoint(x: 90, y: 6),
+        bottomRight: CGPoint(x: 92, y: 96),
+        bottomLeft: CGPoint(x: 6, y: 94)
+    )
+    let size = CGSize(width: 100, height: 100)
+    let fitted = quad.expandedIfFits(by: 0.15, in: size)
+    for point in fitted.points {
+        #expect(point.x >= 0)
+        #expect(point.x <= size.width)
+        #expect(point.y >= 0)
+        #expect(point.y <= size.height)
+    }
+    let sheared = quad.expanded(by: 0.15).clamped(to: size)
+    #expect(fitted != sheared)
+}
+
+@Test func expandedIfFitsKeepsPaddingWhenBoardIsInset() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 40, y: 40),
+        topRight: CGPoint(x: 160, y: 40),
+        bottomRight: CGPoint(x: 160, y: 160),
+        bottomLeft: CGPoint(x: 40, y: 160)
+    )
+    let fitted = quad.expandedIfFits(by: 0.15, in: CGSize(width: 200, height: 200))
+    #expect(fitted == quad.expanded(by: 0.15))
+}
+
 @Test func paddedLatticeRoundTripsOriginalQuad() {
     let original = Quadrilateral(
         topLeft: CGPoint(x: 200, y: 100),

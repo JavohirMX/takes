@@ -18,11 +18,11 @@ enum PaddedBoardRefiner {
         bufferSize: CGSize,
         borderFraction: CGFloat = borderFraction
     ) -> Result? {
-        let padded = quad.expanded(by: borderFraction).clamped(to: bufferSize)
-        if let result = snap(from: padded, buffer: buffer) {
+        let search = quad.expandedIfFits(by: borderFraction, in: bufferSize)
+        if let result = snap(from: search, buffer: buffer) {
             return result
         }
-        if padded != quad, let result = snap(from: quad, buffer: buffer) {
+        if search != quad, let result = snap(from: quad, buffer: buffer) {
             return result
         }
         return nil

@@ -68,6 +68,66 @@ import Testing
     #expect(stable == .stable(b))
 }
 
+@Test func captureHammingDoesNotRestartSettleButCommitArmingDoes() {
+    var d = SettleDetector(config: .init(stableDuration: .milliseconds(600), maxHammingJitter: 1))
+    let t0 = ContinuousClock().now
+    let start = Occupancy.standardStart()
+    _ = d.ingest(start, at: t0)
+    let settled = d.ingest(start, at: t0.advanced(by: .milliseconds(600)))
+    #expect(settled == .stable(start))
+
+    var capture = start
+    capture.set(ChessSquare.parse("e2")!, occupied: false)
+    #expect(start.hammingDistance(to: capture) == 1)
+    let afterCapture = d.ingest(capture, at: t0.advanced(by: .milliseconds(700)))
+    #expect(afterCapture == .stable(capture))
+
+    let armed = CommitRelativeMotion.arm(
+        phase: .recording,
+        motion: afterCapture,
+        occupancy: capture,
+        commitHamming: start.hammingDistance(to: capture)
+    )
+    #expect(armed == .disturbed(since: capture))
+    #expect(
+        SessionReducer.next(phase: .recording, motion: armed, inference: .none) == .disturbed
+    )
+}
+
+@Test func commitArmingIgnoresZeroAndHugeHamming() {
+    let occ = Occupancy.standardStart()
+    let stable = BoardMotion.stable(occ)
+    #expect(
+        CommitRelativeMotion.arm(
+            phase: .recording,
+            motion: stable,
+            occupancy: occ,
+            commitHamming: 0
+        ) == stable
+    )
+    #expect(
+        CommitRelativeMotion.arm(
+            phase: .recording,
+            motion: stable,
+            occupancy: occ,
+            commitHamming: 17
+        ) == stable
+    )
+}
+
+@Test func commitArmingDoesNotOverrideStableOnceDisturbed() {
+    var occ = Occupancy.standardStart()
+    occ.set(ChessSquare.parse("e2")!, occupied: false)
+    let stable = BoardMotion.stable(occ)
+    let motion = CommitRelativeMotion.arm(
+        phase: .disturbed,
+        motion: stable,
+        occupancy: occ,
+        commitHamming: 1
+    )
+    #expect(motion == stable)
+}
+
 @Test func quietElapsedTracksTimeSinceLastRealChange() {
     var d = SettleDetector(config: .init(stableDuration: .milliseconds(600), maxHammingJitter: 1))
     let t0 = ContinuousClock().now

@@ -103,6 +103,33 @@ struct Quadrilateral: Equatable, Sendable {
         )
     }
 
+    /// Grow in UV space only when every expanded corner stays inside the buffer.
+    /// Clamping a padded quad shears the outer lattice on clipped boards.
+    func expandedIfFits(
+        by fraction: CGFloat,
+        in size: CGSize,
+        minimum: CGFloat = 0.02
+    ) -> Quadrilateral {
+        detectionPadding(fitting: fraction, in: size, minimum: minimum).quad
+    }
+
+    /// Same as `expandedIfFits` plus the margin actually applied (0 when clipped).
+    func detectionPadding(
+        fitting fraction: CGFloat,
+        in size: CGSize,
+        minimum: CGFloat = 0.02
+    ) -> (quad: Quadrilateral, margin: CGFloat) {
+        var current = fraction
+        while current >= minimum {
+            let padded = expanded(by: current)
+            if padded.clamped(to: size) == padded {
+                return (padded, current)
+            }
+            current /= 2
+        }
+        return (self, 0)
+    }
+
     /// Grow the quad in UV space so OpenCV can see the full 8×8 square-grid.
     /// `fraction` 0.15 adds 15% of the board side on each edge.
     func expanded(by fraction: CGFloat) -> Quadrilateral {

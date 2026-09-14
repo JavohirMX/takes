@@ -201,6 +201,29 @@ final class GameEngine {
         return occupancy
     }
 
+    /// Squares a legal move can fill or empty. Used to gate YOLO occupancy.
+    static func occupancyPrior(of board: Board, maxNewClears: Int = 2) -> OccupancyPrior {
+        let before = occupancy(of: board)
+        var fillable = Occupancy()
+        var clearable = Occupancy()
+        for start in Square.allCases {
+            for end in board.legalMoves(forPieceAt: start) {
+                var trial = board
+                guard trial.move(pieceAt: start, to: end) != nil else { continue }
+                if case .promotion = trial.state {
+                    var promo = board
+                    guard let base = promo.move(pieceAt: start, to: end) else { continue }
+                    _ = promo.completePromotion(of: base, to: .queen)
+                    trial = promo
+                }
+                let after = occupancy(of: trial)
+                clearable.bits |= before.bits & ~after.bits
+                fillable.bits |= after.bits & ~before.bits
+            }
+        }
+        return OccupancyPrior(fillable: fillable, clearable: clearable, maxNewClears: maxNewClears)
+    }
+
     private func rebuildFromAppliedMoves() throws {
         let start = game.startingPosition ?? .standard
         board = Board(position: start)

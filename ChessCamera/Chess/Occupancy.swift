@@ -3,6 +3,8 @@ import Foundation
 struct Occupancy: Equatable, Sendable {
     var bits: UInt64 = 0
 
+    static let allSquares = Occupancy(bits: .max)
+
     func occupied(_ square: ChessSquare) -> Bool {
         (bits & (UInt64(1) << square.bitIndex)) != 0
     }
@@ -37,5 +39,37 @@ struct Occupancy: Equatable, Sendable {
 
     static func fullStandardPawnsAndPieces() -> Occupancy {
         standardStart()
+    }
+}
+
+/// Merge YOLO occupancy with the last committed mask. Boxes only fill; empties
+/// only clear squares that some legal move actually vacates, and at most two
+/// new clears per frame so rim misses do not look like extra captures.
+struct OccupancyPrior: Equatable, Sendable {
+    var fillable: Occupancy
+    var clearable: Occupancy
+    var maxNewClears: Int
+
+    static let unconstrained = OccupancyPrior(
+        fillable: .allSquares,
+        clearable: .allSquares,
+        maxNewClears: 64
+    )
+
+    init(fillable: Occupancy, clearable: Occupancy, maxNewClears: Int = 2) {
+        self.fillable = fillable
+        self.clearable = clearable
+        self.maxNewClears = max(0, maxNewClears)
+    }
+
+    func apply(detected: Occupancy, previous: Occupancy) -> Occupancy {
+        var result = previous
+        result.bits |= detected.bits & ~previous.bits & fillable.bits
+        let newClears = previous.bits & ~detected.bits & clearable.bits
+        if newClears.nonzeroBitCount > maxNewClears {
+            return result
+        }
+        result.bits &= ~newClears
+        return result
     }
 }

@@ -263,3 +263,60 @@ import Testing
     #expect(occupancy.occupied(ChessSquare(file: 7, rank: 7)))
     #expect(occupancy.hammingDistance(to: Occupancy()) == 2)
 }
+
+@Test func occupancyMapsPaddedWarpBaseThroughRefinedGrid() {
+    var points: [CGPoint] = []
+    let size: CGFloat = 512
+    for row in 0...8 {
+        for col in 0...8 {
+            let x = CGFloat(col) * (size / 8) + (col == 0 ? -4 : 0)
+            let y = CGFloat(row) * (size / 8) + (row == 8 ? 4 : 0)
+            points.append(CGPoint(x: x, y: y))
+        }
+    }
+    let grid = RefinedBoardGrid(imageSize: size, points: points)
+    let a1 = PieceDetection.Box(
+        id: 0,
+        piece: .whiteRook,
+        confidence: 0.9,
+        bufferRect: CGRect(x: 8, y: 430, width: 40, height: 70)
+    )
+    let h8 = PieceDetection.Box(
+        id: 1,
+        piece: .blackRook,
+        confidence: 0.9,
+        bufferRect: CGRect(x: 460, y: 0, width: 40, height: 50)
+    )
+    let occupancy = PieceDetection.occupancy(
+        from: [a1, h8],
+        paddedImageSize: 512,
+        margin: 0,
+        orientation: .whiteAtBottom,
+        grid: grid
+    )
+    #expect(occupancy.occupied(ChessSquare.parse("a1")!))
+    #expect(occupancy.occupied(ChessSquare.parse("h8")!))
+}
+
+@Test func occupancyMapsPaddedMarginBackToPlayingSquares() {
+    let margin: CGFloat = 0.06
+    let span = 1 + 2 * margin
+    let tightBase = CGPoint(x: 288, y: 512)
+    let paddedBase = CGPoint(
+        x: (tightBase.x / 512 + margin) / span * 512,
+        y: (tightBase.y / 512 + margin) / span * 512
+    )
+    let e1 = PieceDetection.Box(
+        id: 0,
+        piece: .whiteKing,
+        confidence: 0.9,
+        bufferRect: CGRect(x: paddedBase.x - 32, y: paddedBase.y - 64, width: 64, height: 64)
+    )
+    let occupancy = PieceDetection.occupancy(
+        from: [e1],
+        paddedImageSize: 512,
+        margin: margin,
+        orientation: .whiteAtBottom
+    )
+    #expect(occupancy.occupied(ChessSquare.parse("e1")!))
+}

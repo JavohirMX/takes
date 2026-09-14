@@ -157,18 +157,30 @@ actor VisionPipeline {
         warped: WarpedBoard,
         previousOccupancy: Occupancy
     ) async -> BoardObservation {
-        let classes: [ChessSquare: PieceClass]
-        if let detector {
-            classes = await detector.detect(in: warped.squareImage, orientation: orientation)
-        } else {
-            classes = [:]
-        }
-        let occupancy = Occupancy.from(classes: classes)
+        let bufferSize = CGSize(
+            width: CVPixelBufferGetWidth(frame.buffer),
+            height: CVPixelBufferGetHeight(frame.buffer)
+        )
+        let margin: CGFloat = 0.06
+        let padded = quad.detectionPadding(fitting: margin, in: bufferSize)
+        let detectWarp = padded.margin == 0
+            ? warped
+            : (warp(frame, quad: padded.quad) ?? warped)
+        let usedMargin: CGFloat = detectWarp.quad == padded.quad ? padded.margin : 0
+        let image = detectWarp.squareImage
+        let boxes = await detector?.detectBoxes(in: image) ?? []
+        let occupancy = PieceDetection.occupancy(
+            from: boxes,
+            paddedImageSize: CGFloat(min(image.width, image.height)),
+            margin: usedMargin,
+            orientation: orientation,
+            grid: refinedGrid
+        )
         return BoardObservation(
             timestamp: frame.timestamp,
             quad: quad,
             occupancy: occupancy,
-            classes: classes,
+            classes: [:],
             changedSquareCount: previousOccupancy.hammingDistance(to: occupancy),
             warpedImage: warped.squareImage
         )

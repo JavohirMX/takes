@@ -119,13 +119,13 @@ import Testing
     #expect(detector.detectCount == 0)
 }
 
-@Test func liveObservationUsesWarpedDetectNotFullFrameBoxes() async throws {
+@Test func liveObservationUsesWarpedBoxesNotClassMap() async throws {
     let detector = CountingDetector()
     let quad = Quadrilateral(
-        topLeft: CGPoint(x: 8, y: 8),
-        topRight: CGPoint(x: 248, y: 8),
-        bottomRight: CGPoint(x: 248, y: 248),
-        bottomLeft: CGPoint(x: 8, y: 248)
+        topLeft: CGPoint(x: 0, y: 0),
+        topRight: CGPoint(x: 256, y: 0),
+        bottomRight: CGPoint(x: 256, y: 256),
+        bottomLeft: CGPoint(x: 0, y: 256)
     )
     let pipeline = VisionPipeline(
         localizer: StubLocalizer(quad: quad),
@@ -141,10 +141,10 @@ import Testing
         previousOccupancy: Occupancy.standardStart()
     )
     #expect(observation != nil)
-    #expect(detector.detectCount == 1)
-    #expect(detector.boxesCount == 0)
+    #expect(detector.detectCount == 0)
+    #expect(detector.boxesCount == 1)
     #expect(observation?.occupancy.occupied(ChessSquare(file: 4, rank: 0)) == true)
-    #expect(observation?.classes[ChessSquare(file: 4, rank: 0)] == .whiteKing)
+    #expect(observation?.classes.isEmpty == true)
 }
 
 private final class CountingDetector: PieceDetector, @unchecked Sendable {
@@ -158,7 +158,14 @@ private final class CountingDetector: PieceDetector, @unchecked Sendable {
 
     func detectBoxes(in image: CGImage) async -> [PieceDetection.Box] {
         boxesCount += 1
-        return []
+        return [
+            PieceDetection.Box(
+                id: 0,
+                piece: .whiteKing,
+                confidence: 0.9,
+                bufferRect: CGRect(x: 256, y: 448, width: 64, height: 64)
+            )
+        ]
     }
 }
 

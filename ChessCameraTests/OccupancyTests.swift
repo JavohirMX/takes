@@ -36,3 +36,41 @@ import Testing
     #expect(!occ.occupied(ChessSquare.parse("e2")!))
     #expect(occ.occupied(ChessSquare.parse("e4")!))
 }
+
+@Test func occupancyPriorFillsAndClearsLegalSquaresOnly() {
+    let start = Occupancy.standardStart()
+    var fillable = Occupancy()
+    fillable.set(ChessSquare.parse("e4")!, occupied: true)
+    var clearable = Occupancy()
+    clearable.set(ChessSquare.parse("e2")!, occupied: true)
+    let prior = OccupancyPrior(fillable: fillable, clearable: clearable)
+
+    var captureLike = start
+    captureLike.set(ChessSquare.parse("e2")!, occupied: false)
+    let cleared = prior.apply(detected: captureLike, previous: start)
+    #expect(!cleared.occupied(ChessSquare.parse("e2")!))
+    #expect(cleared.occupied(ChessSquare.parse("a1")!))
+
+    var rimMiss = start
+    rimMiss.set(ChessSquare.parse("a1")!, occupied: false)
+    let held = prior.apply(detected: rimMiss, previous: start)
+    #expect(held.occupied(ChessSquare.parse("a1")!))
+
+    var quiet = start
+    quiet.set(ChessSquare.parse("e2")!, occupied: false)
+    quiet.set(ChessSquare.parse("e4")!, occupied: true)
+    let moved = prior.apply(detected: quiet, previous: start)
+    #expect(!moved.occupied(ChessSquare.parse("e2")!))
+    #expect(moved.occupied(ChessSquare.parse("e4")!))
+}
+
+@Test func occupancyPriorDropsNoisyMultiClears() {
+    let start = Occupancy.standardStart()
+    let prior = OccupancyPrior(fillable: .allSquares, clearable: .allSquares, maxNewClears: 2)
+    var noisy = start
+    noisy.set(ChessSquare.parse("a1")!, occupied: false)
+    noisy.set(ChessSquare.parse("h1")!, occupied: false)
+    noisy.set(ChessSquare.parse("a8")!, occupied: false)
+    let result = prior.apply(detected: noisy, previous: start)
+    #expect(result == start)
+}

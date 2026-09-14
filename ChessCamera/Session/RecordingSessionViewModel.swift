@@ -68,6 +68,7 @@ final class RecordingSessionViewModel: Identifiable {
     private var detectStartedAt: ContinuousClock.Instant?
     private var settle = SettleDetector()
     private var occupancySmoother = OccupancySmoother()
+    private var occupancyPrior = OccupancyPrior.unconstrained
     private let earlyCommitDuration: Duration = .milliseconds(250)
     private var isProcessingFrame = false
     private var lastProcessTime: ContinuousClock.Instant?
@@ -422,6 +423,7 @@ final class RecordingSessionViewModel: Identifiable {
         }
         lastCommittedOccupancy = engine.occupancy()
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
+        occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
         settle = SettleDetector(config: .init(
             stableDuration: .milliseconds(SettleSettings.milliseconds),
             maxHammingJitter: 1
@@ -464,6 +466,7 @@ final class RecordingSessionViewModel: Identifiable {
             try engine.undo()
             lastCommittedOccupancy = engine.occupancy()
             occupancySmoother.reset(seeding: lastCommittedOccupancy)
+            occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
             syncCommittedNotation()
             ambiguousMoves = []
             softRejectMessage = nil
@@ -500,6 +503,7 @@ final class RecordingSessionViewModel: Identifiable {
         try engine.apply(move: move)
         lastCommittedOccupancy = engine.occupancy()
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
+        occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
         syncCommittedNotation()
         softRejectMessage = nil
     }
@@ -518,6 +522,7 @@ final class RecordingSessionViewModel: Identifiable {
             }
             lastCommittedOccupancy = engine.occupancy()
             occupancySmoother.reset(seeding: lastCommittedOccupancy)
+            occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
             syncCommittedNotation()
             showEditSheet = false
             ambiguousMoves = []
@@ -848,10 +853,29 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func ingest(_ observation: BoardObservation) async {
-        let smoothed = occupancySmoother.ingest(observation.occupancy)
+        let detected = observation.occupancy
+        let gated = pieceDetectorAvailable
+            ? occupancyPrior.apply(detected: detected, previous: lastCommittedOccupancy)
+            : detected
+        let smoothed = occupancySmoother.ingest(gated)
         liveOccupancy = smoothed
-        var motion = settle.ingest(smoothed, at: observation.timestamp)
+        let settleMotion = settle.ingest(smoothed, at: observation.timestamp)
         let hamming = lastCommittedOccupancy.hammingDistance(to: smoothed)
+        if hamming > CommitRelativeMotion.maxInferHamming {
+            trackingLost = true
+        } else {
+            trackingLost = false
+        }
+        let skippedStableInfer = phase == .recording && {
+            if case .stable = settleMotion { return (1...CommitRelativeMotion.maxInferHamming).contains(hamming) }
+            return false
+        }()
+        var motion = CommitRelativeMotion.arm(
+            phase: phase,
+            motion: settleMotion,
+            occupancy: smoothed,
+            commitHamming: hamming
+        )
         let motionLabel: String
         switch motion {
         case .stable:
@@ -859,8 +883,6 @@ final class RecordingSessionViewModel: Identifiable {
         case .disturbed:
             motionLabel = "disturbed"
         }
-        liveDebugLine =
-            "\(phaseLabel(phase))  \(motionLabel)  ham \(hamming)  Δ\(observation.changedSquareCount)  ply \(committedPlyCount)  \(lastSAN ?? "-")"
 
         var inference: InferenceResult = .none
         if phase == .disturbed {
@@ -876,9 +898,8 @@ final class RecordingSessionViewModel: Identifiable {
             if let occ = candidate {
                 let distance = lastCommittedOccupancy.hammingDistance(to: occ)
                 if distance == 0 {
-                    trackingLost = false
                     inference = .none
-                } else if distance > 16 {
+                } else if distance > CommitRelativeMotion.maxInferHamming {
                     trackingLost = true
                     inference = .none
                 } else {
@@ -902,6 +923,23 @@ final class RecordingSessionViewModel: Identifiable {
                 }
             }
         }
+
+        var debugParts = [
+            phaseLabel(phase),
+            motionLabel,
+            "ham \(hamming)",
+            "Δ\(observation.changedSquareCount)",
+            "ply \(committedPlyCount)",
+            lastSAN ?? "-"
+        ]
+        if skippedStableInfer {
+            debugParts.append("skip-stable")
+        }
+        let amb = MoveInferrer.debugSans(for: inference)
+        if !amb.isEmpty {
+            debugParts.append(amb)
+        }
+        liveDebugLine = debugParts.joined(separator: "  ")
 
         let next = SessionReducer.next(phase: phase, motion: motion, inference: inference)
         switch (next, inference) {
@@ -1035,6 +1073,7 @@ final class RecordingSessionViewModel: Identifiable {
         showEditSheet = false
         lastCommittedOccupancy = Occupancy.standardStart()
         liveOccupancy = Occupancy.standardStart()
+        occupancyPrior = OccupancyPrior.unconstrained
         pendingFingerprintSnapshot = false
         trackingWeak = false
         isDraggingCorner = false
