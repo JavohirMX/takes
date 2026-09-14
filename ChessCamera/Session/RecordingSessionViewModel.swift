@@ -85,6 +85,9 @@ final class RecordingSessionViewModel: Identifiable {
     private let heatmapLocalizer: HeatmapBoardLocalizer? = HeatmapBoardLocalizer.loadBundled()
     private var studioFrameIndex = 0
     nonisolated(unsafe) private var lastSampleBuffer: CVPixelBuffer?
+    private var lastPaddedRefineAt: ContinuousClock.Instant?
+    private var lastOpenCVSnap: Quadrilateral?
+    private let paddedRefineInterval: Duration = .milliseconds(400)
 
     var fen: String { engine.fen }
     var pgn: String { engine.pgn }
@@ -201,32 +204,64 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func refineGridSnappingQuad() async {
-        guard let current = quad, let warped = warpedThumbnail else {
+        guard let current = quad, let buffer = lastSampleBuffer else {
             refinedGrid = nil
             await pipeline.setRefinedGrid(nil)
             return
         }
-        guard let first = OpenCVGridRefiner.refine(warped), first.isMonotonic else {
+        let size = bufferSize.width > 0
+            ? bufferSize
+            : CGSize(
+                width: CVPixelBufferGetWidth(buffer),
+                height: CVPixelBufferGetHeight(buffer)
+            )
+        guard let result = PaddedBoardRefiner.refine(quad: current, buffer: buffer, bufferSize: size) else {
             refinedGrid = nil
             await pipeline.setRefinedGrid(nil)
             return
         }
-        let snapped = first.cameraQuad(mappingWith: current)
-        if let buffer = lastSampleBuffer,
-           let rewarped = BoardWarper.warp(buffer, quad: snapped, size: 512) {
-            quad = snapped
-            visionQuad = snapped
-            await pipeline.setLockedQuad(snapped)
-            warpedThumbnail = rewarped.squareImage
-            if let second = OpenCVGridRefiner.refine(rewarped.squareImage), second.isMonotonic {
-                refinedGrid = second
-            } else {
-                refinedGrid = .even(imageSize: CGFloat(rewarped.squareImage.width))
+        applyPaddedRefineResult(result, recaptureVisionTemplate: false)
+        await pipeline.setLockedQuad(result.snappedQuad)
+        await pipeline.setRefinedGrid(result.grid)
+    }
+
+    private func applyPaddedRefineResult(
+        _ result: PaddedBoardRefiner.Result,
+        recaptureVisionTemplate: Bool
+    ) {
+        quad = result.snappedQuad
+        lastOpenCVSnap = result.snappedQuad
+        if activeLocalizer == .vision {
+            visionQuad = result.snappedQuad
+            if recaptureVisionTemplate {
+                needsTemplateCapture = true
             }
-        } else {
-            refinedGrid = first
         }
-        await pipeline.setRefinedGrid(refinedGrid)
+        if let warp = result.tightWarp {
+            warpedThumbnail = warp
+        }
+        refinedGrid = result.grid
+    }
+
+    private func maybeRefineWithPaddedOpenCV() async -> Bool {
+        guard !isDraggingCorner, let seed = quad, let buffer = lastSampleBuffer, bufferSize.width > 1 else {
+            return false
+        }
+        if let lastPaddedRefineAt, ContinuousClock.now - lastPaddedRefineAt < paddedRefineInterval {
+            return false
+        }
+        lastPaddedRefineAt = ContinuousClock.now
+        guard let result = PaddedBoardRefiner.refine(quad: seed, buffer: buffer, bufferSize: bufferSize) else {
+            return false
+        }
+        applyPaddedRefineResult(result, recaptureVisionTemplate: true)
+        await pipeline.setRefinedGrid(result.grid)
+        return result.tightWarp != nil
+    }
+
+    private func clearOpenCVSnap() {
+        lastOpenCVSnap = nil
+        lastPaddedRefineAt = nil
     }
 
     func adjustCorners() {
@@ -244,6 +279,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func beginCornerDrag() {
         isDraggingCorner = true
+        clearOpenCVSnap()
     }
 
     func finishCornerDrag() {
@@ -251,6 +287,7 @@ final class RecordingSessionViewModel: Identifiable {
         needsTemplateCapture = true
         weakTrackFrames = 0
         trackingWeak = false
+        clearOpenCVSnap()
     }
 
     func rescanBoard() async {
@@ -263,6 +300,8 @@ final class RecordingSessionViewModel: Identifiable {
         needsTemplateCapture = true
         weakTrackFrames = 0
         studioFrameIndex = 0
+        lastOpenCVSnap = nil
+        lastPaddedRefineAt = nil
         activeLocalizer = .vision
         cornerTracker.reset()
         quadConsensus.reset()
@@ -284,6 +323,7 @@ final class RecordingSessionViewModel: Identifiable {
         trackingWeak = false
         cornerTracker.reset()
         quadConsensus.reset()
+        clearOpenCVSnap()
     }
 
     func setActiveLocalizer(_ source: BoardLocalizerSource) {
@@ -301,6 +341,7 @@ final class RecordingSessionViewModel: Identifiable {
         weakTrackFrames = 0
         trackingWeak = false
         cornerTracker.reset()
+        clearOpenCVSnap()
     }
 
     func setCorner(_ index: Int, bufferPoint: CGPoint) {
@@ -318,6 +359,7 @@ final class RecordingSessionViewModel: Identifiable {
         }
         self.quad = quad
         refinedGrid = nil
+        clearOpenCVSnap()
         Task { await pipeline.setRefinedGrid(nil) }
         switch activeLocalizer {
         case .vision: visionQuad = quad
@@ -642,7 +684,12 @@ final class RecordingSessionViewModel: Identifiable {
         if studioFrameIndex % 2 == 0, let heatmapLocalizer {
             mlQuad = await heatmapLocalizer.detect(in: frame.buffer)
             if activeLocalizer == .ml, !isDraggingCorner, let mlQuad {
-                quad = mlQuad
+                if let snap = lastOpenCVSnap, snap.isSimilar(to: mlQuad, imageSize: bufferSize) {
+                    quad = snap
+                } else {
+                    lastOpenCVSnap = nil
+                    quad = mlQuad
+                }
             }
         }
 
@@ -687,7 +734,8 @@ final class RecordingSessionViewModel: Identifiable {
             }
         }
 
-        if let quad, let warped = await pipeline.warp(frame, quad: quad) {
+        let didRefine = await maybeRefineWithPaddedOpenCV()
+        if !didRefine, let quad, let warped = await pipeline.warp(frame, quad: quad) {
             warpedThumbnail = warped.squareImage
         }
 
@@ -964,6 +1012,8 @@ final class RecordingSessionViewModel: Identifiable {
         mlQuad = nil
         activeLocalizer = .vision
         studioFrameIndex = 0
+        lastOpenCVSnap = nil
+        lastPaddedRefineAt = nil
         lastPieceDetectTime = nil
         isPieceDetecting = false
         pieceBoxes = []

@@ -103,6 +103,19 @@ struct Quadrilateral: Equatable, Sendable {
         )
     }
 
+    /// Grow the quad in UV space so OpenCV can see the full 8×8 square-grid.
+    /// `fraction` 0.15 adds 15% of the board side on each edge.
+    func expanded(by fraction: CGFloat) -> Quadrilateral {
+        let lo = -fraction
+        let hi = 1 + fraction
+        return Quadrilateral(
+            topLeft: interpolated(u: lo, v: lo),
+            topRight: interpolated(u: hi, v: lo),
+            bottomRight: interpolated(u: hi, v: hi),
+            bottomLeft: interpolated(u: lo, v: hi)
+        )
+    }
+
     func blended(with other: Quadrilateral, t: CGFloat) -> Quadrilateral {
         func mix(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
             CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
