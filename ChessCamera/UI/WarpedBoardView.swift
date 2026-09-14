@@ -81,9 +81,7 @@ struct WarpedBoardView: View {
                             x: cell * CGFloat(fileIndex) + cell / 2,
                             y: cell * CGFloat(rankFromImageTop) + cell / 2
                         )
-                        Text(piece.glyph)
-                            .font(.system(size: cell * 0.62))
-                            .foregroundStyle(piece.isWhite ? Color.white : Color.black)
+                        PieceView(piece: piece, size: cell * 0.78)
                             .shadow(color: .black.opacity(0.45), radius: 1)
                             .position(center)
                     }

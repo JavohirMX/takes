@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct HistoryView: View {
     @Query(sort: \GameRecord.createdAt, order: .reverse) private var games: [GameRecord]
@@ -13,6 +14,9 @@ struct HistoryView: View {
     @State private var pendingDelete: GameRecord?
     @State private var startAfterPrimer = false
     @State private var pendingPieceStudio = false
+    @State private var showAppearance = false
+    @State private var shareItems: [Any] = []
+    @State private var showShare = false
 
     var body: some View {
         NavigationStack {
@@ -39,16 +43,21 @@ struct HistoryView: View {
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        PhotosPicker(selection: $pendingVideo, matching: .videos) {
-                            Label("Process a video…", systemImage: "film")
+                        Button("Board appearance", systemImage: "checkerboard.rectangle") {
+                            showAppearance = true
                         }
-                        Button("Test piece detector", action: beginPieceStudio)
-                        Button("Setup tips") { showPrimer = true }
-                        Menu("Settle duration") {
-                            Button("300 ms") { SettleSettings.milliseconds = 300 }
-                            Button("600 ms") { SettleSettings.milliseconds = 600 }
-                            Button("900 ms") { SettleSettings.milliseconds = 900 }
-                            Button("1500 ms") { SettleSettings.milliseconds = 1500 }
+                        Menu("Debug") {
+                            PhotosPicker(selection: $pendingVideo, matching: .videos) {
+                                Label("Process a video…", systemImage: "film")
+                            }
+                            Button("Test piece detector", action: beginPieceStudio)
+                            Button("Setup tips") { showPrimer = true }
+                            Menu("Settle duration") {
+                                Button("300 ms") { SettleSettings.milliseconds = 300 }
+                                Button("600 ms") { SettleSettings.milliseconds = 600 }
+                                Button("900 ms") { SettleSettings.milliseconds = 900 }
+                                Button("1500 ms") { SettleSettings.milliseconds = 1500 }
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -106,6 +115,12 @@ struct HistoryView: View {
                 onDismiss: { showPrimer = false }
             )
         }
+        .sheet(isPresented: $showAppearance) {
+            BoardAppearanceSheet()
+        }
+        .sheet(isPresented: $showShare) {
+            ShareSheet(items: shareItems)
+        }
         .confirmationDialog(
             "Delete this game?",
             isPresented: Binding(
@@ -136,18 +151,25 @@ struct HistoryView: View {
     private var emptyState: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "checkerboard.rectangle")
-                .font(.system(size: 56))
-                .foregroundStyle(Theme.textSecondary)
-                .accessibilityHidden(true)
-            Text("Line up a board. New Game opens the camera.")
-                .font(.body)
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
+            DigitalBoardView(
+                fen: FenCodec.standard,
+                showsCoordinates: false,
+                styleOverride: .tournament
+            )
+            .frame(width: 168, height: 168)
+            .accessibilityHidden(true)
+            VStack(spacing: 8) {
+                Text("Games you record will appear here.")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("New Game opens the camera.")
+                    .font(.callout)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 16)
             PrimaryButton(title: "New Game", action: beginNewGame)
-                .padding(.horizontal, 16)
-            SecondaryButton(title: "Test piece detector", action: beginPieceStudio)
                 .padding(.horizontal, 16)
             Spacer()
         }
@@ -156,22 +178,67 @@ struct HistoryView: View {
 
     private var populated: some View {
         List {
-            ForEach(games) { game in
-                Button {
-                    replay = ReplayRoute(pgn: game.pgn, title: game.title)
-                } label: {
-                    HistoryRow(game: game)
-                }
-                .listRowBackground(Theme.surface)
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button("Delete", role: .destructive) {
-                        pendingDelete = game
+            ForEach(historySections) { section in
+                Section {
+                    ForEach(section.games) { game in
+                        Button {
+                            replay = ReplayRoute(pgn: game.pgn, title: game.title)
+                        } label: {
+                            HistoryRow(game: game)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("Delete", role: .destructive) {
+                                pendingDelete = game
+                            }
+                        }
+                        .contextMenu {
+                            Button("Replay", systemImage: "play") {
+                                replay = ReplayRoute(pgn: game.pgn, title: game.title)
+                            }
+                            Button("Share PGN", systemImage: "square.and.arrow.up") {
+                                share(game)
+                            }
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                pendingDelete = game
+                            }
+                        }
                     }
+                } header: {
+                    Text(section.title)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .textCase(nil)
                 }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .listSectionSpacing(8)
+    }
+
+    private var historySections: [HistorySection] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: games) { calendar.startOfDay(for: $0.createdAt) }
+        return grouped.keys.sorted(by: >).map { day in
+            HistorySection(
+                id: day,
+                title: HistorySection.title(for: day, calendar: calendar),
+                games: (grouped[day] ?? []).sorted { $0.createdAt > $1.createdAt }
+            )
+        }
+    }
+
+    private func share(_ game: GameRecord) {
+        do {
+            shareItems = [try PGNShareFile.write(pgn: game.pgn, title: game.title)]
+            showShare = true
+        } catch {
+            UIPasteboard.general.string = game.pgn
+        }
     }
 
     private func beginNewGame() {
@@ -229,39 +296,121 @@ struct HistoryView: View {
     }
 }
 
+private struct HistorySection: Identifiable {
+    var id: Date
+    var title: String
+    var games: [GameRecord]
+
+    static func title(for day: Date, calendar: Calendar) -> String {
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
 private struct HistoryRow: View {
     let game: GameRecord
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(game.title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Text(resultToken)
-                    .font(.body.monospaced())
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            Text(game.createdAt.formatted(date: .abbreviated, time: .omitted))
-                .font(.callout)
-                .foregroundStyle(Theme.textSecondary)
-            if !preview.isEmpty {
-                Text(preview)
-                    .font(.body.monospaced())
+        HStack(alignment: .top, spacing: 12) {
+            DigitalBoardView(
+                fen: game.finalFen,
+                showsCoordinates: false
+            )
+            .frame(width: 72, height: 72)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(game.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    resultChip
+                }
+                Text(subtitle)
+                    .font(.callout)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
+                if !preview.isEmpty {
+                    Text(preview)
+                        .font(.body.monospaced())
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                }
             }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.top, 4)
+                .accessibilityHidden(true)
         }
-        .padding(.vertical, 8)
+        .padding(16)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+        .accessibilityAddTraits(.isButton)
     }
 
     private var preview: String {
         PGNMoveList.preview(game.pgn, maxPlies: 6)
     }
 
+    private var plies: Int {
+        PGNMoveList.sans(from: game.pgn).count
+    }
+
     private var resultToken: String {
         (try? GameEngine(fen: game.finalFen))?.resultToken ?? "*"
+    }
+
+    private var resultChip: some View {
+        Text(resultToken)
+            .font(.caption.monospaced().weight(.semibold))
+            .foregroundStyle(resultForeground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(resultForeground.opacity(0.16), in: Capsule())
+            .accessibilityHidden(true)
+    }
+
+    private var resultForeground: Color {
+        switch resultToken {
+        case "1-0": Theme.accent
+        case "0-1": Theme.textPrimary
+        case "½-½": Theme.textSecondary
+        default: Theme.caution
+        }
+    }
+
+    private var resultSpoken: String {
+        switch resultToken {
+        case "1-0": "1-0"
+        case "0-1": "0-1"
+        case "½-½": "draw"
+        default: "In progress"
+        }
+    }
+
+    private var subtitle: String {
+        let calendar = Calendar.current
+        let day: String
+        if calendar.isDateInToday(game.createdAt) {
+            day = "Today"
+        } else if calendar.isDateInYesterday(game.createdAt) {
+            day = "Yesterday"
+        } else {
+            day = game.createdAt.formatted(date: .abbreviated, time: .omitted)
+        }
+        let time = game.createdAt.formatted(date: .omitted, time: .shortened)
+        let moves = plies == 1 ? "1 move" : "\(plies) moves"
+        return "\(day) · \(time) · \(moves)"
+    }
+
+    private var accessibilitySummary: String {
+        let date = game.createdAt.formatted(date: .abbreviated, time: .shortened)
+        return "\(game.title), \(resultSpoken), \(plies) moves, \(date)"
     }
 }
 
@@ -279,13 +428,50 @@ struct ReplayRoute: Hashable, Identifiable {
 #Preview("History filled") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: GameRecord.self, configurations: config)
-    let sample = GameRecord(
-        createdAt: .now,
-        pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6",
-        finalFen: FenCodec.standard,
-        title: GameRecord.defaultTitle(for: .now)
+    let calendar = Calendar.current
+    let now = Date()
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+    let lastWeek = calendar.date(byAdding: .day, value: -5, to: now) ?? now
+
+    let ruy = GameEngine()
+    for san in ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6"] {
+        try? ruy.apply(san: san)
+    }
+    container.mainContext.insert(
+        GameRecord(
+            createdAt: now,
+            pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6",
+            finalFen: ruy.fen,
+            title: GameRecord.defaultTitle(for: now)
+        )
     )
-    container.mainContext.insert(sample)
+
+    let foolsMate = GameEngine()
+    for san in ["f3", "e5", "g4", "Qh4"] {
+        try? foolsMate.apply(san: san)
+    }
+    container.mainContext.insert(
+        GameRecord(
+            createdAt: yesterday,
+            pgn: "1. f3 e5 2. g4 Qh4# 0-1",
+            finalFen: foolsMate.fen,
+            title: GameRecord.defaultTitle(for: yesterday)
+        )
+    )
+
+    container.mainContext.insert(
+        GameRecord(
+            createdAt: lastWeek,
+            pgn: "1. e4",
+            finalFen: {
+                let engine = GameEngine()
+                try? engine.apply(san: "e4")
+                return engine.fen
+            }(),
+            title: GameRecord.defaultTitle(for: lastWeek)
+        )
+    )
+
     return HistoryView()
         .modelContainer(container)
 }

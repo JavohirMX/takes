@@ -7,3 +7,10 @@ Copyright (c) 2025 Sam
 
 Converted for on-device use as ChessCamera/ML/ChessboardUNet.mlpackage via
 scripts/convert_chessboard_unet.py (uv).
+
+CBurnett chess piece SVGs in Assets.xcassets/Pieces/CBurnett are designed by
+Colin M.L. Burnett and licensed under CC BY-SA 3.0:
+
+  https://creativecommons.org/licenses/by-sa/3.0/
+  https://github.com/lichess-org/lila/tree/master/public/piece/cburnett
+  https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces

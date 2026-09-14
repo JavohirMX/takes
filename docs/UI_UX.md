@@ -2,11 +2,11 @@
 
 **Companion to:** [PRD.md](PRD.md), [APP_FLOW.md](APP_FLOW.md)
 **Platform:** iPhone, SwiftUI, iOS 18+
-**Style:** Dark camera tool — scanner energy, not a wooden chess-app skin
+**Style:** Dark camera tool — scanner energy. The digital transcript may use a user-chosen classic board palette and SVG Staunton pieces.
 
 This is a **recording instrument**. The physical board is the hero. The digital board is a live transcript. UI stays out of the way during play and becomes precise when something is wrong.
 
-Product-type references used: scanner / document digitizer (viewfinder, edge detect, export) + board-game transcript (move list, replay). Not a 3D felt-table game, not a social network, not an engine studio.
+Product-type references used: scanner / document digitizer (viewfinder, edge detect, export) + board-game transcript (move list, replay). Not a 3D felt-table game, not a social network, not an engine studio. App chrome stays dark. Board skins are flat color pairs, not wood textures.
 
 ---
 
@@ -23,7 +23,7 @@ Product-type references used: scanner / document digitizer (viewfinder, edge det
 
 **Don’t**
 
-- Skeuomorphic wood, felt green table, ornate piece renderings as the brand
+- Skeuomorphic wood textures, 3D pieces, or ornate art as the app brand
 - Neon gamer HUD
 - Per-move confirmation modals (auto-accept is the product)
 - Color-only status (always pair with text or an icon)
@@ -46,10 +46,18 @@ Semantic tokens only. No raw hex in views.
 | `onAccent` | `#052E16` | Text on accent buttons |
 | `caution` | `#F59E0B` | Disturbed / waiting for board |
 | `danger` | `#EF4444` | Illegal delta, delete game |
-| `boardLight` | `#E2E8F0` | Digital light squares |
-| `boardDark` | `#475569` | Digital dark squares |
-| `lastMove` | `#22C55E` @ 35% | Last-move highlight on digital board |
 | `overlayScrim` | `#000000` @ 55% | Bottom HUD over camera |
+
+Digital board squares live on `BoardStyle` (user-chosen, persisted). Default **Tournament**.
+
+| Style | Light | Dark |
+|---|---|---|
+| Tournament | `#FFFFDD` | `#86A666` |
+| Walnut | `#F0D9B5` | `#B58863` |
+| Blue | `#DEE3E6` | `#8CA2AD` |
+| Slate | `#E2E8F0` | `#475569` |
+
+Last-move highlight is a translucent tint owned by the style (Slate uses accent at 35%). Pieces are bundled CBurnett SVGs (`wK`…`bP`), not Unicode. Coordinates a–h / 1–8 sit on the near edges and are hidden from VoiceOver. `Theme.boardLight` / `boardDark` / `lastMove` remain Slate aliases.
 
 **Contrast:** `textPrimary` on `background` and `textPrimary` on `surface` must stay ≥ 4.5:1. Accent green is for controls and highlights, not body text on dark navy.
 
@@ -140,11 +148,11 @@ Back is always explicit. Confirm before discarding an in-progress game with ≥1
 
 ### 6.1 History (root)
 
-**Empty:** illustration (SF Symbol `checkerboard.rectangle`) + “Games you record will appear here.” + **New Game**.
+**Empty:** mini Tournament board (standard FEN, non-interactive) + “Games you record will appear here.” + “New Game opens the camera.” + **New Game**. Debug actions stay in More.
 
-**Populated:** list by date, title, result if known (`1-0` / `0-1` / `½-½` / `*`), first 6 plies as a caption. Swipe to delete with confirmation. Tap → Replay.
+**Populated:** date sections (Today / Yesterday / abbreviated date). Each row is a surface card: 72 pt mini board from `finalFen`, title, result chip (`1-0` accent / `0-1` textPrimary / `½-½` textSecondary / `*` caution), relative day · time · ply count, first 6 plies as a caption. Tap → Replay. Swipe to delete with confirmation. Context menu: Replay, Share PGN, Delete.
 
-Toolbar: leading app name “Chess Camera”, trailing `plus` = New Game (also a large bottom-or-inline CTA when empty).
+Toolbar: leading **More** (Board appearance, then Debug), trailing `plus` = New Game (also the empty-state CTA).
 
 ### 6.2 Camera permission
 
@@ -298,7 +306,7 @@ Avoid: “Neural engine”, “AI sees all”, “Perfect chess vision.”
 
 | Component | Used in |
 |---|---|
-| `DigitalBoardView` | Confirm, Live, Replay, Edit |
+| `DigitalBoardView` | Confirm, Live, Replay, Edit, History cards, appearance picker |
 | `MoveListView` | Live (landscape), Replay |
 | `FenBar` | Live, Replay, Game over |
 | `CameraPreview` | Detect, Corners, Live |
@@ -314,7 +322,7 @@ Corner radius 12 for buttons and cards. 2 pt for digital board squares (flush gr
 ## 13. SwiftUI implementation notes
 
 - Views are structs; logic in `@Observable` `RecordingSessionViewModel`.
-- `#Preview` for History empty/filled, Confirm (standard FEN), Live (recording / disturbed / awaitingEdit), Replay.
+- `#Preview` for History empty/filled, each `BoardStyle`, Confirm (standard FEN), Live (recording / disturbed / awaitingEdit), Replay.
 - Prefer `NavigationStack` + `navigationDestination`.
 - `.task` for starting the camera; stop on disappear.
 - `@MainActor` ViewModel; pipeline is an actor.

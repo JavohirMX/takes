@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		01676DFB420EB52DE4C151BA /* HeatmapCornerDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB29D9EA63E620A3ED0BA7E6 /* HeatmapCornerDecodeTests.swift */; };
+		01EC86C634C572610C769823 /* BoardAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C726BCA95E4671B37E10784 /* BoardAppearanceTests.swift */; };
+		02B80ADD64C331140B3F2AA5 /* BoardAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6008B3AF1BFE463DCE802F51 /* BoardAppearance.swift */; };
 		05104C618E7BEEA97D5AE212 /* AssetVideoSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27762E892A116A0129F170C2 /* AssetVideoSource.swift */; };
 		078A440A75E25415DFF56FD8 /* PieceBoxOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB4E96C0AE884220A03AB795 /* PieceBoxOverlay.swift */; };
 		0927703FFF749E61E03AE0A4 /* BoardLocalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA3E7681CE93FE2D646331D /* BoardLocalizer.swift */; };
@@ -28,6 +30,7 @@
 		3D65842AF9A0512F692B0B8C /* CornerCalibrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33CDAF021C4A67084142D2 /* CornerCalibrationView.swift */; };
 		4009267E113C398F52805F9A /* OpenCVGridRefiner.mm in Sources */ = {isa = PBXBuildFile; fileRef = F6773F7AFCFA55584BF02C4A /* OpenCVGridRefiner.mm */; };
 		43530378565097A5867B7EF1 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0EB3CE243B9B1352369C63 /* AppContainer.swift */; };
+		47D3241FF1811188B7C6D343 /* PieceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88F6D020E04902CA18FB91F /* PieceView.swift */; };
 		4818C00D3247ABE67102D9D2 /* ChessSquareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */; };
 		4A4F8EC1D11327B3062A6D14 /* ChessboardUNet.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 7B333AFC7CB178DA4A35D5A6 /* ChessboardUNet.mlpackage */; };
 		4B05BFE888C05B43F364B189 /* ChessKit in Frameworks */ = {isa = PBXBuildFile; productRef = F9C6DB4342DC94DB08F37C45 /* ChessKit */; };
@@ -51,6 +54,7 @@
 		803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD0BB7A070EF2EA30CBA486 /* OccupancyEstimator.swift */; };
 		87C933EE14608D2821E26A91 /* QuadConsensus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3936A0383D656F012C17CAB4 /* QuadConsensus.swift */; };
 		8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */; };
+		959C5DA854160E6EE6C2CE56 /* BoardAppearanceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEFCDEA2F431BD8FDA05C41 /* BoardAppearanceSheet.swift */; };
 		97817461BFBF1385E1174B11 /* OpenCVGridRefinerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3473998CE0E1820B4E0BB537 /* OpenCVGridRefinerTests.swift */; };
 		9C6EA99157DEA87EDBF6E5C9 /* HeatmapCornerDecode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762A1A658900DAA9960A6634 /* HeatmapCornerDecode.swift */; };
 		9C8DB356F445654BCB35CAC6 /* ChessPieceYOLO.classes.txt in Resources */ = {isa = PBXBuildFile; fileRef = CE05831C1E3E1CD9E1F967AC /* ChessPieceYOLO.classes.txt */; };
@@ -121,12 +125,14 @@
 		4366B489D9995754DA91A995 /* LiveRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRecordingView.swift; sourceTree = "<group>"; };
 		47C2D4FB6153013B0037F4DC /* BoardQuadOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardQuadOverlay.swift; sourceTree = "<group>"; };
 		4830D1AEC7276C133B59756F /* WarpedBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarpedBoardView.swift; sourceTree = "<group>"; };
+		4C726BCA95E4671B37E10784 /* BoardAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardAppearanceTests.swift; sourceTree = "<group>"; };
 		4ECF8CD0493C1DF86F812C65 /* Occupancy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Occupancy.swift; sourceTree = "<group>"; };
 		4ED39002C57FA3559FAB339C /* SessionFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFlowView.swift; sourceTree = "<group>"; };
 		4F1EF2B9089815AFC5B0DE93 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5205AE72ECC8A76BCD8EFCE7 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		57F34291011A15555B73F460 /* BoardOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardOrientation.swift; sourceTree = "<group>"; };
 		5EE9A5A8A196054CB608A014 /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
+		6008B3AF1BFE463DCE802F51 /* BoardAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardAppearance.swift; sourceTree = "<group>"; };
 		641EB4B86D2BBBE963570277 /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
 		6716FC7C8065EF77F736FBD6 /* EditMoveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditMoveSheet.swift; sourceTree = "<group>"; };
 		68EBB019766ACFBA03AFE3B3 /* ChessCamera.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ChessCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -181,6 +187,8 @@
 		D92EB850B56B89077875BFBE /* SettleDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettleDetector.swift; sourceTree = "<group>"; };
 		D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerTrackerTests.swift; sourceTree = "<group>"; };
 		DB16E57516830057F8004D46 /* NOTICE */ = {isa = PBXFileReference; path = NOTICE; sourceTree = "<group>"; };
+		DBEFCDEA2F431BD8FDA05C41 /* BoardAppearanceSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardAppearanceSheet.swift; sourceTree = "<group>"; };
+		E88F6D020E04902CA18FB91F /* PieceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceView.swift; sourceTree = "<group>"; };
 		F133624111158A6BC81A9525 /* GridSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSampler.swift; sourceTree = "<group>"; };
 		F385A1C6D000AE9DFF229B3E /* MoveInferrerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveInferrerTests.swift; sourceTree = "<group>"; };
 		F6773F7AFCFA55584BF02C4A /* OpenCVGridRefiner.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = OpenCVGridRefiner.mm; sourceTree = "<group>"; };
@@ -312,6 +320,7 @@
 		875B1C8B8E512F124B9EF084 /* ChessCameraTests */ = {
 			isa = PBXGroup;
 			children = (
+				4C726BCA95E4671B37E10784 /* BoardAppearanceTests.swift */,
 				35825408D250867B93B29B53 /* BoardLocalizerScoreTests.swift */,
 				AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */,
 				D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */,
@@ -377,6 +386,8 @@
 		BBE87CF984AF1CBDC781D84D /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				6008B3AF1BFE463DCE802F51 /* BoardAppearance.swift */,
+				DBEFCDEA2F431BD8FDA05C41 /* BoardAppearanceSheet.swift */,
 				A71CEBD9D619FAE0AF196B22 /* BoardGridOverlay.swift */,
 				47C2D4FB6153013B0037F4DC /* BoardQuadOverlay.swift */,
 				641EB4B86D2BBBE963570277 /* CameraPreview.swift */,
@@ -386,6 +397,7 @@
 				345B8F34C0C137F732B2A45F /* MoveListView.swift */,
 				B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */,
 				CB4E96C0AE884220A03AB795 /* PieceBoxOverlay.swift */,
+				E88F6D020E04902CA18FB91F /* PieceView.swift */,
 				3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */,
 				94B40F811C0E6F4925584380 /* SecondaryButton.swift */,
 				5205AE72ECC8A76BCD8EFCE7 /* ShareSheet.swift */,
@@ -532,6 +544,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01EC86C634C572610C769823 /* BoardAppearanceTests.swift in Sources */,
 				1DAB9F3D1E04ECF934F17493 /* BoardLocalizerScoreTests.swift in Sources */,
 				4818C00D3247ABE67102D9D2 /* ChessSquareTests.swift in Sources */,
 				B2AD095917287D559B0DB25B /* CornerTrackerTests.swift in Sources */,
@@ -555,6 +568,8 @@
 			files = (
 				43530378565097A5867B7EF1 /* AppContainer.swift in Sources */,
 				05104C618E7BEEA97D5AE212 /* AssetVideoSource.swift in Sources */,
+				02B80ADD64C331140B3F2AA5 /* BoardAppearance.swift in Sources */,
+				959C5DA854160E6EE6C2CE56 /* BoardAppearanceSheet.swift in Sources */,
 				749AA361C72F39C5DC30B868 /* BoardDetectionView.swift in Sources */,
 				7C8C667EB0A8122D70D4012A /* BoardGridOverlay.swift in Sources */,
 				0927703FFF749E61E03AE0A4 /* BoardLocalizer.swift in Sources */,
@@ -599,6 +614,7 @@
 				E4C8382C44C0123BC07874B3 /* PieceClassifier.swift in Sources */,
 				B0600C6008220586B11A9CD1 /* PieceDetector.swift in Sources */,
 				F986064FFA7D95A7B2882A40 /* PieceStudioView.swift in Sources */,
+				47D3241FF1811188B7C6D343 /* PieceView.swift in Sources */,
 				7E55A474CDB7FA8EDD927F5C /* PrimaryButton.swift in Sources */,
 				87C933EE14608D2821E26A91 /* QuadConsensus.swift in Sources */,
 				3659DFF731728761CDB532E4 /* Quadrilateral.swift in Sources */,

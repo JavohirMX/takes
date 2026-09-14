@@ -11,8 +11,9 @@ enum Theme {
     static let onAccent = Color(red: 0.02, green: 0.18, blue: 0.09)        // #052E16
     static let caution = Color(red: 0.96, green: 0.62, blue: 0.04)         // #F59E0B
     static let danger = Color(red: 0.94, green: 0.27, blue: 0.27)          // #EF4444
-    static let boardLight = Color(red: 0.89, green: 0.91, blue: 0.94)      // #E2E8F0
-    static let boardDark = Color(red: 0.28, green: 0.33, blue: 0.41)       // #475569
-    static let lastMove = accent.opacity(0.35)                             // #22C55E @ 35%
+    /// Slate fallback. Digital squares use `BoardStyle`.
+    static var boardLight: Color { BoardStyle.slate.light }
+    static var boardDark: Color { BoardStyle.slate.dark }
+    static var lastMove: Color { BoardStyle.slate.lastMove }
     static let overlayScrim = Color.black.opacity(0.55)                    // #000000 @ 55%
 }

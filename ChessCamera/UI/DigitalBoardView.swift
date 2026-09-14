@@ -6,7 +6,17 @@ struct DigitalBoardView: View {
     var lastMove: (from: ChessSquare, to: ChessSquare)?
     var selected: ChessSquare?
     var interactive = false
+    var showsCoordinates = true
+    var styleOverride: BoardStyle?
     var onTap: ((ChessSquare) -> Void)?
+
+    @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var arrivalPulse = false
+
+    private var style: BoardStyle {
+        styleOverride ?? BoardStyle(rawValue: styleRaw) ?? BoardAppearance.defaultStyle
+    }
 
     private var pieces: [ChessSquare: PieceClass] {
         FenCodec.parsePieces(fen)
@@ -24,18 +34,26 @@ struct DigitalBoardView: View {
                             let isLight = (square.file + square.rank).isMultiple(of: 2) == false
                             let piece = pieces[square]
                             ZStack {
-                                (isLight ? Theme.boardLight : Theme.boardDark)
+                                (isLight ? style.light : style.dark)
                                 if isHighlighted(square) {
-                                    Theme.lastMove
+                                    style.lastMove
                                 }
                                 if selected == square {
                                     Theme.accent.opacity(0.35)
                                 }
+                                if showsCoordinates {
+                                    coordinates(
+                                        square: square,
+                                        displayFile: displayFile,
+                                        displayRank: displayRank,
+                                        isLight: isLight,
+                                        squareSize: squareSize
+                                    )
+                                }
                                 if let piece, piece != .empty {
-                                    Text(piece.glyph)
-                                        .font(.system(size: squareSize * 0.72))
-                                        .foregroundStyle(piece.isWhite ? Color.white : Color.black)
-                                        .shadow(color: piece.isWhite ? .black.opacity(0.35) : .clear, radius: 0.5)
+                                    PieceView(piece: piece, size: squareSize * 0.88)
+                                        .scaleEffect(arrivalScale(for: square))
+                                        .opacity(arrivalOpacity(for: square))
                                 }
                             }
                             .frame(width: squareSize, height: squareSize)
@@ -51,12 +69,74 @@ struct DigitalBoardView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .strokeBorder(style.frame, lineWidth: 1)
+            }
             .frame(width: side, height: side)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Digital chessboard")
+        .onChange(of: arrivalKey) { _, _ in
+            pulseArrival()
+        }
+        .onAppear {
+            pulseArrival()
+        }
+    }
+
+    private var arrivalKey: String {
+        guard let lastMove else { return fen }
+        return "\(fen)|\(lastMove.from.algebraic)\(lastMove.to.algebraic)"
+    }
+
+    private func pulseArrival() {
+        guard lastMove != nil, !reduceMotion else {
+            arrivalPulse = false
+            return
+        }
+        arrivalPulse = true
+        withAnimation(.easeOut(duration: 0.2)) {
+            arrivalPulse = false
+        }
+    }
+
+    private func arrivalScale(for square: ChessSquare) -> CGFloat {
+        lastMove?.to == square && arrivalPulse ? 0.86 : 1
+    }
+
+    private func arrivalOpacity(for square: ChessSquare) -> Double {
+        lastMove?.to == square && arrivalPulse ? 0.55 : 1
+    }
+
+    @ViewBuilder
+    private func coordinates(
+        square: ChessSquare,
+        displayFile: Int,
+        displayRank: Int,
+        isLight: Bool,
+        squareSize: CGFloat
+    ) -> some View {
+        let ink = isLight ? style.coordinateOnLight : style.coordinateOnDark
+        let font = Font.system(size: max(8, squareSize * 0.18), weight: .semibold, design: .monospaced)
+        if displayRank == 7 {
+            Text(String(square.algebraic.prefix(1)))
+                .font(font)
+                .foregroundStyle(ink)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(2)
+                .accessibilityHidden(true)
+        }
+        if displayFile == 0 {
+            Text("\(square.rank + 1)")
+                .font(font)
+                .foregroundStyle(ink)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(2)
+                .accessibilityHidden(true)
+        }
     }
 
     private func mappedSquare(file: Int, rankFromTop: Int) -> ChessSquare {
@@ -77,8 +157,44 @@ struct DigitalBoardView: View {
     }
 }
 
-#Preview("Confirm standard") {
-    DigitalBoardView(fen: FenCodec.standard)
+#Preview("Tournament") {
+    DigitalBoardView(fen: FenCodec.standard, styleOverride: .tournament)
+        .padding()
+        .background(Theme.background)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Walnut") {
+    DigitalBoardView(fen: FenCodec.standard, styleOverride: .walnut)
+        .padding()
+        .background(Theme.background)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Blue") {
+    DigitalBoardView(fen: FenCodec.standard, styleOverride: .blue)
+        .padding()
+        .background(Theme.background)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Slate") {
+    DigitalBoardView(fen: FenCodec.standard, styleOverride: .slate)
+        .padding()
+        .background(Theme.background)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Confirm interactive") {
+    DigitalBoardView(fen: FenCodec.standard, interactive: true, styleOverride: .tournament)
+        .padding()
+        .background(Theme.background)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("History thumbnail") {
+    DigitalBoardView(fen: FenCodec.standard, showsCoordinates: false, styleOverride: .tournament)
+        .frame(width: 72, height: 72)
         .padding()
         .background(Theme.background)
         .preferredColorScheme(.dark)
