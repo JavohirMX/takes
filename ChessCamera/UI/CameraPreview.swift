@@ -21,6 +21,10 @@ struct CameraPreview: UIViewRepresentable {
         uiView.stillImage = stillImage
         uiView.videoRotationAngle = videoRotationAngle
     }
+
+    static func dismantleUIView(_ uiView: CameraPreviewView, coordinator: ()) {
+        uiView.detachSession()
+    }
 }
 
 /// Apple's AVCam pattern: the preview layer *is* the view's backing layer.
@@ -42,6 +46,11 @@ final class CameraPreviewView: UIView {
             applyRotation()
             applyStillImage()
         }
+    }
+
+    func detachSession() {
+        guard previewLayer.session != nil else { return }
+        previewLayer.session = nil
     }
 
     var stillImage: CGImage? {
@@ -79,7 +88,10 @@ final class CameraPreviewView: UIView {
 
     private func applyRotation() {
         guard let connection = previewLayer.connection else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         LiveCameraSource.applyRotation(videoRotationAngle, to: connection)
+        CATransaction.commit()
     }
 
     private func applyStillImage() {

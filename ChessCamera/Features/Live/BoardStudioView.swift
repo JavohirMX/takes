@@ -9,42 +9,25 @@ struct BoardStudioView: View {
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
-        Group {
-            if isLandscape {
-                landscape
-            } else {
-                portrait
-            }
+        let layout = isLandscape
+            ? AnyLayout(HStackLayout(spacing: 0))
+            : AnyLayout(VStackLayout(spacing: 0))
+        layout {
+            cameraPane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            accessory
         }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .animation(nil, value: verticalSizeClass)
         .onAppear {
             Task { await model.startCaptureIfNeeded() }
         }
     }
 
-    private var portrait: some View {
-        VStack(spacing: 0) {
-            cameraPane
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            HStack(alignment: .center, spacing: 12) {
-                WarpedBoardView(
-                    image: model.warpedThumbnail,
-                    orientation: model.orientation,
-                    grid: model.refinedGrid
-                )
-                .frame(width: 140, height: 140)
-                controls
-            }
-            .padding(12)
-            .background(Theme.surface.opacity(0.95))
-        }
-    }
-
-    private var landscape: some View {
-        HStack(spacing: 0) {
-            cameraPane
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+    @ViewBuilder
+    private var accessory: some View {
+        if isLandscape {
             VStack(spacing: 12) {
                 WarpedBoardView(
                     image: model.warpedThumbnail,
@@ -57,6 +40,18 @@ struct BoardStudioView: View {
             }
             .padding(12)
             .frame(width: 300)
+            .background(Theme.surface.opacity(0.95))
+        } else {
+            HStack(alignment: .center, spacing: 12) {
+                WarpedBoardView(
+                    image: model.warpedThumbnail,
+                    orientation: model.orientation,
+                    grid: model.refinedGrid
+                )
+                .frame(width: 140, height: 140)
+                controls
+            }
+            .padding(12)
             .background(Theme.surface.opacity(0.95))
         }
     }

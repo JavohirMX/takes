@@ -9,19 +9,24 @@ struct LiveRecordingView: View {
     @Namespace private var previewSwap
     @State private var warpIsPrimary = false
 
+    private var isLandscape: Bool { verticalSizeClass == .compact }
+
     var body: some View {
-        Group {
-            if verticalSizeClass == .compact {
-                landscape
-            } else {
-                portrait
-            }
+        let layout = isLandscape
+            ? AnyLayout(HStackLayout(spacing: 0))
+            : AnyLayout(VStackLayout(spacing: 0))
+        layout {
+            cameraBlock
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+            accessory
         }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .animation(nil, value: verticalSizeClass)
         .onAppear { warpIsPrimary = false }
         .safeAreaInset(edge: .bottom) {
-            if verticalSizeClass != .compact {
+            if !isLandscape {
                 hud
             }
         }
@@ -41,28 +46,9 @@ struct LiveRecordingView: View {
         }
     }
 
-    private var portrait: some View {
-        VStack(spacing: 0) {
-            cameraBlock
-                .frame(maxHeight: .infinity)
-                .layoutPriority(1)
-            DigitalBoardView(
-                fen: model.engine.fen,
-                lastMove: model.engine.lastMoveSquares
-            )
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .frame(maxHeight: .infinity)
-            RecentPlyStrip(sans: model.committedSANs)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .id(model.committedPlyCount)
-        }
-    }
-
-    private var landscape: some View {
-        HStack(spacing: 0) {
-            cameraBlock
+    @ViewBuilder
+    private var accessory: some View {
+        if isLandscape {
             VStack(spacing: 12) {
                 DigitalBoardView(
                     fen: model.engine.fen,
@@ -80,6 +66,21 @@ struct LiveRecordingView: View {
             .padding(16)
             .frame(maxWidth: 360)
             .background(Theme.background)
+        } else {
+            VStack(spacing: 0) {
+                DigitalBoardView(
+                    fen: model.engine.fen,
+                    lastMove: model.engine.lastMoveSquares
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .frame(maxHeight: .infinity)
+                RecentPlyStrip(sans: model.committedSANs)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .id(model.committedPlyCount)
+            }
+            .frame(maxHeight: .infinity)
         }
     }
 
