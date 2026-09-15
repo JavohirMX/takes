@@ -41,6 +41,7 @@
 		49CEA303F77A810443C60A38 /* RecordingSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65B166F12A837493B468D1B /* RecordingSessionViewModelTests.swift */; };
 		4A4F8EC1D11327B3062A6D14 /* ChessboardUNet.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 7B333AFC7CB178DA4A35D5A6 /* ChessboardUNet.mlpackage */; };
 		4B05BFE888C05B43F364B189 /* ChessKit in Frameworks */ = {isa = PBXBuildFile; productRef = F9C6DB4342DC94DB08F37C45 /* ChessKit */; };
+		50ED1F658C92B87ECC37C7E6 /* YOLOBaseOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E6981F272A654C3CCCA2FEE /* YOLOBaseOverlay.swift */; };
 		52C0873690FA20966CD1193E /* CameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 641EB4B86D2BBBE963570277 /* CameraPreview.swift */; };
 		531F7CB04F6CE258D1CB83C3 /* RecordingSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB830616D711F6080310971 /* RecordingSessionViewModel.swift */; };
 		558D6B0218A11D50738FF5EF /* SessionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED39002C57FA3559FAB339C /* SessionFlowView.swift */; };
@@ -122,6 +123,7 @@
 		130C59A61979D7C44565CFD3 /* ChessCameraTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ChessCameraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		136134940AEE54A92F2C9DEF /* PieceClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceClass.swift; sourceTree = "<group>"; };
 		143835A5BEE7D877E323E5D1 /* RefinedBoardGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinedBoardGrid.swift; sourceTree = "<group>"; };
+		1E6981F272A654C3CCCA2FEE /* YOLOBaseOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YOLOBaseOverlay.swift; sourceTree = "<group>"; };
 		2687048DD7EAFFA84374F96C /* GridSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSamplerTests.swift; sourceTree = "<group>"; };
 		27762E892A116A0129F170C2 /* AssetVideoSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetVideoSource.swift; sourceTree = "<group>"; };
 		2F906397F6B499ED9F74D0D6 /* CornerHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerHandle.swift; sourceTree = "<group>"; };
@@ -444,6 +446,7 @@
 				965DE7BAC5CEA82F32932572 /* StatusBanner.swift */,
 				9CEE2DCF9ED9DE0888413B88 /* Theme.swift */,
 				4830D1AEC7276C133B59756F /* WarpedBoardView.swift */,
+				1E6981F272A654C3CCCA2FEE /* YOLOBaseOverlay.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -683,6 +686,7 @@
 				9EAB8A7EFAEDC96BCE7080CD /* VideoMapping.swift in Sources */,
 				0DFD3E376157F38C52B5CCE8 /* VisionPipeline.swift in Sources */,
 				E89AF36505E4C612017789E7 /* WarpedBoardView.swift in Sources */,
+				50ED1F658C92B87ECC37C7E6 /* YOLOBaseOverlay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

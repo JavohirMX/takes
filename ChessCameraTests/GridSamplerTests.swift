@@ -246,7 +246,7 @@ import Testing
         id: 2,
         piece: .whiteKing,
         confidence: 0.8,
-        bufferRect: CGRect(x: 720, y: 0, width: 60, height: 50)
+        bufferRect: CGRect(x: 730, y: 8, width: 50, height: 40)
     )
     let offBoard = PieceDetection.Box(
         id: 3,
@@ -279,13 +279,13 @@ import Testing
         id: 0,
         piece: .whiteRook,
         confidence: 0.9,
-        bufferRect: CGRect(x: 8, y: 430, width: 40, height: 70)
+        bufferRect: CGRect(x: 8, y: 448, width: 40, height: 48)
     )
     let h8 = PieceDetection.Box(
         id: 1,
         piece: .blackRook,
         confidence: 0.9,
-        bufferRect: CGRect(x: 460, y: 0, width: 40, height: 50)
+        bufferRect: CGRect(x: 460, y: 8, width: 40, height: 40)
     )
     let occupancy = PieceDetection.occupancy(
         from: [a1, h8],
@@ -310,8 +310,35 @@ import Testing
         id: 0,
         piece: .whiteKing,
         confidence: 0.9,
-        bufferRect: CGRect(x: paddedBase.x - 32, y: paddedBase.y - 64, width: 64, height: 64)
+        bufferRect: CGRect(x: paddedBase.x - 32, y: paddedBase.y - 32, width: 64, height: 64)
     )
+    let occupancy = PieceDetection.occupancy(
+        from: [e1],
+        paddedImageSize: 512,
+        margin: margin,
+        orientation: .whiteAtBottom
+    )
+    #expect(occupancy.occupied(ChessSquare.parse("e1")!))
+}
+
+@Test func tightUVMapsPaddedMarginBackToPlayingSurface() {
+    let margin: CGFloat = 0.06
+    let span = 1 + 2 * margin
+    let tightBase = CGPoint(x: 288, y: 512)
+    let paddedBase = CGPoint(
+        x: (tightBase.x / 512 + margin) / span * 512,
+        y: (tightBase.y / 512 + margin) / span * 512
+    )
+    let e1 = PieceDetection.Box(
+        id: 0,
+        piece: .whiteKing,
+        confidence: 0.9,
+        bufferRect: CGRect(x: paddedBase.x - 32, y: paddedBase.y - 32, width: 64, height: 64)
+    )
+    let uv = PieceDetection.tightUV(of: e1, paddedImageSize: 512, margin: margin)
+    #expect(uv != nil)
+    #expect(abs((uv?.x ?? -1) - tightBase.x / 512) < 0.002)
+    #expect(abs((uv?.y ?? -1) - tightBase.y / 512) < 0.002)
     let occupancy = PieceDetection.occupancy(
         from: [e1],
         paddedImageSize: 512,

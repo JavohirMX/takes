@@ -83,8 +83,8 @@ struct OccupancyPrior: Equatable, Sendable {
 
 /// Combine YOLO occupancy with fingerprint change detection.
 enum OccupancyFusion {
-    /// Prefer agreement; on disagreement trust a flagged fingerprint square,
-    /// otherwise keep the committed previous bit.
+    /// Prefer agreement. On disagreement, trust a flagged fingerprint only when
+    /// YOLO still matches the committed bit (YOLO missed the change). Otherwise YOLO.
     static func combine(
         previous: Occupancy,
         yolo: Occupancy,
@@ -100,10 +100,10 @@ enum OccupancyFusion {
                 let bit: Bool
                 if yoloBit == fingerprintBit {
                     bit = yoloBit
-                } else if changed.occupied(square) {
+                } else if changed.occupied(square), yoloBit == previous.occupied(square) {
                     bit = fingerprintBit
                 } else {
-                    bit = previous.occupied(square)
+                    bit = yoloBit
                 }
                 fused.set(square, occupied: bit)
             }

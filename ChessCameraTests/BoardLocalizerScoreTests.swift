@@ -145,6 +145,11 @@ import Testing
     #expect(detector.boxesCount == 1)
     #expect(observation?.occupancy.occupied(ChessSquare(file: 4, rank: 0)) == true)
     #expect(observation?.classes[ChessSquare(file: 4, rank: 0)] == .whiteKing)
+    #expect(observation?.yoloBases.count == 1)
+    if let uv = observation?.yoloBases.first {
+        #expect(abs(uv.x - 288.0 / 512.0) < 0.002)
+        #expect(abs(uv.y - 480.0 / 512.0) < 0.002)
+    }
 }
 
 private final class CountingDetector: PieceDetector, @unchecked Sendable {

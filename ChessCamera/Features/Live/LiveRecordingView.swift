@@ -96,8 +96,8 @@ struct LiveRecordingView: View {
             if warpIsPrimary {
                 warpFeed
                     .matchedGeometryEffect(id: "warp", in: previewSwap)
-                    .clipped()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.background)
             }
 
             Color.clear
@@ -158,6 +158,11 @@ struct LiveRecordingView: View {
                         bufferSize: model.bufferSize,
                         grid: model.refinedGrid
                     )
+                    YOLOBaseOverlay(
+                        bases: model.yoloPieceBases,
+                        quad: quad,
+                        bufferSize: model.bufferSize
+                    )
                 }
             }
         }
@@ -192,7 +197,9 @@ struct LiveRecordingView: View {
                 occupancy: model.liveOccupancy,
                 orientation: model.orientation
             )
+            YOLOBaseOverlay(bases: model.yoloPieceBases)
         }
+        .aspectRatio(1, contentMode: .fit)
         .allowsHitTesting(false)
     }
 

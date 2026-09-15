@@ -43,6 +43,8 @@ final class RecordingSessionViewModel: Identifiable {
     var alertMessage: String?
     var lastCommittedOccupancy = Occupancy.standardStart()
     var liveOccupancy = Occupancy.standardStart()
+    /// YOLO piece bases in tight playing-surface UV (0…1), for debug dots.
+    var yoloPieceBases: [CGPoint] = []
     var ambiguousMoves: [Move] = []
     var editReplacesLast = false
     var settleDuration: Duration = .milliseconds(600)
@@ -695,6 +697,7 @@ final class RecordingSessionViewModel: Identifiable {
         isPieceDetecting = false
         lastPieceDetectTime = nil
         pieceBoxes = []
+        yoloPieceBases = []
         await stopCapture()
         frameSource = nil
         liveCamera = nil
@@ -915,9 +918,11 @@ final class RecordingSessionViewModel: Identifiable {
                     quad = preview.quad
                     warpedThumbnail = preview.warpedImage
                     previewImage = image(from: frame.buffer)
+                    yoloPieceBases = preview.yoloBases
                 } else {
                     trackingLost = true
                     previewImage = image(from: frame.buffer)
+                    yoloPieceBases = []
                 }
                 liveOccupancy = lastCommittedOccupancy
                 occupancySmoother.reset(seeding: lastCommittedOccupancy)
@@ -941,11 +946,13 @@ final class RecordingSessionViewModel: Identifiable {
         } else {
             trackingLost = true
             previewImage = image(from: frame.buffer)
+            yoloPieceBases = []
             liveDebugLine = "no observation"
         }
     }
 
     private func ingest(_ observation: BoardObservation) async {
+        yoloPieceBases = observation.yoloBases
         let detected = observation.occupancy
         let gated = occupancyPrior.apply(detected: detected, previous: lastCommittedOccupancy)
         let smoothed = occupancySmoother.ingest(gated)
@@ -1153,6 +1160,7 @@ final class RecordingSessionViewModel: Identifiable {
         isPieceDetecting = false
         pieceBoxes = []
         pieceDetectorAvailable = false
+        yoloPieceBases = []
         warpedThumbnail = nil
         refinedGrid = nil
         gridSnapFailed = false

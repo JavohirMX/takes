@@ -150,7 +150,7 @@ import Testing
     #expect(fused.occupied(ChessSquare.parse("e4")!))
 }
 
-@Test func occupancyFusionKeepsPreviousWhenGhostFillIsNotFlagged() {
+@Test func occupancyFusionIncludesUnflaggedYOLOGhostFill() {
     let start = Occupancy.standardStart()
     var yolo = start
     yolo.set(ChessSquare.parse("f4")!, occupied: true)
@@ -160,7 +160,59 @@ import Testing
         fingerprint: start,
         changed: Occupancy()
     )
-    #expect(fused == start)
+    #expect(fused.occupied(ChessSquare.parse("f4")!))
+    #expect(fused.hammingDistance(to: start) == 1)
+}
+
+@Test func occupancyFusionTrustsYOLOMoveWhenFingerprintIsSilent() {
+    let start = Occupancy.standardStart()
+    var yolo = start
+    yolo.set(ChessSquare.parse("e2")!, occupied: false)
+    yolo.set(ChessSquare.parse("e4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: yolo,
+        fingerprint: start,
+        changed: Occupancy()
+    )
+    #expect(fused.hammingDistance(to: start) == 2)
+    #expect(!fused.occupied(ChessSquare.parse("e2")!))
+    #expect(fused.occupied(ChessSquare.parse("e4")!))
+
+    let engine = GameEngine()
+    let gated = GameEngine.occupancyPrior(of: engine.board).apply(detected: fused, previous: start)
+    var smoother = OccupancySmoother()
+    smoother.reset(seeding: start)
+    var smoothed = Occupancy()
+    for _ in 0..<3 {
+        smoothed = smoother.ingest(gated)
+    }
+    #expect(smoothed.hammingDistance(to: start) == 2)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: start, current: smoothed, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result.san == "e4")
+}
+
+@Test func occupancyFusionClearsOriginWhenFingerprintFailsEmptied() {
+    let start = Occupancy.standardStart()
+    var yolo = start
+    yolo.set(ChessSquare.parse("e2")!, occupied: false)
+    yolo.set(ChessSquare.parse("e4")!, occupied: true)
+    var fingerprint = start
+    fingerprint.set(ChessSquare.parse("e4")!, occupied: true)
+    var changed = Occupancy()
+    changed.set(ChessSquare.parse("e2")!, occupied: true)
+    changed.set(ChessSquare.parse("e4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: yolo,
+        fingerprint: fingerprint,
+        changed: changed
+    )
+    #expect(!fused.occupied(ChessSquare.parse("e2")!))
+    #expect(fused.occupied(ChessSquare.parse("e4")!))
 }
 
 @Test func recordedSessionMissedPawnFusesToUniqueE4() {

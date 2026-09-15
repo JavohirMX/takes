@@ -9,6 +9,8 @@ struct BoardObservation: Sendable {
     var classes: [ChessSquare: PieceClass]
     /// Squares the change detector flagged this frame (0 when using absolute/heuristic fallback).
     var changedSquareCount: Int
+    /// YOLO piece bases in tight playing-surface UV (0…1). Empty without a detector.
+    var yoloBases: [CGPoint] = []
     nonisolated(unsafe) var warpedImage: CGImage?
 }
 
@@ -170,6 +172,11 @@ actor VisionPipeline {
         let image = detectWarp.squareImage
         let boxes = await detector?.detectBoxes(in: image) ?? []
         let paddedSize = CGFloat(min(image.width, image.height))
+        let yoloBases = PieceDetection.bases(
+            from: boxes,
+            paddedImageSize: paddedSize,
+            margin: usedMargin
+        )
         let yoloOccupancy = PieceDetection.occupancy(
             from: boxes,
             paddedImageSize: paddedSize,
@@ -213,6 +220,7 @@ actor VisionPipeline {
             occupancy: occupancy,
             classes: classes,
             changedSquareCount: previousOccupancy.hammingDistance(to: occupancy),
+            yoloBases: yoloBases,
             warpedImage: warped.squareImage
         )
     }

@@ -108,9 +108,41 @@ enum PieceDetection {
         }
     }
 
-    /// Bottom-center of a top-left buffer rect (piece base on the square).
+    /// 0 = top of box, 1 = bottom. Center (0.5) for overhead / warped-board detections.
+    static let boxAnchorY: CGFloat = 0.5
+
+    /// Anchor on a top-left buffer rect (default: box center).
     static func pieceBase(of box: Box) -> CGPoint {
-        CGPoint(x: box.bufferRect.midX, y: box.bufferRect.maxY)
+        CGPoint(
+            x: box.bufferRect.midX,
+            y: box.bufferRect.minY + box.bufferRect.height * boxAnchorY
+        )
+    }
+
+    /// Playing-surface UV (0…1) for a detection on a (possibly padded) warped board.
+    static func tightUV(
+        of box: Box,
+        paddedImageSize: CGFloat,
+        margin: CGFloat
+    ) -> CGPoint? {
+        guard paddedImageSize > 0, box.confidence >= confidenceThreshold else { return nil }
+        let span = 1 + 2 * margin
+        let u0 = margin / span
+        let scale = 1 / span
+        let base = pieceBase(of: box)
+        let tightU = (base.x / paddedImageSize - u0) / scale
+        let tightV = (base.y / paddedImageSize - u0) / scale
+        guard tightU >= -0.02, tightV >= -0.02, tightU <= 1.02, tightV <= 1.02 else { return nil }
+        return CGPoint(x: tightU, y: tightV)
+    }
+
+    /// Piece-base UV for every on-board detection.
+    static func bases(
+        from boxes: [Box],
+        paddedImageSize: CGFloat,
+        margin: CGFloat
+    ) -> [CGPoint] {
+        boxes.compactMap { tightUV(of: $0, paddedImageSize: paddedImageSize, margin: margin) }
     }
 
     /// Algebraic square for a detection on a (possibly padded) warped board.
@@ -121,16 +153,11 @@ enum PieceDetection {
         orientation: BoardOrientation,
         grid: RefinedBoardGrid? = nil
     ) -> ChessSquare? {
-        guard paddedImageSize > 0, box.confidence >= confidenceThreshold else { return nil }
-        let span = 1 + 2 * margin
-        let u0 = margin / span
-        let scale = 1 / span
+        guard let uv = tightUV(of: box, paddedImageSize: paddedImageSize, margin: margin) else {
+            return nil
+        }
         let gridSize = grid?.imageSize ?? paddedImageSize
-        let base = pieceBase(of: box)
-        let tightU = (base.x / paddedImageSize - u0) / scale
-        let tightV = (base.y / paddedImageSize - u0) / scale
-        guard tightU >= -0.02, tightV >= -0.02, tightU <= 1.02, tightV <= 1.02 else { return nil }
-        let warped = CGPoint(x: tightU * gridSize, y: tightV * gridSize)
+        let warped = CGPoint(x: uv.x * gridSize, y: uv.y * gridSize)
         if let grid {
             return grid.square(containingWarped: warped, orientation: orientation)
         }
