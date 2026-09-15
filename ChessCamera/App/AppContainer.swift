@@ -59,3 +59,108 @@ enum FastReplySettings {
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 }
+
+enum DetectionSettings {
+    static let yoloConfidenceKey = "yoloConfidenceThreshold"
+    static let classifierConfidenceKey = "classifierConfidenceThreshold"
+    static let yoloConfidenceDefault: Double = 0.25
+    static let classifierConfidenceDefault: Double = 0.35
+    static let yoloConfidenceRange: ClosedRange<Double> = 0.05...0.70
+    static let classifierConfidenceRange: ClosedRange<Double> = 0.10...0.80
+
+    static var yoloConfidence: Float { Float(yoloConfidenceValue) }
+    static var classifierConfidence: Float { Float(classifierConfidenceValue) }
+
+    static var yoloConfidenceValue: Double {
+        get {
+            storedDouble(
+                for: yoloConfidenceKey,
+                default: yoloConfidenceDefault,
+                range: yoloConfidenceRange
+            )
+        }
+        set {
+            UserDefaults.standard.set(clamp(newValue, to: yoloConfidenceRange), forKey: yoloConfidenceKey)
+        }
+    }
+
+    static var classifierConfidenceValue: Double {
+        get {
+            storedDouble(
+                for: classifierConfidenceKey,
+                default: classifierConfidenceDefault,
+                range: classifierConfidenceRange
+            )
+        }
+        set {
+            UserDefaults.standard.set(
+                clamp(newValue, to: classifierConfidenceRange),
+                forKey: classifierConfidenceKey
+            )
+        }
+    }
+
+    static func resetToDefaults() {
+        yoloConfidenceValue = yoloConfidenceDefault
+        classifierConfidenceValue = classifierConfidenceDefault
+    }
+
+    static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    private static func storedDouble(
+        for key: String,
+        default defaultValue: Double,
+        range: ClosedRange<Double>
+    ) -> Double {
+        guard UserDefaults.standard.object(forKey: key) != nil else { return defaultValue }
+        return clamp(UserDefaults.standard.double(forKey: key), to: range)
+    }
+}
+
+enum DebugOverlaySettings {
+    static let showYoloDotsKey = "showYoloDebugDots"
+    static let showCaptureDiagnosticsKey = "showCaptureDiagnostics"
+    static let showBoardGridKey = "showBoardGrid"
+    static let showOccupancyOverlayKey = "showOccupancyOverlay"
+    static let showPieceBoxesKey = "showPieceBoxes"
+
+    static var showYoloDots: Bool {
+        get { storedBool(for: showYoloDotsKey, default: true) }
+        set { UserDefaults.standard.set(newValue, forKey: showYoloDotsKey) }
+    }
+
+    static var showCaptureDiagnostics: Bool {
+        get { storedBool(for: showCaptureDiagnosticsKey, default: true) }
+        set { UserDefaults.standard.set(newValue, forKey: showCaptureDiagnosticsKey) }
+    }
+
+    static var showBoardGrid: Bool {
+        get { storedBool(for: showBoardGridKey, default: true) }
+        set { UserDefaults.standard.set(newValue, forKey: showBoardGridKey) }
+    }
+
+    static var showOccupancyOverlay: Bool {
+        get { storedBool(for: showOccupancyOverlayKey, default: true) }
+        set { UserDefaults.standard.set(newValue, forKey: showOccupancyOverlayKey) }
+    }
+
+    static var showPieceBoxes: Bool {
+        get { storedBool(for: showPieceBoxesKey, default: false) }
+        set { UserDefaults.standard.set(newValue, forKey: showPieceBoxesKey) }
+    }
+
+    static func resetToDefaults() {
+        showYoloDots = true
+        showCaptureDiagnostics = true
+        showBoardGrid = true
+        showOccupancyOverlay = true
+        showPieceBoxes = false
+    }
+
+    private static func storedBool(for key: String, default defaultValue: Bool) -> Bool {
+        if UserDefaults.standard.object(forKey: key) == nil { return defaultValue }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+}

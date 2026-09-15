@@ -69,6 +69,7 @@
 		97817461BFBF1385E1174B11 /* OpenCVGridRefinerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3473998CE0E1820B4E0BB537 /* OpenCVGridRefinerTests.swift */; };
 		9C6EA99157DEA87EDBF6E5C9 /* HeatmapCornerDecode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762A1A658900DAA9960A6634 /* HeatmapCornerDecode.swift */; };
 		9C8DB356F445654BCB35CAC6 /* ChessPieceYOLO.classes.txt in Resources */ = {isa = PBXBuildFile; fileRef = CE05831C1E3E1CD9E1F967AC /* ChessPieceYOLO.classes.txt */; };
+		9D1E5B2C8A0F4763D9E7C1A0 /* DetectionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8E4A1B9D0F3756E8A4B5C6 /* DetectionSettingsTests.swift */; };
 		9EAB8A7EFAEDC96BCE7080CD /* VideoMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D425D12AF9A60D29FFFCD6 /* VideoMapping.swift */; };
 		9F0EFF697E4A3D38399B1829 /* SetupPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370B62A5F0006AA5BA4679CC /* SetupPrimerView.swift */; };
 		A0184C1D450D6309DA1C3C43 /* CameraPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72FE7C1A587B62DC967E2B51 /* CameraPermissionView.swift */; };
@@ -126,6 +127,7 @@
 		1E6981F272A654C3CCCA2FEE /* YOLOBaseOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YOLOBaseOverlay.swift; sourceTree = "<group>"; };
 		2687048DD7EAFFA84374F96C /* GridSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSamplerTests.swift; sourceTree = "<group>"; };
 		27762E892A116A0129F170C2 /* AssetVideoSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetVideoSource.swift; sourceTree = "<group>"; };
+		2C8E4A1B9D0F3756E8A4B5C6 /* DetectionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionSettingsTests.swift; sourceTree = "<group>"; };
 		2F906397F6B499ED9F74D0D6 /* CornerHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerHandle.swift; sourceTree = "<group>"; };
 		345B8F34C0C137F732B2A45F /* MoveListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveListView.swift; sourceTree = "<group>"; };
 		3473998CE0E1820B4E0BB537 /* OpenCVGridRefinerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCVGridRefinerTests.swift; sourceTree = "<group>"; };
@@ -352,6 +354,7 @@
 				D04751849CF4BD146A1E0FD5 /* BoardOrientationTests.swift */,
 				AB8DC8A93FD43242B661A48C /* ChessSquareTests.swift */,
 				D9BF998250CF9B586DE46A86 /* CornerTrackerTests.swift */,
+				2C8E4A1B9D0F3756E8A4B5C6 /* DetectionSettingsTests.swift */,
 				8605047E01558457D314F050 /* FenCodecTests.swift */,
 				3D4DF6AAD7DFA7C4AFFB57BA /* GameEngineTests.swift */,
 				2687048DD7EAFFA84374F96C /* GridSamplerTests.swift */,
@@ -592,6 +595,7 @@
 				843281A2FC510344DEC475B5 /* BoardOrientationTests.swift in Sources */,
 				4818C00D3247ABE67102D9D2 /* ChessSquareTests.swift in Sources */,
 				B2AD095917287D559B0DB25B /* CornerTrackerTests.swift in Sources */,
+				9D1E5B2C8A0F4763D9E7C1A0 /* DetectionSettingsTests.swift in Sources */,
 				A891B110A7BF198578A319A8 /* FenCodecTests.swift in Sources */,
 				EB8A71718C2C2C199A9018A3 /* GameEngineTests.swift in Sources */,
 				5B9CBD76688D6499602BADA6 /* GridSamplerTests.swift in Sources */,

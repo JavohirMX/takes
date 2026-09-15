@@ -150,6 +150,14 @@ import Testing
         #expect(abs(uv.x - 288.0 / 512.0) < 0.002)
         #expect(abs(uv.y - 480.0 / 512.0) < 0.002)
     }
+    #expect(observation?.yoloBoxes.count == 1)
+    if let box = observation?.yoloBoxes.first {
+        #expect(abs(box.uvRect.minX - 256.0 / 512.0) < 0.002)
+        #expect(abs(box.uvRect.minY - 448.0 / 512.0) < 0.002)
+        #expect(abs(box.uvRect.width - 64.0 / 512.0) < 0.002)
+        #expect(abs(box.uvRect.height - 64.0 / 512.0) < 0.002)
+        #expect(box.piece == .whiteKing)
+    }
 }
 
 private final class CountingDetector: PieceDetector, @unchecked Sendable {

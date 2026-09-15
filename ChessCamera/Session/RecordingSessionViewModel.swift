@@ -45,6 +45,8 @@ final class RecordingSessionViewModel: Identifiable {
     var liveOccupancy = Occupancy.standardStart()
     /// YOLO piece bases in tight playing-surface UV (0…1), for debug dots.
     var yoloPieceBases: [CGPoint] = []
+    /// YOLO boxes in tight playing-surface UV, for live debug overlay.
+    var yoloPieceBoxes: [PieceDetection.OverlayBox] = []
     var ambiguousMoves: [Move] = []
     var editReplacesLast = false
     var settleDuration: Duration = .milliseconds(600)
@@ -698,6 +700,7 @@ final class RecordingSessionViewModel: Identifiable {
         lastPieceDetectTime = nil
         pieceBoxes = []
         yoloPieceBases = []
+        yoloPieceBoxes = []
         await stopCapture()
         frameSource = nil
         liveCamera = nil
@@ -919,10 +922,12 @@ final class RecordingSessionViewModel: Identifiable {
                     warpedThumbnail = preview.warpedImage
                     previewImage = image(from: frame.buffer)
                     yoloPieceBases = preview.yoloBases
+                    yoloPieceBoxes = preview.yoloBoxes
                 } else {
                     trackingLost = true
                     previewImage = image(from: frame.buffer)
                     yoloPieceBases = []
+                    yoloPieceBoxes = []
                 }
                 liveOccupancy = lastCommittedOccupancy
                 occupancySmoother.reset(seeding: lastCommittedOccupancy)
@@ -947,12 +952,14 @@ final class RecordingSessionViewModel: Identifiable {
             trackingLost = true
             previewImage = image(from: frame.buffer)
             yoloPieceBases = []
+            yoloPieceBoxes = []
             liveDebugLine = "no observation"
         }
     }
 
     private func ingest(_ observation: BoardObservation) async {
         yoloPieceBases = observation.yoloBases
+        yoloPieceBoxes = observation.yoloBoxes
         let detected = observation.occupancy
         let gated = occupancyPrior.apply(detected: detected, previous: lastCommittedOccupancy)
         let smoothed = occupancySmoother.ingest(gated)
@@ -1161,6 +1168,7 @@ final class RecordingSessionViewModel: Identifiable {
         pieceBoxes = []
         pieceDetectorAvailable = false
         yoloPieceBases = []
+        yoloPieceBoxes = []
         warpedThumbnail = nil
         refinedGrid = nil
         gridSnapFailed = false

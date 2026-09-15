@@ -11,6 +11,8 @@ struct BoardObservation: Sendable {
     var changedSquareCount: Int
     /// YOLO piece bases in tight playing-surface UV (0…1). Empty without a detector.
     var yoloBases: [CGPoint] = []
+    /// YOLO boxes in tight playing-surface UV. Empty without a detector.
+    var yoloBoxes: [PieceDetection.OverlayBox] = []
     nonisolated(unsafe) var warpedImage: CGImage?
 }
 
@@ -92,7 +94,7 @@ actor VisionPipeline {
         var classes: [ChessSquare: PieceClass] = [:]
         for crop in crops {
             let (piece, confidence) = await classifier.classify(crop)
-            classes[crop.square] = confidence >= 0.35 ? piece : .empty
+            classes[crop.square] = confidence >= DetectionSettings.classifierConfidence ? piece : .empty
         }
         return classes
     }
@@ -177,6 +179,11 @@ actor VisionPipeline {
             paddedImageSize: paddedSize,
             margin: usedMargin
         )
+        let yoloBoxes = PieceDetection.overlayBoxes(
+            from: boxes,
+            paddedImageSize: paddedSize,
+            margin: usedMargin
+        )
         let yoloOccupancy = PieceDetection.occupancy(
             from: boxes,
             paddedImageSize: paddedSize,
@@ -221,6 +228,7 @@ actor VisionPipeline {
             classes: classes,
             changedSquareCount: previousOccupancy.hammingDistance(to: occupancy),
             yoloBases: yoloBases,
+            yoloBoxes: yoloBoxes,
             warpedImage: warped.squareImage
         )
     }

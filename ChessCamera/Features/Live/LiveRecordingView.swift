@@ -9,6 +9,11 @@ struct LiveRecordingView: View {
     @Namespace private var previewSwap
     @State private var warpIsPrimary = false
     @AppStorage(SpeechSettings.key) private var speakMoves = false
+    @AppStorage(DebugOverlaySettings.showYoloDotsKey) private var showYoloDots = true
+    @AppStorage(DebugOverlaySettings.showCaptureDiagnosticsKey) private var showCaptureDiagnostics = true
+    @AppStorage(DebugOverlaySettings.showBoardGridKey) private var showBoardGrid = true
+    @AppStorage(DebugOverlaySettings.showOccupancyOverlayKey) private var showOccupancyOverlay = true
+    @AppStorage(DebugOverlaySettings.showPieceBoxesKey) private var showPieceBoxes = false
 
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
@@ -153,16 +158,27 @@ struct LiveRecordingView: View {
                     pulse: false
                 )
                 if let quad = model.quad {
-                    BoardGridOverlay(
-                        quad: quad,
-                        bufferSize: model.bufferSize,
-                        grid: model.refinedGrid
-                    )
-                    YOLOBaseOverlay(
-                        bases: model.yoloPieceBases,
-                        quad: quad,
-                        bufferSize: model.bufferSize
-                    )
+                    if showBoardGrid {
+                        BoardGridOverlay(
+                            quad: quad,
+                            bufferSize: model.bufferSize,
+                            grid: model.refinedGrid
+                        )
+                    }
+                    if showYoloDots {
+                        YOLOBaseOverlay(
+                            bases: model.yoloPieceBases,
+                            quad: quad,
+                            bufferSize: model.bufferSize
+                        )
+                    }
+                    if showPieceBoxes {
+                        YOLOBoxOverlay(
+                            boxes: model.yoloPieceBoxes,
+                            quad: quad,
+                            bufferSize: model.bufferSize
+                        )
+                    }
                 }
             }
         }
@@ -193,11 +209,18 @@ struct LiveRecordingView: View {
             } else {
                 Theme.surfaceMuted
             }
-            OccupancyGridOverlay(
-                occupancy: model.liveOccupancy,
-                orientation: model.orientation
-            )
-            YOLOBaseOverlay(bases: model.yoloPieceBases)
+            if showOccupancyOverlay {
+                OccupancyGridOverlay(
+                    occupancy: model.liveOccupancy,
+                    orientation: model.orientation
+                )
+            }
+            if showYoloDots {
+                YOLOBaseOverlay(bases: model.yoloPieceBases)
+            }
+            if showPieceBoxes {
+                YOLOBoxOverlay(boxes: model.yoloPieceBoxes)
+            }
         }
         .aspectRatio(1, contentMode: .fit)
         .allowsHitTesting(false)
@@ -232,7 +255,7 @@ struct LiveRecordingView: View {
                 onResume: { model.resumeRecordingAfterReject() }
             )
             .id("\(model.committedPlyCount)-\(model.lastSAN ?? "")-\(model.phase)")
-            if !model.liveDebugLine.isEmpty {
+            if showCaptureDiagnostics, !model.liveDebugLine.isEmpty {
                 Text(model.liveDebugLine)
                     .font(.caption.monospaced())
                     .foregroundStyle(Theme.textSecondary)

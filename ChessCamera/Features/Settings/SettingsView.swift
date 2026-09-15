@@ -4,6 +4,15 @@ struct SettingsView: View {
     @AppStorage(FastReplySettings.key) private var detectFastReplies = true
     @AppStorage(SpeechSettings.key) private var speakMoves = false
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
+    @AppStorage(DetectionSettings.yoloConfidenceKey) private var yoloConfidenceRaw =
+        DetectionSettings.yoloConfidenceDefault
+    @AppStorage(DetectionSettings.classifierConfidenceKey) private var classifierConfidenceRaw =
+        DetectionSettings.classifierConfidenceDefault
+    @AppStorage(DebugOverlaySettings.showYoloDotsKey) private var showYoloDots = true
+    @AppStorage(DebugOverlaySettings.showCaptureDiagnosticsKey) private var showCaptureDiagnostics = true
+    @AppStorage(DebugOverlaySettings.showBoardGridKey) private var showBoardGrid = true
+    @AppStorage(DebugOverlaySettings.showOccupancyOverlayKey) private var showOccupancyOverlay = true
+    @AppStorage(DebugOverlaySettings.showPieceBoxesKey) private var showPieceBoxes = false
     @State private var showAppearance = false
 
     private var selectedStyle: BoardStyle {
@@ -14,6 +23,30 @@ struct SettingsView: View {
         Binding(
             get: { SettleSettings.milliseconds },
             set: { SettleSettings.milliseconds = $0 }
+        )
+    }
+
+    private var yoloConfidence: Binding<Double> {
+        Binding(
+            get: { DetectionSettings.clamp(yoloConfidenceRaw, to: DetectionSettings.yoloConfidenceRange) },
+            set: { yoloConfidenceRaw = DetectionSettings.clamp($0, to: DetectionSettings.yoloConfidenceRange) }
+        )
+    }
+
+    private var classifierConfidence: Binding<Double> {
+        Binding(
+            get: {
+                DetectionSettings.clamp(
+                    classifierConfidenceRaw,
+                    to: DetectionSettings.classifierConfidenceRange
+                )
+            },
+            set: {
+                classifierConfidenceRaw = DetectionSettings.clamp(
+                    $0,
+                    to: DetectionSettings.classifierConfidenceRange
+                )
+            }
         )
     }
 
@@ -88,6 +121,87 @@ struct SettingsView: View {
                     }
                     .padding(16)
                 }
+
+                settingsSection(title: "Developer") {
+                    VStack(spacing: 0) {
+                        Text("Field-tuning overlays and detection cutoffs. Chess rules stay in Detection and Recording.")
+                            .font(.callout)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(16)
+
+                        sliderRow(
+                            title: "Piece confidence",
+                            subtitle: "Ignore YOLO detections below this score.",
+                            systemImage: "viewfinder",
+                            value: yoloConfidence,
+                            range: DetectionSettings.yoloConfidenceRange
+                        )
+                        divider
+                        sliderRow(
+                            title: "Classifier confidence",
+                            subtitle: "Treat confirm-start square labels below this score as empty.",
+                            systemImage: "square.grid.3x3",
+                            value: classifierConfidence,
+                            range: DetectionSettings.classifierConfidenceRange
+                        )
+                        divider
+                        toggleRow(
+                            title: "YOLO debug dots",
+                            subtitle: "Mark each detected piece base on the camera and board preview.",
+                            systemImage: "circle.fill",
+                            isOn: $showYoloDots
+                        )
+                        divider
+                        toggleRow(
+                            title: "Capture diagnostics",
+                            subtitle: "Show the live phase, Hamming, and last-move debug line.",
+                            systemImage: "text.alignleft",
+                            isOn: $showCaptureDiagnostics
+                        )
+                        divider
+                        toggleRow(
+                            title: "Board grid",
+                            subtitle: "Draw files and ranks over the locked board while recording.",
+                            systemImage: "grid",
+                            isOn: $showBoardGrid
+                        )
+                        divider
+                        toggleRow(
+                            title: "Occupancy overlay",
+                            subtitle: "Show occupied squares on the warped board preview.",
+                            systemImage: "circle.grid.3x3",
+                            isOn: $showOccupancyOverlay
+                        )
+                        divider
+                        toggleRow(
+                            title: "Piece boxes",
+                            subtitle: "Draw YOLO bounding boxes on the live camera and board preview.",
+                            systemImage: "rectangle.dashed",
+                            isOn: $showPieceBoxes
+                        )
+                        divider
+                        Button(action: resetDeveloperSettings) {
+                            HStack(spacing: 12) {
+                                settingIcon("arrow.counterclockwise")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Reset developer settings")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Restore detection cutoffs and overlay toggles.")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 8)
+                            }
+                            .padding(16)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Reset developer settings")
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 24)
@@ -143,6 +257,59 @@ struct SettingsView: View {
         .padding(16)
         .accessibilityLabel(title)
         .accessibilityHint(subtitle)
+    }
+
+    private func sliderRow(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                settingIcon(systemImage)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer(minLength: 8)
+                        Text("\(Int((value.wrappedValue * 100).rounded()))%")
+                            .font(.body.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    Text(subtitle)
+                        .font(.callout)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Slider(value: value, in: range, step: 0.01)
+                .tint(Theme.accent)
+                .accessibilityLabel(title)
+                .accessibilityValue("\(Int((value.wrappedValue * 100).rounded())) percent")
+        }
+        .padding(16)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(Theme.border.opacity(0.45))
+            .frame(height: 1)
+            .padding(.horizontal, 16)
+    }
+
+    private func resetDeveloperSettings() {
+        DetectionSettings.resetToDefaults()
+        DebugOverlaySettings.resetToDefaults()
+        yoloConfidenceRaw = DetectionSettings.yoloConfidenceDefault
+        classifierConfidenceRaw = DetectionSettings.classifierConfidenceDefault
+        showYoloDots = true
+        showCaptureDiagnostics = true
+        showBoardGrid = true
+        showOccupancyOverlay = true
+        showPieceBoxes = false
     }
 
     private func settingIcon(_ systemImage: String) -> some View {

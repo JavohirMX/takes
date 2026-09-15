@@ -9,7 +9,7 @@ protocol PieceDetector: Sendable {
 }
 
 enum PieceDetection {
-    static let confidenceThreshold: Float = 0.25
+    static var confidenceThreshold: Float { DetectionSettings.yoloConfidence }
     static let defaultImgsz = 640
     static let nmsIoUThreshold: CGFloat = 0.45
     static let maxOverlayBoxes = 32
@@ -28,8 +28,19 @@ enum PieceDetection {
         var bufferRect: CGRect
 
         var overlayLabel: String {
-            let percent = Int((confidence * 100).rounded())
-            return "\(piece.accessibilityName.localizedCapitalized) \(percent)%"
+            PieceDetection.overlayLabel(piece: piece, confidence: confidence)
+        }
+    }
+
+    struct OverlayBox: Equatable, Sendable, Identifiable {
+        var id: Int
+        var piece: PieceClass
+        var confidence: Float
+        /// Tight playing-surface UV rect (origin top-left, 0…1).
+        var uvRect: CGRect
+
+        var overlayLabel: String {
+            PieceDetection.overlayLabel(piece: piece, confidence: confidence)
         }
     }
 
@@ -119,6 +130,25 @@ enum PieceDetection {
         )
     }
 
+    static func overlayLabel(piece: PieceClass, confidence: Float) -> String {
+        let percent = Int((confidence * 100).rounded())
+        return "\(piece.accessibilityName.localizedCapitalized) \(percent)%"
+    }
+
+    static func paddedToTightUV(
+        _ point: CGPoint,
+        paddedImageSize: CGFloat,
+        margin: CGFloat
+    ) -> CGPoint {
+        let span = 1 + 2 * margin
+        let u0 = margin / span
+        let scale = 1 / span
+        return CGPoint(
+            x: (point.x / paddedImageSize - u0) / scale,
+            y: (point.y / paddedImageSize - u0) / scale
+        )
+    }
+
     /// Playing-surface UV (0…1) for a detection on a (possibly padded) warped board.
     static func tightUV(
         of box: Box,
@@ -126,14 +156,47 @@ enum PieceDetection {
         margin: CGFloat
     ) -> CGPoint? {
         guard paddedImageSize > 0, box.confidence >= confidenceThreshold else { return nil }
-        let span = 1 + 2 * margin
-        let u0 = margin / span
-        let scale = 1 / span
-        let base = pieceBase(of: box)
-        let tightU = (base.x / paddedImageSize - u0) / scale
-        let tightV = (base.y / paddedImageSize - u0) / scale
-        guard tightU >= -0.02, tightV >= -0.02, tightU <= 1.02, tightV <= 1.02 else { return nil }
-        return CGPoint(x: tightU, y: tightV)
+        let uv = paddedToTightUV(pieceBase(of: box), paddedImageSize: paddedImageSize, margin: margin)
+        guard uv.x >= -0.02, uv.y >= -0.02, uv.x <= 1.02, uv.y <= 1.02 else { return nil }
+        return uv
+    }
+
+    /// Playing-surface UV rect for a detection on a (possibly padded) warped board.
+    static func tightRect(
+        of box: Box,
+        paddedImageSize: CGFloat,
+        margin: CGFloat
+    ) -> CGRect? {
+        guard paddedImageSize > 0, box.confidence >= confidenceThreshold else { return nil }
+        let origin = paddedToTightUV(box.bufferRect.origin, paddedImageSize: paddedImageSize, margin: margin)
+        let corner = paddedToTightUV(
+            CGPoint(x: box.bufferRect.maxX, y: box.bufferRect.maxY),
+            paddedImageSize: paddedImageSize,
+            margin: margin
+        )
+        let uv = CGRect(
+            x: origin.x,
+            y: origin.y,
+            width: corner.x - origin.x,
+            height: corner.y - origin.y
+        )
+        let board = CGRect(x: -0.02, y: -0.02, width: 1.04, height: 1.04)
+        guard uv.intersects(board) else { return nil }
+        return uv
+    }
+
+    /// UV boxes for live debug overlay.
+    static func overlayBoxes(
+        from boxes: [Box],
+        paddedImageSize: CGFloat,
+        margin: CGFloat
+    ) -> [OverlayBox] {
+        boxes.enumerated().compactMap { index, box in
+            guard let uvRect = tightRect(of: box, paddedImageSize: paddedImageSize, margin: margin) else {
+                return nil
+            }
+            return OverlayBox(id: index, piece: box.piece, confidence: box.confidence, uvRect: uvRect)
+        }
     }
 
     /// Piece-base UV for every on-board detection.
