@@ -67,6 +67,7 @@
 		9C8DB356F445654BCB35CAC6 /* ChessPieceYOLO.classes.txt in Resources */ = {isa = PBXBuildFile; fileRef = CE05831C1E3E1CD9E1F967AC /* ChessPieceYOLO.classes.txt */; };
 		9EAB8A7EFAEDC96BCE7080CD /* VideoMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D425D12AF9A60D29FFFCD6 /* VideoMapping.swift */; };
 		9F0EFF697E4A3D38399B1829 /* SetupPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370B62A5F0006AA5BA4679CC /* SetupPrimerView.swift */; };
+		E92C5D3F01B25A7C9D4E6F8B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81B4C2E90A14F6B8C3D5E7A /* SettingsView.swift */; };
 		A0184C1D450D6309DA1C3C43 /* CameraPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72FE7C1A587B62DC967E2B51 /* CameraPermissionView.swift */; };
 		A1C3A2F6D053D4FC266969BF /* Occupancy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECF8CD0493C1DF86F812C65 /* Occupancy.swift */; };
 		A1CC1C9C5FEAC4A6523061AA /* OpenCV in Frameworks */ = {isa = PBXBuildFile; productRef = 5C94A06AFD7994E0A5551024 /* OpenCV */; };
@@ -130,6 +131,7 @@
 		35825408D250867B93B29B53 /* BoardLocalizerScoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLocalizerScoreTests.swift; sourceTree = "<group>"; };
 		36251CC5D72DF61397D4FC42 /* PieceStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceStudioView.swift; sourceTree = "<group>"; };
 		370B62A5F0006AA5BA4679CC /* SetupPrimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupPrimerView.swift; sourceTree = "<group>"; };
+		D81B4C2E90A14F6B8C3D5E7A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3936A0383D656F012C17CAB4 /* QuadConsensus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuadConsensus.swift; sourceTree = "<group>"; };
 		3D4DF6AAD7DFA7C4AFFB57BA /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
 		3D51154E1D59586FEF0959A1 /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
@@ -458,9 +460,18 @@
 				BF6A285F993137BF4415379F /* History */,
 				B167ED922F38734B48D749D4 /* Live */,
 				EBA24D8AA1DE22289999DC9E /* Replay */,
+				FA3D6E4012C36B8DAE5F709C /* Settings */,
 				C59760802FF30427FCD6E5F6 /* Setup */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		FA3D6E4012C36B8DAE5F709C /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				D81B4C2E90A14F6B8C3D5E7A /* SettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		EBA24D8AA1DE22289999DC9E /* Replay */ = {
@@ -659,6 +670,7 @@
 				AB694D3E4CAA82EF207B0020 /* SecondaryButton.swift in Sources */,
 				558D6B0218A11D50738FF5EF /* SessionFlowView.swift in Sources */,
 				BA7478BBD8A3008ADC3AC49E /* SessionPhase.swift in Sources */,
+				E92C5D3F01B25A7C9D4E6F8B /* SettingsView.swift in Sources */,
 				C05E782950D99E493B421334 /* SettleDetector.swift in Sources */,
 				9F0EFF697E4A3D38399B1829 /* SetupPrimerView.swift in Sources */,
 				E19E0E60BDE4C5F84ADDEFEC /* ShareSheet.swift in Sources */,

@@ -14,10 +14,9 @@ struct HistoryView: View {
     @State private var pendingDelete: GameRecord?
     @State private var startAfterPrimer = false
     @State private var pendingPieceStudio = false
-    @State private var showAppearance = false
     @State private var shareItems: [Any] = []
     @State private var showShare = false
-    @AppStorage(SpeechSettings.key) private var speakMoves = false
+    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -35,6 +34,15 @@ struct HistoryView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Settings")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: beginNewGame) {
                         Image(systemName: "plus")
@@ -42,38 +50,22 @@ struct HistoryView: View {
                     }
                     .accessibilityLabel("New Game")
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button("Board appearance", systemImage: "checkerboard.rectangle") {
-                            showAppearance = true
+                        PhotosPicker(selection: $pendingVideo, matching: .videos) {
+                            Label("Process a video…", systemImage: "film")
                         }
-                        Button {
-                            speakMoves.toggle()
-                        } label: {
-                            Label(
-                                "Speak moves",
-                                systemImage: speakMoves ? "checkmark" : "speaker.wave.2"
-                            )
-                        }
-                        Menu("Debug") {
-                            PhotosPicker(selection: $pendingVideo, matching: .videos) {
-                                Label("Process a video…", systemImage: "film")
-                            }
-                            Button("Test piece detector", action: beginPieceStudio)
-                            Button("Setup tips") { showPrimer = true }
-                            Menu("Settle duration") {
-                                Button("300 ms") { SettleSettings.milliseconds = 300 }
-                                Button("600 ms") { SettleSettings.milliseconds = 600 }
-                                Button("900 ms") { SettleSettings.milliseconds = 900 }
-                                Button("1500 ms") { SettleSettings.milliseconds = 1500 }
-                            }
-                        }
+                        Button("Test piece detector", action: beginPieceStudio)
+                        Button("Setup tips") { showPrimer = true }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .frame(minWidth: 44, minHeight: 44)
                     }
-                    .accessibilityLabel("More")
+                    .accessibilityLabel("Debug")
                 }
+            }
+            .navigationDestination(isPresented: $showSettings) {
+                SettingsView()
             }
             .navigationDestination(item: $replay) { route in
                 ReplayView(pgn: route.pgn, title: route.title)
@@ -123,9 +115,6 @@ struct HistoryView: View {
                 },
                 onDismiss: { showPrimer = false }
             )
-        }
-        .sheet(isPresented: $showAppearance) {
-            BoardAppearanceSheet()
         }
         .sheet(isPresented: $showShare) {
             ShareSheet(items: shareItems)
