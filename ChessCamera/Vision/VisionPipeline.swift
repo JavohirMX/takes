@@ -169,18 +169,49 @@ actor VisionPipeline {
         let usedMargin: CGFloat = detectWarp.quad == padded.quad ? padded.margin : 0
         let image = detectWarp.squareImage
         let boxes = await detector?.detectBoxes(in: image) ?? []
-        let occupancy = PieceDetection.occupancy(
+        let paddedSize = CGFloat(min(image.width, image.height))
+        let yoloOccupancy = PieceDetection.occupancy(
             from: boxes,
-            paddedImageSize: CGFloat(min(image.width, image.height)),
+            paddedImageSize: paddedSize,
             margin: usedMargin,
             orientation: orientation,
             grid: refinedGrid
         )
+        let classes = PieceDetection.classes(
+            from: boxes,
+            paddedImageSize: paddedSize,
+            margin: usedMargin,
+            orientation: orientation,
+            grid: refinedGrid
+        )
+
+        let crops = GridSampler.crops(from: warped.squareImage, orientation: orientation)
+        if needsFingerprintSnapshot {
+            occupancyEstimator.snapshot(crops: crops)
+            needsFingerprintSnapshot = false
+        }
+
+        let occupancy: Occupancy
+        if occupancyEstimator.hasSnapshot {
+            let change = occupancyEstimator.applyChanges(
+                crops: crops,
+                previous: previousOccupancy
+            )
+            occupancy = OccupancyFusion.combine(
+                previous: previousOccupancy,
+                yolo: yoloOccupancy,
+                fingerprint: change.occupancy,
+                changed: change.changed
+            )
+        } else {
+            occupancy = yoloOccupancy
+        }
+
         return BoardObservation(
             timestamp: frame.timestamp,
             quad: quad,
             occupancy: occupancy,
-            classes: [:],
+            classes: classes,
             changedSquareCount: previousOccupancy.hammingDistance(to: occupancy),
             warpedImage: warped.squareImage
         )

@@ -14,7 +14,7 @@ import Testing
     #expect(stillHeld == start)
 }
 
-@Test func fiveFrameEmptyClearsOccupiedSquare() {
+@Test func threeFrameEmptyClearsOccupiedSquare() {
     var smoother = OccupancySmoother()
     let start = Occupancy.standardStart()
     smoother.reset(seeding: start)
@@ -22,7 +22,7 @@ import Testing
     missingA1.set(ChessSquare.parse("a1")!, occupied: false)
 
     var result = Occupancy()
-    for _ in 0..<5 {
+    for _ in 0..<3 {
         result = smoother.ingest(missingA1)
     }
     #expect(!result.occupied(ChessSquare.parse("a1")!))

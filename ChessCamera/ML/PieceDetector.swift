@@ -113,8 +113,35 @@ enum PieceDetection {
         CGPoint(x: box.bufferRect.midX, y: box.bufferRect.maxY)
     }
 
+    /// Algebraic square for a detection on a (possibly padded) warped board.
+    static func square(
+        of box: Box,
+        paddedImageSize: CGFloat,
+        margin: CGFloat,
+        orientation: BoardOrientation,
+        grid: RefinedBoardGrid? = nil
+    ) -> ChessSquare? {
+        guard paddedImageSize > 0, box.confidence >= confidenceThreshold else { return nil }
+        let span = 1 + 2 * margin
+        let u0 = margin / span
+        let scale = 1 / span
+        let gridSize = grid?.imageSize ?? paddedImageSize
+        let base = pieceBase(of: box)
+        let tightU = (base.x / paddedImageSize - u0) / scale
+        let tightV = (base.y / paddedImageSize - u0) / scale
+        guard tightU >= -0.02, tightV >= -0.02, tightU <= 1.02, tightV <= 1.02 else { return nil }
+        let warped = CGPoint(x: tightU * gridSize, y: tightV * gridSize)
+        if let grid {
+            return grid.square(containingWarped: warped, orientation: orientation)
+        }
+        return GridSampler.square(
+            containing: warped,
+            imageSize: gridSize,
+            orientation: orientation
+        )
+    }
+
     /// Occupied squares from detections on a (possibly padded) warped board.
-    /// Piece types are ignored; only box presence maps to occupancy.
     static func occupancy(
         from boxes: [Box],
         paddedImageSize: CGFloat,
@@ -123,33 +150,42 @@ enum PieceDetection {
         grid: RefinedBoardGrid? = nil
     ) -> Occupancy {
         var occupancy = Occupancy()
-        guard paddedImageSize > 0 else { return occupancy }
-        let span = 1 + 2 * margin
-        let u0 = margin / span
-        let scale = 1 / span
-        let gridSize = grid?.imageSize ?? paddedImageSize
         for box in boxes {
-            guard box.confidence >= confidenceThreshold else { continue }
-            let base = pieceBase(of: box)
-            let tightU = (base.x / paddedImageSize - u0) / scale
-            let tightV = (base.y / paddedImageSize - u0) / scale
-            guard tightU >= -0.02, tightV >= -0.02, tightU <= 1.02, tightV <= 1.02 else { continue }
-            let warped = CGPoint(x: tightU * gridSize, y: tightV * gridSize)
-            let square: ChessSquare?
-            if let grid {
-                square = grid.square(containingWarped: warped, orientation: orientation)
-            } else {
-                square = GridSampler.square(
-                    containing: warped,
-                    imageSize: gridSize,
-                    orientation: orientation
-                )
-            }
-            if let square {
+            if let square = square(
+                of: box,
+                paddedImageSize: paddedImageSize,
+                margin: margin,
+                orientation: orientation,
+                grid: grid
+            ) {
                 occupancy.set(square, occupied: true)
             }
         }
         return occupancy
+    }
+
+    /// Highest-confidence piece label per square from padded-warp boxes.
+    static func classes(
+        from boxes: [Box],
+        paddedImageSize: CGFloat,
+        margin: CGFloat,
+        orientation: BoardOrientation,
+        grid: RefinedBoardGrid? = nil
+    ) -> [ChessSquare: PieceClass] {
+        var candidates: [Candidate] = []
+        for box in boxes {
+            guard let square = square(
+                of: box,
+                paddedImageSize: paddedImageSize,
+                margin: margin,
+                orientation: orientation,
+                grid: grid
+            ) else { continue }
+            candidates.append(
+                Candidate(square: square, piece: box.piece, confidence: box.confidence)
+            )
+        }
+        return classes(from: candidates)
     }
 
     /// Occupied squares from detections. Class labels are ignored; boxes outside the quad are dropped.

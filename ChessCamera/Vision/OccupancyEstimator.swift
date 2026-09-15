@@ -63,6 +63,8 @@ struct OccupancyChangeResult: Equatable, Sendable {
     var occupancy: Occupancy
     /// Squares the change detector flagged this frame (before emptied/fill decisions).
     var changedCount: Int
+    /// Bitmask of squares in `changedCount` (for YOLO/fingerprint fusion).
+    var changed: Occupancy = Occupancy()
 }
 
 struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
@@ -141,7 +143,9 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
         let changed = SquareChangeDetector.changedMask(scores: scores)
         let changedCount = changed.filter { $0 }.count
         var result = previous
+        var changedOccupancy = Occupancy()
         for (index, crop) in crops.enumerated() where changed[index] {
+            changedOccupancy.set(crop.square, occupied: true)
             guard let fingerprint = current[index],
                   let baseline = fingerprints[crop.square] else { continue }
             if previous.occupied(crop.square) {
@@ -155,7 +159,11 @@ struct HeuristicOccupancyEstimator: OccupancyEstimator, Sendable {
                 result.set(crop.square, occupied: true)
             }
         }
-        return OccupancyChangeResult(occupancy: result, changedCount: changedCount)
+        return OccupancyChangeResult(
+            occupancy: result,
+            changedCount: changedCount,
+            changed: changedOccupancy
+        )
     }
 
     /// Prefer empty-baseline proximity when available; fall back to softened variance drop.

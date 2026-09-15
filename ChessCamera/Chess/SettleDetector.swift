@@ -44,6 +44,12 @@ struct SettleDetector: Sendable {
         return .disturbed(since: occupancy)
     }
 
+    /// Treat `occupancy` as already quiet so the first ham-0 frames are stable.
+    mutating func seed(occupancy: Occupancy, at time: ContinuousClock.Instant) {
+        lastOccupancy = occupancy
+        lastChangeTime = time - config.stableDuration
+    }
+
     func quietElapsed(at time: ContinuousClock.Instant) -> Duration {
         guard let lastChangeTime else { return .zero }
         return time - lastChangeTime
@@ -67,15 +73,26 @@ enum LiveSettleAction: Equatable, Sendable {
 }
 
 enum LiveSettleDecision {
+    static let ignoredTTL: Duration = .seconds(2)
+
     static func action(
         phase: SessionPhase,
         settleMotion: BoardMotion,
         occupancy: Occupancy,
         commitHamming: Int,
-        ignored: Occupancy?
+        ignored: Occupancy?,
+        ignoredAt: ContinuousClock.Instant? = nil,
+        now: ContinuousClock.Instant? = nil
     ) -> LiveSettleAction {
         if let ignored, occupancy == ignored {
-            return .skipIgnored
+            let expired = if let ignoredAt, let now {
+                now - ignoredAt >= ignoredTTL
+            } else {
+                false
+            }
+            if !expired {
+                return .skipIgnored
+            }
         }
         guard (1...CommitRelativeMotion.maxInferHamming).contains(commitHamming) else {
             return .wait

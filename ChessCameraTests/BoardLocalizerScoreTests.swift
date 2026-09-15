@@ -144,7 +144,7 @@ import Testing
     #expect(detector.detectCount == 0)
     #expect(detector.boxesCount == 1)
     #expect(observation?.occupancy.occupied(ChessSquare(file: 4, rank: 0)) == true)
-    #expect(observation?.classes.isEmpty == true)
+    #expect(observation?.classes[ChessSquare(file: 4, rank: 0)] == .whiteKing)
 }
 
 private final class CountingDetector: PieceDetector, @unchecked Sendable {

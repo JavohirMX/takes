@@ -84,6 +84,30 @@ import Testing
     #expect(result == start)
 }
 
+@Test func occupancyPriorDropsGhostFillsWithoutClears() {
+    let engine = GameEngine()
+    let prior = GameEngine.occupancyPrior(of: engine.board)
+    let start = engine.occupancy()
+    var ghosts = start
+    ghosts.set(ChessSquare.parse("e4")!, occupied: true)
+    ghosts.set(ChessSquare.parse("f4")!, occupied: true)
+    #expect(prior.apply(detected: ghosts, previous: start) == start)
+}
+
+@Test func occupancyPriorDropsFillsWhenTooManyPawnClears() {
+    let engine = GameEngine()
+    let prior = GameEngine.occupancyPrior(of: engine.board)
+    let start = engine.occupancy()
+    var noisy = start
+    noisy.set(ChessSquare.parse("e4")!, occupied: true)
+    for name in ["a2", "b2", "c2", "d2", "e2"] {
+        noisy.set(ChessSquare.parse(name)!, occupied: false)
+    }
+    let gated = prior.apply(detected: noisy, previous: start)
+    #expect(gated == start)
+    #expect(!gated.occupied(ChessSquare.parse("e4")!))
+}
+
 @Test func occupancyPriorAllowsCastlePlusReplyClearsAndDropsFiveNoisyClears() throws {
     let castle = try GameEngine(fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
     let prior = GameEngine.occupancyPrior(of: castle.board)
@@ -105,4 +129,90 @@ import Testing
         noisy.set(ChessSquare.parse(name)!, occupied: false)
     }
     #expect(startPrior.apply(detected: noisy, previous: startEngine.occupancy()) == startEngine.occupancy())
+}
+
+@Test func occupancyFusionTrustsFlaggedFingerprintWhenYOLOMissesPawn() {
+    let start = Occupancy.standardStart()
+    var fingerprint = start
+    fingerprint.set(ChessSquare.parse("e2")!, occupied: false)
+    fingerprint.set(ChessSquare.parse("e4")!, occupied: true)
+    var changed = Occupancy()
+    changed.set(ChessSquare.parse("e2")!, occupied: true)
+    changed.set(ChessSquare.parse("e4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: start,
+        fingerprint: fingerprint,
+        changed: changed
+    )
+    #expect(fused.hammingDistance(to: start) == 2)
+    #expect(!fused.occupied(ChessSquare.parse("e2")!))
+    #expect(fused.occupied(ChessSquare.parse("e4")!))
+}
+
+@Test func occupancyFusionKeepsPreviousWhenGhostFillIsNotFlagged() {
+    let start = Occupancy.standardStart()
+    var yolo = start
+    yolo.set(ChessSquare.parse("f4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: yolo,
+        fingerprint: start,
+        changed: Occupancy()
+    )
+    #expect(fused == start)
+}
+
+@Test func recordedSessionMissedPawnFusesToUniqueE4() {
+    let start = Occupancy.standardStart()
+    var fingerprint = start
+    fingerprint.set(ChessSquare.parse("e2")!, occupied: false)
+    fingerprint.set(ChessSquare.parse("e4")!, occupied: true)
+    var changed = Occupancy()
+    changed.set(ChessSquare.parse("e2")!, occupied: true)
+    changed.set(ChessSquare.parse("e4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: start,
+        fingerprint: fingerprint,
+        changed: changed
+    )
+    let engine = GameEngine()
+    let gated = GameEngine.occupancyPrior(of: engine.board).apply(detected: fused, previous: start)
+    var smoother = OccupancySmoother()
+    smoother.reset(seeding: start)
+    var smoothed = Occupancy()
+    for _ in 0..<3 {
+        smoothed = smoother.ingest(gated)
+    }
+    #expect(smoothed.hammingDistance(to: start) == 2)
+    #expect(
+        LiveSettleDecision.action(
+            phase: .recording,
+            settleMotion: .stable(smoothed),
+            occupancy: smoothed,
+            commitHamming: 2,
+            ignored: nil
+        ) == .infer(smoothed)
+    )
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: start, current: smoothed, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result.san == "e4")
+}
+
+@Test func recordedSessionGhostFillsStayStart() {
+    let engine = GameEngine()
+    let start = engine.occupancy()
+    var yolo = start
+    yolo.set(ChessSquare.parse("e4")!, occupied: true)
+    yolo.set(ChessSquare.parse("f4")!, occupied: true)
+    let gated = GameEngine.occupancyPrior(of: engine.board).apply(detected: yolo, previous: start)
+    #expect(gated == start)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: start, current: gated, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result == .none)
 }

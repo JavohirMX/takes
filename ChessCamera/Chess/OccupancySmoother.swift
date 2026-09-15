@@ -10,7 +10,7 @@ struct OccupancySmoother: Sendable {
     private var emptyStreak = [UInt8](repeating: 0, count: 64)
     private var fillStreak = [UInt8](repeating: 0, count: 64)
 
-    init(emptyConfirmFrames: Int = 5, fillConfirmFrames: Int = 2) {
+    init(emptyConfirmFrames: Int = 3, fillConfirmFrames: Int = 2) {
         self.emptyConfirmFrames = max(1, emptyConfirmFrames)
         self.fillConfirmFrames = max(1, fillConfirmFrames)
     }

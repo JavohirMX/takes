@@ -114,6 +114,38 @@ import Testing
     #expect(result == .illegal)
 }
 
+@Test func infersE4WhenNeighborFileIsAlsoFilled() {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e2")!, occupied: false)
+    after.set(ChessSquare.parse("e4")!, occupied: true)
+    after.set(ChessSquare.parse("f4")!, occupied: true)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(result.san == canonicalSAN("e4", on: engine.board))
+}
+
+@Test func infersE4WhenPawnClassMarksDestinationAmongGhostFills() {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e4")!, occupied: true)
+    after.set(ChessSquare.parse("f4")!, occupied: true)
+    let e4 = ChessSquare.parse("e4")!
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [e4: .whitePawn]
+        ),
+        board: engine.board
+    )
+    #expect(result.san == canonicalSAN("e4", on: engine.board))
+}
+
 @Test func infersE4WhenOneGhostSquareIsOccupied() {
     let engine = GameEngine()
     let before = engine.occupancy()

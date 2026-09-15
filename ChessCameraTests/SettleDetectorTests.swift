@@ -258,3 +258,53 @@ import Testing
     #expect(d.quietElapsed(at: t0.advanced(by: .milliseconds(400))) < .milliseconds(200))
     #expect(d.quietElapsed(at: t0.advanced(by: .milliseconds(560))) >= .milliseconds(250))
 }
+
+@Test func seededSettleIsImmediatelyStableOnSameOccupancy() {
+    var d = SettleDetector(config: .init(stableDuration: .milliseconds(600)))
+    let t0 = ContinuousClock().now
+    let start = Occupancy.standardStart()
+    d.seed(occupancy: start, at: t0)
+    #expect(d.ingest(start, at: t0) == .stable(start))
+}
+
+@Test func commitHammingZeroStaysRecordingWhenMotionForcedStable() {
+    let occ = Occupancy.standardStart()
+    let decision = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: .stable(occ),
+        occupancy: occ,
+        commitHamming: 0,
+        ignored: nil
+    )
+    #expect(decision == .wait)
+    #expect(
+        SessionReducer.next(phase: .recording, motion: .stable(occ), inference: .none) == .recording
+    )
+}
+
+@Test func ignoredOccupancyExpiresAfterTTL() {
+    let start = Occupancy.standardStart()
+    var drift = start
+    drift.set(ChessSquare.parse("e5")!, occupied: true)
+    let t0 = ContinuousClock().now
+    let skipped = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: .stable(drift),
+        occupancy: drift,
+        commitHamming: 1,
+        ignored: drift,
+        ignoredAt: t0,
+        now: t0.advanced(by: .seconds(1))
+    )
+    #expect(skipped == .skipIgnored)
+    let retry = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: .stable(drift),
+        occupancy: drift,
+        commitHamming: 1,
+        ignored: drift,
+        ignoredAt: t0,
+        now: t0.advanced(by: .seconds(2))
+    )
+    #expect(retry == .infer(drift))
+}

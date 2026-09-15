@@ -44,8 +44,8 @@ struct Occupancy: Equatable, Sendable {
 
 /// Merge live occupancy with the last committed mask. Detections only fill
 /// legal destination squares; empties only clear squares that some legal move
-/// or fast reply actually vacates, and at most four new clears per frame so
-/// rim misses do not look like extra captures.
+/// or fast reply actually vacates. Too many new clears, or fills with no
+/// matching clear, keep the previous mask so ghost destinations cannot stick.
 struct OccupancyPrior: Equatable, Sendable {
     var fillable: Occupancy
     var clearable: Occupancy
@@ -64,13 +64,50 @@ struct OccupancyPrior: Equatable, Sendable {
     }
 
     func apply(detected: Occupancy, previous: Occupancy) -> Occupancy {
-        var result = previous
-        result.bits |= detected.bits & ~previous.bits & fillable.bits
+        let newFills = detected.bits & ~previous.bits & fillable.bits
         let newClears = previous.bits & ~detected.bits & clearable.bits
         if newClears.nonzeroBitCount > maxNewClears {
-            return result
+            return previous
         }
+        // Ghost destinations with origins still occupied. Captures are 1+
+        // clears and 0 extra fills, so they still apply.
+        if newFills != 0 && newClears == 0 {
+            return previous
+        }
+        var result = previous
+        result.bits |= newFills
         result.bits &= ~newClears
         return result
+    }
+}
+
+/// Combine YOLO occupancy with fingerprint change detection.
+enum OccupancyFusion {
+    /// Prefer agreement; on disagreement trust a flagged fingerprint square,
+    /// otherwise keep the committed previous bit.
+    static func combine(
+        previous: Occupancy,
+        yolo: Occupancy,
+        fingerprint: Occupancy,
+        changed: Occupancy
+    ) -> Occupancy {
+        var fused = Occupancy()
+        for file in 0..<8 {
+            for rank in 0..<8 {
+                let square = ChessSquare(file: file, rank: rank)
+                let yoloBit = yolo.occupied(square)
+                let fingerprintBit = fingerprint.occupied(square)
+                let bit: Bool
+                if yoloBit == fingerprintBit {
+                    bit = yoloBit
+                } else if changed.occupied(square) {
+                    bit = fingerprintBit
+                } else {
+                    bit = previous.occupied(square)
+                }
+                fused.set(square, occupied: bit)
+            }
+        }
+        return fused
     }
 }

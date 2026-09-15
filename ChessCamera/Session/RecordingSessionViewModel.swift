@@ -56,8 +56,9 @@ final class RecordingSessionViewModel: Identifiable {
     var liveDebugLine = ""
     /// Brief soft-reject copy after ChessKit fails to apply a unique move.
     var softRejectMessage: String?
-    /// Occupancy bits already rejected as unmatched; skip re-inference until they change.
+    /// Occupancy bits already rejected as unmatched; skip re-inference until they change or TTL expires.
     private var lastIgnoredOccupancy: Occupancy?
+    private var lastIgnoredAt: ContinuousClock.Instant?
     private var lastPieceDetectTime: ContinuousClock.Instant?
     private var isPieceDetecting = false
 
@@ -427,10 +428,7 @@ final class RecordingSessionViewModel: Identifiable {
         lastCommittedOccupancy = engine.occupancy()
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
-        settle = SettleDetector(config: .init(
-            stableDuration: .milliseconds(SettleSettings.milliseconds),
-            maxHammingJitter: 1
-        ))
+        settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
         syncCommittedNotation()
         trackingLost = false
         softRejectMessage = nil
@@ -439,7 +437,7 @@ final class RecordingSessionViewModel: Identifiable {
         armFingerprintSnapshot(warmup: 5)
         phase = .recording
         setKeepsScreenAwake(true)
-        if !pieceDetectorAvailable, let warpedThumbnail {
+        if let warpedThumbnail {
             Task {
                 await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
             }
@@ -492,10 +490,7 @@ final class RecordingSessionViewModel: Identifiable {
         lastIgnoredOccupancy = nil
         liveOccupancy = lastCommittedOccupancy
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
-        settle = SettleDetector(config: .init(
-            stableDuration: .milliseconds(SettleSettings.milliseconds),
-            maxHammingJitter: 1
-        ))
+        settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
         armFingerprintSnapshot(warmup: 3)
         phase = .recording
     }
@@ -513,6 +508,7 @@ final class RecordingSessionViewModel: Identifiable {
         syncCommittedNotation()
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
+        lastIgnoredAt = nil
     }
 
     private func syncCommittedNotation() {
@@ -522,6 +518,15 @@ final class RecordingSessionViewModel: Identifiable {
 
     private func makeOccupancyPrior() -> OccupancyPrior {
         GameEngine.occupancyPrior(of: engine.board, includeReplies: FastReplySettings.enabled)
+    }
+
+    private func makeSeededSettle(occupancy: Occupancy) -> SettleDetector {
+        var detector = SettleDetector(config: .init(
+            stableDuration: .milliseconds(SettleSettings.milliseconds),
+            maxHammingJitter: 1
+        ))
+        detector.seed(occupancy: occupancy, at: ContinuousClock().now)
+        return detector
     }
 
     func applyEdit(san: String) {
@@ -822,7 +827,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func handleLive(_ frame: CapturedFrame) async {
-        if !pieceDetectorAvailable, pendingFingerprintSnapshot {
+        if pendingFingerprintSnapshot {
             if fingerprintWarmupFramesRemaining > 0 {
                 fingerprintWarmupFramesRemaining -= 1
                 if let preview = await pipeline.observation(
@@ -878,16 +883,23 @@ final class RecordingSessionViewModel: Identifiable {
         }
         if hamming == 0 {
             lastIgnoredOccupancy = nil
+            lastIgnoredAt = nil
+        }
+
+        var motion = settleMotion
+        if hamming == 0, case .disturbed = settleMotion {
+            motion = .stable(smoothed)
         }
 
         let decision = LiveSettleDecision.action(
             phase: phase,
-            settleMotion: settleMotion,
+            settleMotion: motion,
             occupancy: smoothed,
             commitHamming: hamming,
-            ignored: lastIgnoredOccupancy
+            ignored: lastIgnoredOccupancy,
+            ignoredAt: lastIgnoredAt,
+            now: observation.timestamp
         )
-        var motion = settleMotion
         var inference: InferenceResult = .none
         switch decision {
         case .skipIgnored:
@@ -940,7 +952,7 @@ final class RecordingSessionViewModel: Identifiable {
                 phase = engine.isTerminal ? .gameOver : .recording
                 setKeepsScreenAwake(phase == .recording)
                 announceCommit(sans: moves.map(\.san))
-                if !pieceDetectorAvailable, let warped = observation.warpedImage {
+                if let warped = observation.warpedImage {
                     await pipeline.snapshotFingerprints(from: warped)
                 }
                 if engine.isTerminal {
@@ -950,19 +962,18 @@ final class RecordingSessionViewModel: Identifiable {
                 softRejectMessage = "Couldn’t apply that move"
                 phase = .recording
                 occupancySmoother.reset(seeding: lastCommittedOccupancy)
-                settle = SettleDetector(config: .init(
-                    stableDuration: .milliseconds(SettleSettings.milliseconds),
-                    maxHammingJitter: 1
-                ))
+                settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
             }
         case (.recording, .illegal):
             lastIgnoredOccupancy = smoothed
+            lastIgnoredAt = observation.timestamp
             liveOccupancy = lastCommittedOccupancy
             phase = .recording
         case (.recording, .none):
             phase = .recording
         case (.awaitingEdit, .ambiguous(let moves)):
             lastIgnoredOccupancy = nil
+            lastIgnoredAt = nil
             ambiguousMoves = moves
             softRejectMessage = nil
             phase = .awaitingEdit
@@ -979,6 +990,7 @@ final class RecordingSessionViewModel: Identifiable {
         let distance = lastCommittedOccupancy.hammingDistance(to: occupancy)
         if distance == 0 {
             lastIgnoredOccupancy = nil
+            lastIgnoredAt = nil
             return .none
         }
         if distance > CommitRelativeMotion.maxInferHamming {
@@ -1033,11 +1045,6 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func armFingerprintSnapshot(warmup: Int) {
-        guard !pieceDetectorAvailable else {
-            pendingFingerprintSnapshot = false
-            fingerprintWarmupFramesRemaining = 0
-            return
-        }
         pendingFingerprintSnapshot = true
         fingerprintWarmupFramesRemaining = warmup
     }
@@ -1095,12 +1102,13 @@ final class RecordingSessionViewModel: Identifiable {
         ambiguousMoves = []
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
+        lastIgnoredAt = nil
         liveDebugLine = ""
         engine.resetToStart()
         setKeepsScreenAwake(false)
         detectStartedAt = nil
         didAutoConfirmVideo = false
-        settle = SettleDetector(config: .init(stableDuration: settleDuration, maxHammingJitter: 1))
+        settle = makeSeededSettle(occupancy: Occupancy.standardStart())
         occupancySmoother.reset()
         fingerprintWarmupFramesRemaining = 0
         Task {

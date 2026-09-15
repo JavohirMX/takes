@@ -70,6 +70,11 @@ enum MoveInferrer {
 
         var matches = onePly.filter { $0.distance == bestDistance }.map(\.moves).compactMap(\.first)
         matches = disambiguatePromotions(matches, observedClasses: delta.observedClasses)
+        matches = disambiguateNeighborFiles(
+            matches,
+            current: delta.current,
+            observedClasses: delta.observedClasses
+        )
 
         switch matches.count {
         case 0:
@@ -212,6 +217,41 @@ enum MoveInferrer {
             return [queen]
         }
         return promotions
+    }
+
+    /// Drop neighbor-file ghosts: a pawn on e4 beats f4, and an emptied origin
+    /// beats a destination that appeared without leaving its source square.
+    private static func disambiguateNeighborFiles(
+        _ matches: [Move],
+        current: Occupancy,
+        observedClasses: [ChessSquare: PieceClass]
+    ) -> [Move] {
+        guard matches.count > 1 else { return matches }
+
+        let labeled = matches.filter { move in
+            guard let dest = ChessSquare.parse(move.end.notation) else { return false }
+            if let observed = observedClasses[dest], observed != .empty {
+                return true
+            }
+            return false
+        }
+        if labeled.count == 1 {
+            return labeled
+        }
+        let pool = labeled.count > 1 ? labeled : matches
+
+        let originEmpty = pool.filter { move in
+            guard let from = ChessSquare.parse(move.start.notation),
+                  let to = ChessSquare.parse(move.end.notation) else { return false }
+            return !current.occupied(from) && current.occupied(to)
+        }
+        if originEmpty.count == 1 {
+            return originEmpty
+        }
+        if !originEmpty.isEmpty, originEmpty.count < pool.count {
+            return originEmpty
+        }
+        return pool
     }
 }
 
