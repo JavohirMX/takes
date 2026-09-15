@@ -3,17 +3,36 @@ import Foundation
 
 /// OpenCV imgproc/calib3d wrapper. The rest of the app talks only to `RefinedBoardGrid`.
 enum OpenCVGridRefiner {
+    enum Source: Sendable, Equatable {
+        case chessboardCorners
+        case hough
+    }
+
+    struct RefineResult: Sendable {
+        var grid: RefinedBoardGrid
+        var source: Source
+    }
+
     static func refine(_ image: CGImage) -> RefinedBoardGrid? {
+        refineDetailed(image)?.grid
+    }
+
+    /// Prefer `findChessboardCorners`; fall back to Hough lattice.
+    static func refineDetailed(_ image: CGImage) -> RefineResult? {
         let size = CGFloat(min(image.width, image.height))
         if let corners = OpenCVGridRefinerBridge.innerChessboardCorners(in: image),
            let ordered = orderInner7x7(corners.map(\.cgPointValue)),
            let lattice = extrapolate9x9(fromInner7x7: ordered) {
             let grid = RefinedBoardGrid(imageSize: size, points: lattice)
-            if grid.isMonotonic { return grid }
+            if grid.isMonotonic {
+                return RefineResult(grid: grid, source: .chessboardCorners)
+            }
         }
         if let hough = houghLattice(from: OpenCVGridRefinerBridge.houghLineParameters(in: image), imageSize: size) {
             let grid = RefinedBoardGrid(imageSize: size, points: hough)
-            if grid.isMonotonic { return grid }
+            if grid.isMonotonic {
+                return RefineResult(grid: grid, source: .hough)
+            }
         }
         return nil
     }

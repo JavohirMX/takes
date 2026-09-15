@@ -49,6 +49,8 @@ final class RecordingSessionViewModel: Identifiable {
     var previewImage: CGImage?
     var isVideoImport = false
     var trackingWeak = false
+    /// Set when confirm-time OpenCV snap fails; still allow lock on the coarse quad.
+    var gridSnapFailed = false
     var isCaptureRunning = false
     /// Shared with `CameraPreview` so preview layer and sample buffers rotate together.
     var previewRotationAngle: CGFloat = 90
@@ -93,6 +95,12 @@ final class RecordingSessionViewModel: Identifiable {
     private var lastPaddedRefineAt: ContinuousClock.Instant?
     private var lastOpenCVSnap: Quadrilateral?
     private let paddedRefineInterval: Duration = .milliseconds(400)
+    /// After two similar OpenCV snaps, stop overwriting Studio corners until drag/Rescan/confirm.
+    private var paddedRefineSettled = false
+    private var pendingStableSnap: Quadrilateral?
+    private var stableSnapHits = 0
+    private var weakTrackStartedAt: ContinuousClock.Instant?
+    private let weakTrackRecoverDuration = BoardStudioRefinePolicy.weakTrackRecoverDuration
 
     var fen: String { engine.fen }
     var pgn: String { engine.pgn }
@@ -211,6 +219,7 @@ final class RecordingSessionViewModel: Identifiable {
     private func refineGridSnappingQuad() async {
         guard let current = quad, let buffer = lastSampleBuffer else {
             refinedGrid = nil
+            gridSnapFailed = true
             await pipeline.setRefinedGrid(nil)
             return
         }
@@ -222,23 +231,31 @@ final class RecordingSessionViewModel: Identifiable {
             )
         guard let result = PaddedBoardRefiner.refine(quad: current, buffer: buffer, bufferSize: size) else {
             refinedGrid = nil
+            gridSnapFailed = true
             await pipeline.setRefinedGrid(nil)
             return
         }
-        applyPaddedRefineResult(result, recaptureVisionTemplate: false)
+        gridSnapFailed = false
+        applyPaddedRefineResult(result, previousQuad: current)
         await pipeline.setLockedQuad(result.snappedQuad)
         await pipeline.setRefinedGrid(result.grid)
+        paddedRefineSettled = true
     }
 
     private func applyPaddedRefineResult(
         _ result: PaddedBoardRefiner.Result,
-        recaptureVisionTemplate: Bool
+        previousQuad: Quadrilateral?
     ) {
+        let previous = previousQuad ?? quad
         quad = result.snappedQuad
         lastOpenCVSnap = result.snappedQuad
         if activeLocalizer == .vision {
             visionQuad = result.snappedQuad
-            if recaptureVisionTemplate {
+            if BoardStudioRefinePolicy.shouldRecaptureTemplates(
+                previous: previous,
+                snapped: result.snappedQuad,
+                imageSize: bufferSize
+            ) {
                 needsTemplateCapture = true
             }
         }
@@ -249,7 +266,11 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func maybeRefineWithPaddedOpenCV() async -> Bool {
-        guard !isDraggingCorner, let seed = quad, let buffer = lastSampleBuffer, bufferSize.width > 1 else {
+        guard !paddedRefineSettled,
+              !isDraggingCorner,
+              let seed = quad,
+              let buffer = lastSampleBuffer,
+              bufferSize.width > 1 else {
             return false
         }
         if let lastPaddedRefineAt, ContinuousClock.now - lastPaddedRefineAt < paddedRefineInterval {
@@ -257,16 +278,52 @@ final class RecordingSessionViewModel: Identifiable {
         }
         lastPaddedRefineAt = ContinuousClock.now
         guard let result = PaddedBoardRefiner.refine(quad: seed, buffer: buffer, bufferSize: bufferSize) else {
+            pendingStableSnap = nil
+            stableSnapHits = 0
             return false
         }
-        applyPaddedRefineResult(result, recaptureVisionTemplate: true)
+        let progress = BoardStudioRefinePolicy.ingestStableSnap(
+            pending: pendingStableSnap,
+            hits: stableSnapHits,
+            candidate: result.snappedQuad,
+            imageSize: bufferSize
+        )
+        pendingStableSnap = progress.pending
+        stableSnapHits = progress.hits
+        applyPaddedRefineResult(result, previousQuad: seed)
         await pipeline.setRefinedGrid(result.grid)
+        if progress.settled {
+            paddedRefineSettled = true
+            pendingStableSnap = nil
+            stableSnapHits = 0
+        }
         return result.tightWarp != nil
     }
 
     private func clearOpenCVSnap() {
         lastOpenCVSnap = nil
         lastPaddedRefineAt = nil
+        paddedRefineSettled = false
+        pendingStableSnap = nil
+        stableSnapHits = 0
+    }
+
+    private func restartVisionDetection() {
+        visionQuad = nil
+        if activeLocalizer == .vision {
+            quad = nil
+            warpedThumbnail = nil
+            refinedGrid = nil
+        }
+        trackingWeak = false
+        needsTemplateCapture = true
+        weakTrackFrames = 0
+        weakTrackStartedAt = nil
+        cornerTracker.reset()
+        quadConsensus.reset()
+        clearOpenCVSnap()
+        detectStartedAt = ContinuousClock().now
+        detectTimedOut = false
     }
 
     func adjustCorners() {
@@ -291,6 +348,7 @@ final class RecordingSessionViewModel: Identifiable {
         isDraggingCorner = false
         needsTemplateCapture = true
         weakTrackFrames = 0
+        weakTrackStartedAt = nil
         trackingWeak = false
         clearOpenCVSnap()
     }
@@ -301,15 +359,16 @@ final class RecordingSessionViewModel: Identifiable {
         mlQuad = nil
         warpedThumbnail = nil
         refinedGrid = nil
+        gridSnapFailed = false
         trackingWeak = false
         needsTemplateCapture = true
         weakTrackFrames = 0
+        weakTrackStartedAt = nil
         studioFrameIndex = 0
-        lastOpenCVSnap = nil
-        lastPaddedRefineAt = nil
         activeLocalizer = .vision
         cornerTracker.reset()
         quadConsensus.reset()
+        clearOpenCVSnap()
         await pipeline.setLockedQuad(nil)
         detectStartedAt = ContinuousClock().now
         detectTimedOut = false
@@ -325,6 +384,7 @@ final class RecordingSessionViewModel: Identifiable {
         detectTimedOut = true
         needsTemplateCapture = true
         weakTrackFrames = 0
+        weakTrackStartedAt = nil
         trackingWeak = false
         cornerTracker.reset()
         quadConsensus.reset()
@@ -344,6 +404,7 @@ final class RecordingSessionViewModel: Identifiable {
         }
         needsTemplateCapture = true
         weakTrackFrames = 0
+        weakTrackStartedAt = nil
         trackingWeak = false
         cornerTracker.reset()
         clearOpenCVSnap()
@@ -709,7 +770,7 @@ final class RecordingSessionViewModel: Identifiable {
                 if let snap = lastOpenCVSnap, snap.isSimilar(to: mlQuad, imageSize: bufferSize) {
                     quad = snap
                 } else {
-                    lastOpenCVSnap = nil
+                    clearOpenCVSnap()
                     quad = mlQuad
                 }
             }
@@ -737,18 +798,33 @@ final class RecordingSessionViewModel: Identifiable {
                 needsTemplateCapture = false
                 trackingWeak = false
                 weakTrackFrames = 0
+                weakTrackStartedAt = nil
             } else {
                 let result = cornerTracker.track(in: gray, from: current)
                 if result.minConfidence < 0.55 {
                     weakTrackFrames += 1
                     trackingWeak = true
-                    // Brief updates, then freeze auto-moves until drag or Rescan.
-                    if weakTrackFrames < 3 {
+                    if weakTrackStartedAt == nil {
+                        weakTrackStartedAt = ContinuousClock.now
+                    }
+                    switch BoardStudioRefinePolicy.weakTrackAction(
+                        weakFrames: weakTrackFrames,
+                        weakStartedAt: weakTrackStartedAt,
+                        now: ContinuousClock.now,
+                        recoverAfter: weakTrackRecoverDuration
+                    ) {
+                    case .updateQuad:
                         visionQuad = result.quad
                         quad = result.quad
+                    case .freeze:
+                        break
+                    case .restartVision:
+                        restartVisionDetection()
+                        return
                     }
                 } else {
                     weakTrackFrames = 0
+                    weakTrackStartedAt = nil
                     trackingWeak = false
                     visionQuad = result.quad
                     quad = result.quad
@@ -1070,12 +1146,16 @@ final class RecordingSessionViewModel: Identifiable {
         studioFrameIndex = 0
         lastOpenCVSnap = nil
         lastPaddedRefineAt = nil
+        paddedRefineSettled = false
+        pendingStableSnap = nil
+        stableSnapHits = 0
         lastPieceDetectTime = nil
         isPieceDetecting = false
         pieceBoxes = []
         pieceDetectorAvailable = false
         warpedThumbnail = nil
         refinedGrid = nil
+        gridSnapFailed = false
         previewImage = nil
         previewRotationAngle = 90
         orientation = .whiteAtBottom
@@ -1097,6 +1177,7 @@ final class RecordingSessionViewModel: Identifiable {
         isDraggingCorner = false
         needsTemplateCapture = true
         weakTrackFrames = 0
+        weakTrackStartedAt = nil
         cornerTracker.reset()
         quadConsensus.reset()
         ambiguousMoves = []

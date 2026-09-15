@@ -8,7 +8,7 @@ struct QuadConsensus: Sendable {
 
     private var recent: [Quadrilateral] = []
 
-    init(needed: Int = 5, similarityFraction: CGFloat = 0.1) {
+    init(needed: Int = 3, similarityFraction: CGFloat = 0.1) {
         self.needed = needed
         self.similarityFraction = similarityFraction
     }

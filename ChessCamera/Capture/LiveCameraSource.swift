@@ -103,7 +103,7 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         }
         captureSession.addInput(input)
 
-        Self.applyMinimumZoom(on: device)
+        Self.applyWideEquivalentZoom(on: device)
 
         let output = AVCaptureVideoDataOutput()
         output.alwaysDiscardsLateVideoFrames = true
@@ -124,7 +124,8 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         configured = true
     }
 
-    /// Prefer virtual multi-cam (0.5× via min zoom), then ultra-wide, then wide.
+    /// Prefer virtual multi-cam (FOV headroom), then ultra-wide, then wide.
+    /// Zoom is set separately to ~1.0× so the board fills more of the frame.
     private static func preferredBackCamera() -> AVCaptureDevice? {
         let types: [AVCaptureDevice.DeviceType] = [
             .builtInTripleCamera,
@@ -140,8 +141,13 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         return nil
     }
 
-    private static func applyMinimumZoom(on device: AVCaptureDevice) {
-        let target = min(device.minAvailableVideoZoomFactor, device.maxAvailableVideoZoomFactor)
+    /// Target wide-equivalent (~1.0×) zoom so board detection sees a larger board,
+    /// while still using multi-cam / ultra-wide hardware for FOV headroom.
+    private static func applyWideEquivalentZoom(on device: AVCaptureDevice) {
+        let target = min(
+            max(1.0, device.minAvailableVideoZoomFactor),
+            device.maxAvailableVideoZoomFactor
+        )
         guard abs(device.videoZoomFactor - target) > 0.01 else { return }
         do {
             try device.lockForConfiguration()

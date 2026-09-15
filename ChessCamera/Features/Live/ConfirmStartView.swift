@@ -136,27 +136,37 @@ struct ConfirmStartView: View {
                     .font(.body)
                     .foregroundStyle(Theme.textSecondary)
             }
-        } else if model.isStandardStart {
-            Label("Standard starting position.", systemImage: "checkmark.circle")
-                .font(.body)
-                .foregroundStyle(Theme.accent)
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                Label("This doesn’t look like the start.", systemImage: "exclamationmark.triangle")
-                    .font(.body)
-                    .foregroundStyle(Theme.caution)
-                if model.classifierAvailable {
-                    SecondaryButton(title: "Recapture") {
-                        Task { await model.recapture() }
-                    }
-                }
-                if model.isLegalProposedFEN {
-                    Button("Continue anyway") {
-                        model.startRecording()
-                    }
+                if model.gridSnapFailed {
+                    Label(
+                        "Couldn’t snap to squares—drag corners or Rescan.",
+                        systemImage: "exclamationmark.triangle"
+                    )
                     .font(.callout)
-                    .foregroundStyle(Theme.textSecondary)
-                    .frame(minHeight: 44)
+                    .foregroundStyle(Theme.caution)
+                }
+                if model.isStandardStart {
+                    Label("Standard starting position.", systemImage: "checkmark.circle")
+                        .font(.body)
+                        .foregroundStyle(Theme.accent)
+                } else {
+                    Label("This doesn’t look like the start.", systemImage: "exclamationmark.triangle")
+                        .font(.body)
+                        .foregroundStyle(Theme.caution)
+                    if model.classifierAvailable {
+                        SecondaryButton(title: "Recapture") {
+                            Task { await model.recapture() }
+                        }
+                    }
+                    if model.isLegalProposedFEN {
+                        Button("Continue anyway") {
+                            model.startRecording()
+                        }
+                        .font(.callout)
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(minHeight: 44)
+                    }
                 }
             }
         }

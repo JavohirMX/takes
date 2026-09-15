@@ -35,7 +35,7 @@ import Testing
 }
 
 @Test func quadConsensusRequiresSimilarHits() {
-    var consensus = QuadConsensus(needed: 5, similarityFraction: 0.1)
+    var consensus = QuadConsensus(needed: 3, similarityFraction: 0.1)
     let size = CGSize(width: 1000, height: 1000)
     let base = Quadrilateral(
         topLeft: CGPoint(x: 100, y: 100),
@@ -43,7 +43,7 @@ import Testing
         bottomRight: CGPoint(x: 900, y: 900),
         bottomLeft: CGPoint(x: 100, y: 900)
     )
-    for i in 0..<4 {
+    for i in 0..<2 {
         let jittered = base.blended(
             with: Quadrilateral(
                 topLeft: CGPoint(x: 100 + CGFloat(i), y: 100),

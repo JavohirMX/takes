@@ -191,6 +191,9 @@ struct BoardStudioView: View {
         if model.quad == nil, model.detectTimedOut {
             return "Tap Place corners, then drag each handle onto a board corner."
         }
+        if model.trackingWeak {
+            return "If the outline stays off, wait a moment for rescan or drag the corners."
+        }
         if isLandscape {
             return "Drag the four corners onto the board corners if needed."
         }
