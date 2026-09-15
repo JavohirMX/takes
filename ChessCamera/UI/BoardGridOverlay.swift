@@ -40,12 +40,12 @@ struct BoardGridOverlay: View {
                     for i in 0...8 {
                         let t = CGFloat(i) / 8
                         let startH = VideoMapping.bufferToView(
-                            point: quad.interpolated(u: 0, v: t),
+                            point: quad.perspectiveMapped(u: 0, v: t),
                             viewSize: proxy.size,
                             bufferSize: bufferSize
                         )
                         let endH = VideoMapping.bufferToView(
-                            point: quad.interpolated(u: 1, v: t),
+                            point: quad.perspectiveMapped(u: 1, v: t),
                             viewSize: proxy.size,
                             bufferSize: bufferSize
                         )
@@ -53,12 +53,12 @@ struct BoardGridOverlay: View {
                         path.addLine(to: endH)
 
                         let startV = VideoMapping.bufferToView(
-                            point: quad.interpolated(u: t, v: 0),
+                            point: quad.perspectiveMapped(u: t, v: 0),
                             viewSize: proxy.size,
                             bufferSize: bufferSize
                         )
                         let endV = VideoMapping.bufferToView(
-                            point: quad.interpolated(u: t, v: 1),
+                            point: quad.perspectiveMapped(u: t, v: 1),
                             viewSize: proxy.size,
                             bufferSize: bufferSize
                         )
@@ -73,6 +73,6 @@ struct BoardGridOverlay: View {
     }
 
     private func map(_ warped: CGPoint, quad: Quadrilateral, grid: RefinedBoardGrid) -> CGPoint {
-        quad.interpolated(u: warped.x / grid.imageSize, v: warped.y / grid.imageSize)
+        quad.perspectiveMapped(u: warped.x / grid.imageSize, v: warped.y / grid.imageSize)
     }
 }

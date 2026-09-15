@@ -26,10 +26,11 @@ struct RefinedBoardGrid: Equatable, Sendable {
     }
 
     /// Map warped lattice corners back into camera-buffer space via the current outer quad.
+    /// Uses perspective mapping to match `BoardWarper` / `CIFilter.perspectiveCorrection`.
     func cameraQuad(mappingWith quad: Quadrilateral) -> Quadrilateral {
         func camera(_ row: Int, _ col: Int) -> CGPoint {
             let p = point(row: row, col: col)
-            return quad.interpolated(u: p.x / imageSize, v: p.y / imageSize)
+            return quad.perspectiveMapped(u: p.x / imageSize, v: p.y / imageSize)
         }
         return Quadrilateral(
             topLeft: camera(0, 0),

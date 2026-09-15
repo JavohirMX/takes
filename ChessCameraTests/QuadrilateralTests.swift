@@ -91,17 +91,103 @@ import Testing
     }
     let grid = RefinedBoardGrid(imageSize: imageSize, points: points)
     let snapped = grid.cameraQuad(mappingWith: padded)
-    #expect(abs(snapped.topLeft.x - original.topLeft.x) < 1)
-    #expect(abs(snapped.topLeft.y - original.topLeft.y) < 1)
-    #expect(abs(snapped.topRight.x - original.topRight.x) < 1)
-    #expect(abs(snapped.topRight.y - original.topRight.y) < 1)
-    #expect(abs(snapped.bottomRight.x - original.bottomRight.x) < 1)
-    #expect(abs(snapped.bottomRight.y - original.bottomRight.y) < 1)
-    #expect(abs(snapped.bottomLeft.x - original.bottomLeft.x) < 1)
-    #expect(abs(snapped.bottomLeft.y - original.bottomLeft.y) < 1)
+    // cameraQuad uses perspective mapping (matches BoardWarper), not bilinear expand UV.
+    let expected = Quadrilateral(
+        topLeft: padded.perspectiveMapped(u: u0, v: u0),
+        topRight: padded.perspectiveMapped(u: u1, v: u0),
+        bottomRight: padded.perspectiveMapped(u: u1, v: u1),
+        bottomLeft: padded.perspectiveMapped(u: u0, v: u1)
+    )
+    #expect(abs(snapped.topLeft.x - expected.topLeft.x) < 1)
+    #expect(abs(snapped.topLeft.y - expected.topLeft.y) < 1)
+    #expect(abs(snapped.topRight.x - expected.topRight.x) < 1)
+    #expect(abs(snapped.topRight.y - expected.topRight.y) < 1)
+    #expect(abs(snapped.bottomRight.x - expected.bottomRight.x) < 1)
+    #expect(abs(snapped.bottomRight.y - expected.bottomRight.y) < 1)
+    #expect(abs(snapped.bottomLeft.x - expected.bottomLeft.x) < 1)
+    #expect(abs(snapped.bottomLeft.y - expected.bottomLeft.y) < 1)
 
+    // Bilinear expand still places the original at (u0,u0) in interpolated UV.
     let uv = padded.uv(containing: original.topLeft, epsilon: 0.02)
     #expect(uv != nil)
     #expect(abs((uv?.x ?? -1) - u0) < 0.02)
     #expect(abs((uv?.y ?? -1) - u0) < 0.02)
+}
+
+@Test func perspectiveDiffersFromBilinearOnTrapezoid() {
+    // Strong foreshortening: top edge much shorter than bottom.
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 300, y: 80),
+        topRight: CGPoint(x: 500, y: 80),
+        bottomRight: CGPoint(x: 900, y: 700),
+        bottomLeft: CGPoint(x: 100, y: 700)
+    )
+    let midTopPerspective = quad.perspectiveMapped(u: 0.5, v: 0)
+    let midTopBilinear = quad.interpolated(u: 0.5, v: 0)
+    let midLeftPerspective = quad.perspectiveMapped(u: 0, v: 0.5)
+    let midLeftBilinear = quad.interpolated(u: 0, v: 0.5)
+
+    // Midpoints of the short top edge coincide (collinear), but the left edge midpoints diverge.
+    #expect(abs(midTopPerspective.x - midTopBilinear.x) < 0.5)
+    #expect(abs(midTopPerspective.y - midTopBilinear.y) < 0.5)
+    let leftDelta = hypot(
+        midLeftPerspective.x - midLeftBilinear.x,
+        midLeftPerspective.y - midLeftBilinear.y
+    )
+    #expect(leftDelta > 5)
+
+    // Corners still match exactly.
+    #expect(quad.perspectiveMapped(u: 0, v: 0) == quad.topLeft)
+    #expect(quad.perspectiveMapped(u: 1, v: 0) == quad.topRight)
+    #expect(quad.perspectiveMapped(u: 1, v: 1) == quad.bottomRight)
+    #expect(quad.perspectiveMapped(u: 0, v: 1) == quad.bottomLeft)
+}
+
+@Test func perspectiveUVRoundTripsMappedPoints() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 220, y: 90),
+        topRight: CGPoint(x: 780, y: 110),
+        bottomRight: CGPoint(x: 860, y: 720),
+        bottomLeft: CGPoint(x: 140, y: 690)
+    )
+    let samples: [(CGFloat, CGFloat)] = [
+        (0, 0), (1, 0), (1, 1), (0, 1),
+        (0.5, 0), (0, 0.5), (0.5, 0.5), (0.25, 0.75), (0.8, 0.2)
+    ]
+    for (u, v) in samples {
+        let mapped = quad.perspectiveMapped(u: u, v: v)
+        let back = quad.perspectiveUV(containing: mapped, epsilon: 0.02)
+        #expect(back != nil)
+        #expect(abs((back?.x ?? -1) - u) < 0.01)
+        #expect(abs((back?.y ?? -1) - v) < 0.01)
+    }
+}
+
+@Test func perspectiveMatchesBilinearOnRectangle() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 100, y: 100),
+        topRight: CGPoint(x: 500, y: 100),
+        bottomRight: CGPoint(x: 500, y: 500),
+        bottomLeft: CGPoint(x: 100, y: 500)
+    )
+    for i in 0...8 {
+        let t = CGFloat(i) / 8
+        let p = quad.perspectiveMapped(u: t, v: 0.375)
+        let b = quad.interpolated(u: t, v: 0.375)
+        #expect(abs(p.x - b.x) < 0.01)
+        #expect(abs(p.y - b.y) < 0.01)
+    }
+}
+
+@Test func squareContainingCameraPointUsesPerspectiveGrid() {
+    let quad = Quadrilateral(
+        topLeft: CGPoint(x: 300, y: 80),
+        topRight: CGPoint(x: 500, y: 80),
+        bottomRight: CGPoint(x: 900, y: 700),
+        bottomLeft: CGPoint(x: 100, y: 700)
+    )
+    // Center of file 0 / rank-from-top 0 in perspective UV.
+    let sample = quad.perspectiveMapped(u: 1.0 / 16.0, v: 1.0 / 16.0)
+    let square = quad.square(containingCameraPoint: sample, orientation: .whiteAtBottom)
+    #expect(square?.algebraic == "a8")
 }

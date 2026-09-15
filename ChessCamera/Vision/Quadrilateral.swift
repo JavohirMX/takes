@@ -12,6 +12,7 @@ struct Quadrilateral: Equatable, Sendable {
     }
 
     /// `u` is left→right, `v` is top→bottom in the warped board, both 0...1.
+    /// Bilinear (not perspective). Prefer `perspectiveMapped` to match `BoardWarper`.
     func interpolated(u: CGFloat, v: CGFloat) -> CGPoint {
         func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
             CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
@@ -19,6 +20,22 @@ struct Quadrilateral: Equatable, Sendable {
         let top = lerp(topLeft, topRight, u)
         let bottom = lerp(bottomLeft, bottomRight, u)
         return lerp(top, bottom, v)
+    }
+
+    /// Perspective map of unit-square `(u,v)` onto this quad (TL→TR→BR→BL).
+    /// Matches `CIFilter.perspectiveCorrection` corner correspondence in buffer space.
+    func perspectiveMapped(u: CGFloat, v: CGFloat) -> CGPoint {
+        guard let h = unitSquareHomography() else {
+            return interpolated(u: u, v: v)
+        }
+        let denom = h.g * u + h.hCoeff * v + 1
+        guard abs(denom) > 1e-12 else {
+            return interpolated(u: u, v: v)
+        }
+        return CGPoint(
+            x: (h.a * u + h.b * v + h.c) / denom,
+            y: (h.d * u + h.e * v + h.f) / denom
+        )
     }
 
     /// Inverse of `interpolated(u:v:)`. Nil when `point` is outside the quad.
@@ -80,15 +97,83 @@ struct Quadrilateral: Equatable, Sendable {
         return nil
     }
 
-    /// Camera-buffer point → algebraic square using the same bilinear grid as `BoardGridOverlay`.
+    /// Inverse of `perspectiveMapped(u:v:)`. Nil when `point` is outside the quad.
+    func perspectiveUV(containing point: CGPoint, epsilon: CGFloat = 1e-4) -> CGPoint? {
+        guard let h = unitSquareHomography() else {
+            return uv(containing: point, epsilon: epsilon)
+        }
+        // (x*g - a)*u + (x*h - b)*v = c - x
+        // (y*g - d)*u + (y*h - e)*v = f - y
+        let a00 = point.x * h.g - h.a
+        let a01 = point.x * h.hCoeff - h.b
+        let a10 = point.y * h.g - h.d
+        let a11 = point.y * h.hCoeff - h.e
+        let b0 = h.c - point.x
+        let b1 = h.f - point.y
+        let det = a00 * a11 - a01 * a10
+        guard abs(det) > 1e-12 else {
+            return uv(containing: point, epsilon: epsilon)
+        }
+        let u = (b0 * a11 - a01 * b1) / det
+        let v = (a00 * b1 - b0 * a10) / det
+        guard u >= -epsilon, v >= -epsilon, u <= 1 + epsilon, v <= 1 + epsilon else {
+            return nil
+        }
+        return CGPoint(x: min(max(u, 0), 1), y: min(max(v, 0), 1))
+    }
+
+    /// Camera-buffer point → algebraic square using the same perspective grid as `BoardGridOverlay`.
     func square(containingCameraPoint point: CGPoint, orientation: BoardOrientation) -> ChessSquare? {
-        guard let uv = uv(containing: point) else { return nil }
+        guard let uv = perspectiveUV(containing: point) else { return nil }
         let fileIndex = min(7, Int(uv.x * 8))
         let rankFromImageTop = min(7, Int(uv.y * 8))
         return GridSampler.square(
             fileIndex: fileIndex,
             rankFromImageTop: rankFromImageTop,
             orientation: orientation
+        )
+    }
+
+    /// Heckbert unit-square→quad coefficients:
+    /// `x = (a*u + b*v + c) / (g*u + h*v + 1)`, same for `y` with `d,e,f`.
+    private func unitSquareHomography() -> (
+        a: CGFloat, b: CGFloat, c: CGFloat,
+        d: CGFloat, e: CGFloat, f: CGFloat,
+        g: CGFloat, hCoeff: CGFloat
+    )? {
+        let p0 = topLeft
+        let p1 = topRight
+        let p2 = bottomRight
+        let p3 = bottomLeft
+
+        let dx1 = p1.x - p2.x
+        let dx2 = p3.x - p2.x
+        let dx3 = p0.x - p1.x + p2.x - p3.x
+        let dy1 = p1.y - p2.y
+        let dy2 = p3.y - p2.y
+        let dy3 = p0.y - p1.y + p2.y - p3.y
+
+        let g: CGFloat
+        let hCoeff: CGFloat
+        if abs(dx3) < 1e-12, abs(dy3) < 1e-12 {
+            g = 0
+            hCoeff = 0
+        } else {
+            let det = dx1 * dy2 - dx2 * dy1
+            guard abs(det) > 1e-12 else { return nil }
+            g = (dx3 * dy2 - dx2 * dy3) / det
+            hCoeff = (dx1 * dy3 - dx3 * dy1) / det
+        }
+
+        return (
+            a: p1.x - p0.x + g * p1.x,
+            b: p3.x - p0.x + hCoeff * p3.x,
+            c: p0.x,
+            d: p1.y - p0.y + g * p1.y,
+            e: p3.y - p0.y + hCoeff * p3.y,
+            f: p0.y,
+            g: g,
+            hCoeff: hCoeff
         )
     }
 
