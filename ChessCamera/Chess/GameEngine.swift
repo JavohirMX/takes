@@ -201,11 +201,12 @@ final class GameEngine {
         return occupancy
     }
 
-    /// Squares a legal move or fast opponent reply can fill or empty. Used to gate YOLO occupancy.
-    static func occupancyPrior(of board: Board, maxNewClears: Int = 4) -> OccupancyPrior {
+    /// Squares a legal move or fast opponent reply can fill or empty. Used to gate live occupancy.
+    static func occupancyPrior(of board: Board, includeReplies: Bool = true) -> OccupancyPrior {
         let before = occupancy(of: board)
         var fillable = Occupancy()
         var clearable = Occupancy()
+        let maxNewClears = includeReplies ? 4 : 2
 
         func accumulate(_ after: Board) {
             let afterOcc = occupancy(of: after)
@@ -215,8 +216,10 @@ final class GameEngine {
 
         for afterFirst in legalSuccessorBoards(board) {
             accumulate(afterFirst)
-            for afterSecond in legalSuccessorBoards(afterFirst) {
-                accumulate(afterSecond)
+            if includeReplies {
+                for afterSecond in legalSuccessorBoards(afterFirst) {
+                    accumulate(afterSecond)
+                }
             }
         }
         return OccupancyPrior(fillable: fillable, clearable: clearable, maxNewClears: maxNewClears)

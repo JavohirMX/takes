@@ -54,8 +54,10 @@ final class RecordingSessionViewModel: Identifiable {
     var previewRotationAngle: CGFloat = 90
     /// Live capture diagnostics (phase / settle / Hamming / changed squares).
     var liveDebugLine = ""
-    /// Brief soft-reject copy after an illegal settle (cleared on next commit or dismiss).
+    /// Brief soft-reject copy after ChessKit fails to apply a unique move.
     var softRejectMessage: String?
+    /// Occupancy bits already rejected as unmatched; skip re-inference until they change.
+    private var lastIgnoredOccupancy: Occupancy?
     private var lastPieceDetectTime: ContinuousClock.Instant?
     private var isPieceDetecting = false
 
@@ -424,7 +426,7 @@ final class RecordingSessionViewModel: Identifiable {
         }
         lastCommittedOccupancy = engine.occupancy()
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
-        occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
+        occupancyPrior = makeOccupancyPrior()
         settle = SettleDetector(config: .init(
             stableDuration: .milliseconds(SettleSettings.milliseconds),
             maxHammingJitter: 1
@@ -432,6 +434,7 @@ final class RecordingSessionViewModel: Identifiable {
         syncCommittedNotation()
         trackingLost = false
         softRejectMessage = nil
+        lastIgnoredOccupancy = nil
         liveDebugLine = ""
         armFingerprintSnapshot(warmup: 5)
         phase = .recording
@@ -467,10 +470,11 @@ final class RecordingSessionViewModel: Identifiable {
             try engine.undo()
             lastCommittedOccupancy = engine.occupancy()
             occupancySmoother.reset(seeding: lastCommittedOccupancy)
-            occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
+            occupancyPrior = makeOccupancyPrior()
             syncCommittedNotation()
             ambiguousMoves = []
             softRejectMessage = nil
+            lastIgnoredOccupancy = nil
             armFingerprintSnapshot(warmup: 3)
             if phase == .awaitingEdit || phase == .gameOver {
                 phase = engine.isTerminal ? .gameOver : .recording
@@ -485,6 +489,7 @@ final class RecordingSessionViewModel: Identifiable {
     func resumeRecordingAfterReject() {
         ambiguousMoves = []
         softRejectMessage = nil
+        lastIgnoredOccupancy = nil
         liveOccupancy = lastCommittedOccupancy
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
         settle = SettleDetector(config: .init(
@@ -504,14 +509,19 @@ final class RecordingSessionViewModel: Identifiable {
         try engine.apply(move: move)
         lastCommittedOccupancy = engine.occupancy()
         occupancySmoother.reset(seeding: lastCommittedOccupancy)
-        occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
+        occupancyPrior = makeOccupancyPrior()
         syncCommittedNotation()
         softRejectMessage = nil
+        lastIgnoredOccupancy = nil
     }
 
     private func syncCommittedNotation() {
         committedSANs = Array(engine.appliedSANs)
         lastSAN = engine.formattedLastSAN
+    }
+
+    private func makeOccupancyPrior() -> OccupancyPrior {
+        GameEngine.occupancyPrior(of: engine.board, includeReplies: FastReplySettings.enabled)
     }
 
     func applyEdit(san: String) {
@@ -523,11 +533,12 @@ final class RecordingSessionViewModel: Identifiable {
             }
             lastCommittedOccupancy = engine.occupancy()
             occupancySmoother.reset(seeding: lastCommittedOccupancy)
-            occupancyPrior = GameEngine.occupancyPrior(of: engine.board)
+            occupancyPrior = makeOccupancyPrior()
             syncCommittedNotation()
             showEditSheet = false
             ambiguousMoves = []
             softRejectMessage = nil
+            lastIgnoredOccupancy = nil
             armFingerprintSnapshot(warmup: 3)
             phase = engine.isTerminal ? .gameOver : .recording
             setKeepsScreenAwake(phase == .recording)
@@ -855,9 +866,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     private func ingest(_ observation: BoardObservation) async {
         let detected = observation.occupancy
-        let gated = pieceDetectorAvailable
-            ? occupancyPrior.apply(detected: detected, previous: lastCommittedOccupancy)
-            : detected
+        let gated = occupancyPrior.apply(detected: detected, previous: lastCommittedOccupancy)
         let smoothed = occupancySmoother.ingest(gated)
         liveOccupancy = smoothed
         let settleMotion = settle.ingest(smoothed, at: observation.timestamp)
@@ -867,62 +876,41 @@ final class RecordingSessionViewModel: Identifiable {
         } else {
             trackingLost = false
         }
-        let skippedStableInfer = phase == .recording && {
-            if case .stable = settleMotion { return (1...CommitRelativeMotion.maxInferHamming).contains(hamming) }
-            return false
-        }()
-        var motion = CommitRelativeMotion.arm(
+        if hamming == 0 {
+            lastIgnoredOccupancy = nil
+        }
+
+        let decision = LiveSettleDecision.action(
             phase: phase,
-            motion: settleMotion,
+            settleMotion: settleMotion,
             occupancy: smoothed,
-            commitHamming: hamming
+            commitHamming: hamming,
+            ignored: lastIgnoredOccupancy
         )
+        var motion = settleMotion
+        var inference: InferenceResult = .none
+        switch decision {
+        case .skipIgnored:
+            liveOccupancy = lastCommittedOccupancy
+        case .wait:
+            if phase == .disturbed,
+               settle.quietElapsed(at: observation.timestamp) >= earlyCommitDuration {
+                let result = inferMove(from: smoothed, classes: observation.classes)
+                if case .unique = result {
+                    inference = result
+                    motion = .stable(smoothed)
+                }
+            }
+        case .infer(let occ):
+            inference = inferMove(from: occ, classes: observation.classes)
+        }
+
         let motionLabel: String
         switch motion {
         case .stable:
             motionLabel = "stable"
         case .disturbed:
             motionLabel = "disturbed"
-        }
-
-        var inference: InferenceResult = .none
-        if phase == .disturbed {
-            let candidate: Occupancy?
-            if case .stable(let occ) = motion {
-                candidate = occ
-            } else if settle.quietElapsed(at: observation.timestamp) >= earlyCommitDuration {
-                candidate = smoothed
-            } else {
-                candidate = nil
-            }
-
-            if let occ = candidate {
-                let distance = lastCommittedOccupancy.hammingDistance(to: occ)
-                if distance == 0 {
-                    inference = .none
-                } else if distance > CommitRelativeMotion.maxInferHamming {
-                    trackingLost = true
-                    inference = .none
-                } else {
-                    trackingLost = false
-                    let result = MoveInferrer.infer(
-                        delta: VisualDelta(
-                            previous: lastCommittedOccupancy,
-                            current: occ,
-                            observedClasses: observation.classes
-                        ),
-                        board: engine.board
-                    )
-                    if case .stable = motion {
-                        inference = result
-                    } else if case .unique = result {
-                        inference = result
-                        motion = .stable(occ)
-                    } else {
-                        inference = .none
-                    }
-                }
-            }
         }
 
         var debugParts = [
@@ -933,8 +921,8 @@ final class RecordingSessionViewModel: Identifiable {
             "ply \(committedPlyCount)",
             lastSAN ?? "-"
         ]
-        if skippedStableInfer {
-            debugParts.append("skip-stable")
+        if case .skipIgnored = decision {
+            debugParts.append("ignored")
         }
         let amb = MoveInferrer.debugSans(for: inference)
         if !amb.isEmpty {
@@ -968,20 +956,13 @@ final class RecordingSessionViewModel: Identifiable {
                 ))
             }
         case (.recording, .illegal):
-            // Soft-reject: keep last committed occupancy and stay recording.
-            softRejectMessage = "Ignored bad settle"
+            lastIgnoredOccupancy = smoothed
             liveOccupancy = lastCommittedOccupancy
-            occupancySmoother.reset(seeding: lastCommittedOccupancy)
             phase = .recording
-            settle = SettleDetector(config: .init(
-                stableDuration: .milliseconds(SettleSettings.milliseconds),
-                maxHammingJitter: 1
-            ))
-            armFingerprintSnapshot(warmup: 2)
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
         case (.recording, .none):
             phase = .recording
         case (.awaitingEdit, .ambiguous(let moves)):
+            lastIgnoredOccupancy = nil
             ambiguousMoves = moves
             softRejectMessage = nil
             phase = .awaitingEdit
@@ -992,6 +973,28 @@ final class RecordingSessionViewModel: Identifiable {
             }
             phase = next
         }
+    }
+
+    private func inferMove(from occupancy: Occupancy, classes: [ChessSquare: PieceClass]) -> InferenceResult {
+        let distance = lastCommittedOccupancy.hammingDistance(to: occupancy)
+        if distance == 0 {
+            lastIgnoredOccupancy = nil
+            return .none
+        }
+        if distance > CommitRelativeMotion.maxInferHamming {
+            trackingLost = true
+            return .none
+        }
+        trackingLost = false
+        return MoveInferrer.infer(
+            delta: VisualDelta(
+                previous: lastCommittedOccupancy,
+                current: occupancy,
+                observedClasses: classes
+            ),
+            board: engine.board,
+            maxPlies: FastReplySettings.enabled ? 2 : 1
+        )
     }
 
     private func phaseLabel(_ phase: SessionPhase) -> String {
@@ -1091,6 +1094,7 @@ final class RecordingSessionViewModel: Identifiable {
         quadConsensus.reset()
         ambiguousMoves = []
         softRejectMessage = nil
+        lastIgnoredOccupancy = nil
         liveDebugLine = ""
         engine.resetToStart()
         setKeepsScreenAwake(false)

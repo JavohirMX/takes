@@ -27,7 +27,8 @@ enum MoveInferrer {
     static func infer(
         delta: VisualDelta,
         board: Board,
-        maxHammingSlack: Int = defaultHammingSlack
+        maxHammingSlack: Int = defaultHammingSlack,
+        maxPlies: Int = 2
     ) -> InferenceResult {
         guard delta.previous != delta.current else { return .none }
 
@@ -40,12 +41,14 @@ enum MoveInferrer {
             observedClasses: delta.observedClasses,
             slack: slack
         )
-        let twoPly = scoreTwoPly(
-            on: board,
-            current: delta.current,
-            observedClasses: delta.observedClasses,
-            slack: slack
-        )
+        let twoPly = maxPlies >= 2
+            ? scoreTwoPly(
+                on: board,
+                current: delta.current,
+                observedClasses: delta.observedClasses,
+                slack: slack
+            )
+            : []
 
         let bestOne = onePly.map(\.distance).min() ?? Int.max
         let betterTwo = twoPly.filter { $0.distance < bestOne }

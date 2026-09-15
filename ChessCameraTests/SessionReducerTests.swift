@@ -48,3 +48,13 @@ import Testing
     )
     #expect(next == .awaitingEdit)
 }
+
+@Test func recordingAmbiguousReturnsAwaitingEdit() {
+    let move = Move(san: "e4", position: Board().position)!
+    let next = SessionReducer.next(
+        phase: .recording,
+        motion: .stable(Occupancy.standardStart()),
+        inference: .ambiguous([move])
+    )
+    #expect(next == .awaitingEdit)
+}

@@ -26,6 +26,9 @@ struct SessionReducer {
             if case .disturbed = motion {
                 return .disturbed
             }
+            if case .ambiguous = inference {
+                return .awaitingEdit
+            }
             return phase
         case .disturbed:
             guard case .stable = motion else { return .disturbed }

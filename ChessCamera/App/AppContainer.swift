@@ -47,3 +47,15 @@ enum SpeechSettings {
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 }
+
+enum FastReplySettings {
+    static let key = "detectFastReplies"
+
+    static var enabled: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: key) == nil { return true }
+            return UserDefaults.standard.bool(forKey: key)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}

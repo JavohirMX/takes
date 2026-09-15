@@ -54,6 +54,17 @@ import Testing
     #expect(gated.occupied(ChessSquare.parse("e4")!))
 }
 
+@Test func occupancyPriorWithoutRepliesHidesOpponentSquares() {
+    let engine = GameEngine()
+    let prior = GameEngine.occupancyPrior(of: engine.board, includeReplies: false)
+    #expect(prior.clearable.occupied(ChessSquare.parse("e2")!))
+    #expect(prior.fillable.occupied(ChessSquare.parse("e4")!))
+    #expect(!prior.clearable.occupied(ChessSquare.parse("e7")!))
+    #expect(!prior.fillable.occupied(ChessSquare.parse("e5")!))
+    #expect(!prior.clearable.occupied(ChessSquare.parse("a1")!))
+    #expect(prior.maxNewClears == 2)
+}
+
 @Test func replaceLastPlyUpdatesPGN() throws {
     let engine = GameEngine()
     try engine.apply(san: "e4")

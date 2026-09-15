@@ -64,6 +64,15 @@ import Testing
     #expect(moved.occupied(ChessSquare.parse("e4")!))
 }
 
+@Test func occupancyPriorDropsCenterFillThatNoLegalMoveCanMake() {
+    let engine = GameEngine()
+    let prior = GameEngine.occupancyPrior(of: engine.board, includeReplies: false)
+    let start = engine.occupancy()
+    var noisy = start
+    noisy.set(ChessSquare.parse("e5")!, occupied: true)
+    #expect(prior.apply(detected: noisy, previous: start) == start)
+}
+
 @Test func occupancyPriorDropsNoisyMultiClears() {
     let start = Occupancy.standardStart()
     let prior = OccupancyPrior(fillable: .allSquares, clearable: .allSquares, maxNewClears: 2)

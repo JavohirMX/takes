@@ -51,22 +51,41 @@ struct SettleDetector: Sendable {
 }
 
 /// Inter-frame jitter stays at 1 bit so flicker does not restart settle.
-/// Captures are also 1 bit vs the committed mask, so arm `.disturbed` from
-/// commit Hamming instead of waiting for a 2-bit transient (or a hand wave).
+/// Captures are also 1 bit vs the committed mask, so infer from a stable
+/// recording frame instead of pretending the board is still moving.
 enum CommitRelativeMotion {
     static let maxInferHamming = 16
+}
 
-    static func arm(
+enum LiveSettleAction: Equatable, Sendable {
+    /// Hands on the board, Hamming 0, or not yet quiet. Do not infer.
+    case wait
+    /// Settled occupancy differs from commit; run move inference.
+    case infer(Occupancy)
+    /// Same unmatched bits as a previous illegal settle; stay recording.
+    case skipIgnored
+}
+
+enum LiveSettleDecision {
+    static func action(
         phase: SessionPhase,
-        motion: BoardMotion,
+        settleMotion: BoardMotion,
         occupancy: Occupancy,
-        commitHamming: Int
-    ) -> BoardMotion {
-        guard phase == .recording,
-              (1...maxInferHamming).contains(commitHamming),
-              case .stable = motion else {
-            return motion
+        commitHamming: Int,
+        ignored: Occupancy?
+    ) -> LiveSettleAction {
+        if let ignored, occupancy == ignored {
+            return .skipIgnored
         }
-        return .disturbed(since: occupancy)
+        guard (1...CommitRelativeMotion.maxInferHamming).contains(commitHamming) else {
+            return .wait
+        }
+        switch phase {
+        case .recording, .disturbed:
+            guard case .stable(let occ) = settleMotion else { return .wait }
+            return .infer(occ)
+        default:
+            return .wait
+        }
     }
 }

@@ -232,6 +232,26 @@ import Testing
     #expect(moves[1].san == canonicalSAN("e5", on: mid.board))
 }
 
+@Test func infersSinglePlyWhenMaxPliesIsOne() {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e2")!, occupied: false)
+    after.set(ChessSquare.parse("e4")!, occupied: true)
+    after.set(ChessSquare.parse("e7")!, occupied: false)
+    after.set(ChessSquare.parse("e5")!, occupied: true)
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board,
+        maxPlies: 1
+    )
+    guard case .unique(let moves) = result else {
+        Issue.record("expected unique 1-ply when maxPlies is 1, got \(result)")
+        return
+    }
+    #expect(moves.count == 1)
+}
+
 @Test func infersOnlyE5WhenE4AlreadyCommitted() throws {
     let engine = GameEngine()
     try engine.apply(san: "e4")

@@ -68,7 +68,7 @@ import Testing
     #expect(stable == .stable(b))
 }
 
-@Test func captureHammingDoesNotRestartSettleButCommitArmingDoes() {
+@Test func captureHammingDoesNotRestartSettleAndInfersFromRecording() {
     var d = SettleDetector(config: .init(stableDuration: .milliseconds(600), maxHammingJitter: 1))
     let t0 = ContinuousClock().now
     let start = Occupancy.standardStart()
@@ -82,50 +82,167 @@ import Testing
     let afterCapture = d.ingest(capture, at: t0.advanced(by: .milliseconds(700)))
     #expect(afterCapture == .stable(capture))
 
-    let armed = CommitRelativeMotion.arm(
+    let decision = LiveSettleDecision.action(
         phase: .recording,
-        motion: afterCapture,
+        settleMotion: afterCapture,
         occupancy: capture,
-        commitHamming: start.hammingDistance(to: capture)
+        commitHamming: start.hammingDistance(to: capture),
+        ignored: nil
     )
-    #expect(armed == .disturbed(since: capture))
+    #expect(decision == .infer(capture))
     #expect(
-        SessionReducer.next(phase: .recording, motion: armed, inference: .none) == .disturbed
+        SessionReducer.next(phase: .recording, motion: afterCapture, inference: .none) == .recording
     )
 }
 
-@Test func commitArmingIgnoresZeroAndHugeHamming() {
+@Test func liveSettleWaitsOnZeroAndHugeHamming() {
     let occ = Occupancy.standardStart()
     let stable = BoardMotion.stable(occ)
     #expect(
-        CommitRelativeMotion.arm(
+        LiveSettleDecision.action(
             phase: .recording,
-            motion: stable,
+            settleMotion: stable,
             occupancy: occ,
-            commitHamming: 0
-        ) == stable
+            commitHamming: 0,
+            ignored: nil
+        ) == .wait
     )
     #expect(
-        CommitRelativeMotion.arm(
+        LiveSettleDecision.action(
             phase: .recording,
-            motion: stable,
+            settleMotion: stable,
             occupancy: occ,
-            commitHamming: 17
-        ) == stable
+            commitHamming: 17,
+            ignored: nil
+        ) == .wait
     )
 }
 
-@Test func commitArmingDoesNotOverrideStableOnceDisturbed() {
+@Test func illegalOneBitDriftDoesNotReenterDisturbed() {
+    let start = Occupancy.standardStart()
+    var drift = start
+    drift.set(ChessSquare.parse("e5")!, occupied: true)
+    let ham = start.hammingDistance(to: drift)
+    #expect(ham == 1)
+    let stable = BoardMotion.stable(drift)
+
+    let first = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: stable,
+        occupancy: drift,
+        commitHamming: ham,
+        ignored: nil
+    )
+    #expect(first == .infer(drift))
+
+    let engine = GameEngine()
+    let inferred = MoveInferrer.infer(
+        delta: VisualDelta(previous: start, current: drift, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(inferred == .illegal)
+    #expect(
+        SessionReducer.next(phase: .recording, motion: stable, inference: .illegal) == .recording
+    )
+
+    let second = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: stable,
+        occupancy: drift,
+        commitHamming: ham,
+        ignored: drift
+    )
+    #expect(second == .skipIgnored)
+    #expect(
+        SessionReducer.next(phase: .recording, motion: stable, inference: .none) == .recording
+    )
+}
+
+@Test func captureHammingOneInfersUniqueWithoutDisturbedPhase() throws {
+    let engine = try GameEngine(fen: "4k3/8/2n5/1B6/8/8/8/4K3 w - - 0 1")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("b5")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 1)
+    let stable = BoardMotion.stable(after)
+    let decision = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: stable,
+        occupancy: after,
+        commitHamming: 1,
+        ignored: nil
+    )
+    #expect(decision == .infer(after))
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .unique = result else {
+        Issue.record("expected unique capture, got \(result)")
+        return
+    }
+    #expect(result.san?.contains("Bxc6") == true)
+    #expect(
+        SessionReducer.next(phase: .recording, motion: stable, inference: result) == .recording
+    )
+}
+
+@Test func quietE4InfersUniqueFromStableRecording() {
+    let engine = GameEngine()
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("e2")!, occupied: false)
+    after.set(ChessSquare.parse("e4")!, occupied: true)
+    let stable = BoardMotion.stable(after)
+    let decision = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: stable,
+        occupancy: after,
+        commitHamming: 2,
+        ignored: nil
+    )
+    #expect(decision == .infer(after))
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .unique = result else {
+        Issue.record("expected unique e4, got \(result)")
+        return
+    }
+    #expect(result.san == "e4")
+}
+
+@Test func genuineSettleDisturbedWaitsAndMapsToDisturbedPhase() {
+    var moved = Occupancy.standardStart()
+    moved.set(ChessSquare.parse("e2")!, occupied: false)
+    moved.set(ChessSquare.parse("e4")!, occupied: true)
+    let motion = BoardMotion.disturbed(since: moved)
+    let decision = LiveSettleDecision.action(
+        phase: .recording,
+        settleMotion: motion,
+        occupancy: moved,
+        commitHamming: 2,
+        ignored: nil
+    )
+    #expect(decision == .wait)
+    #expect(
+        SessionReducer.next(phase: .recording, motion: motion, inference: .none) == .disturbed
+    )
+}
+
+@Test func disturbedStableInfersInsteadOfWaiting() {
     var occ = Occupancy.standardStart()
     occ.set(ChessSquare.parse("e2")!, occupied: false)
     let stable = BoardMotion.stable(occ)
-    let motion = CommitRelativeMotion.arm(
+    let decision = LiveSettleDecision.action(
         phase: .disturbed,
-        motion: stable,
+        settleMotion: stable,
         occupancy: occ,
-        commitHamming: 1
+        commitHamming: 1,
+        ignored: nil
     )
-    #expect(motion == stable)
+    #expect(decision == .infer(occ))
 }
 
 @Test func quietElapsedTracksTimeSinceLastRealChange() {

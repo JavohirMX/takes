@@ -42,9 +42,10 @@ struct Occupancy: Equatable, Sendable {
     }
 }
 
-/// Merge YOLO occupancy with the last committed mask. Boxes only fill; empties
-/// only clear squares that some legal move or fast reply actually vacates, and
-/// at most four new clears per frame so rim misses do not look like extra captures.
+/// Merge live occupancy with the last committed mask. Detections only fill
+/// legal destination squares; empties only clear squares that some legal move
+/// or fast reply actually vacates, and at most four new clears per frame so
+/// rim misses do not look like extra captures.
 struct OccupancyPrior: Equatable, Sendable {
     var fillable: Occupancy
     var clearable: Occupancy
