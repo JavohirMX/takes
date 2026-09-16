@@ -88,12 +88,20 @@ import Testing
 
 @Test func changeDetectorFlagsMarginalQuietMoveScores() {
     var scores = [Double](repeating: 3, count: 64)
-    scores[12] = 11
-    scores[20] = 12
+    scores[12] = 14
+    scores[20] = 15
     let changed = SquareChangeDetector.changedMask(scores: scores)
     #expect(changed[12])
     #expect(changed[20])
     #expect(changed.filter { $0 }.count == 2)
+}
+
+@Test func changeDetectorIgnoresSubThresholdLocalNoise() {
+    var scores = [Double](repeating: 3, count: 64)
+    scores[12] = 11
+    scores[20] = 11
+    let changed = SquareChangeDetector.changedMask(scores: scores)
+    #expect(!changed.contains(true))
 }
 
 @Test func occupancyAppliesQuietMoveFromSnapshot() throws {

@@ -202,11 +202,11 @@ enum SquareChangeDetector {
     }
 
     /// Lighting-robust outliers: a square changed if it moved more than the board-wide median.
-    /// Defaults tuned for quiet piece moves on wood boards (lower than the original 14 / 2.2).
+    /// Defaults favor quiet wood boards (local shadows should not light up half the grid).
     static func changedMask(
         scores: [Double],
-        absoluteMin: Double = 8,
-        k: Double = 1.8
+        absoluteMin: Double = 12,
+        k: Double = 2.2
     ) -> [Bool] {
         guard !scores.isEmpty else { return [] }
         let sorted = scores.sorted()

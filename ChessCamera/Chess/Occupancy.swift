@@ -83,9 +83,8 @@ struct OccupancyPrior: Equatable, Sendable {
 
 /// Combine YOLO occupancy with fingerprint change detection.
 enum OccupancyFusion {
-    /// Prefer agreement. On disagreement, trust a flagged fingerprint only when
-    /// YOLO still matches the committed bit (YOLO missed the change). Otherwise
-    /// keep the previous bit so unflagged ghosts and flicker do not stick.
+    /// Prefer agreement. Flagged YOLO-miss → fingerprint. Unflagged → YOLO.
+    /// Flagged conflict (both sides disagree with previous differently) → previous.
     static func combine(
         previous: Occupancy,
         yolo: Occupancy,
@@ -98,13 +97,17 @@ enum OccupancyFusion {
                 let square = ChessSquare(file: file, rank: rank)
                 let yoloBit = yolo.occupied(square)
                 let fingerprintBit = fingerprint.occupied(square)
+                let previousBit = previous.occupied(square)
+                let flagged = changed.occupied(square)
                 let bit: Bool
                 if yoloBit == fingerprintBit {
                     bit = yoloBit
-                } else if changed.occupied(square), yoloBit == previous.occupied(square) {
+                } else if flagged, yoloBit == previousBit {
                     bit = fingerprintBit
+                } else if !flagged {
+                    bit = yoloBit
                 } else {
-                    bit = previous.occupied(square)
+                    bit = previousBit
                 }
                 fused.set(square, occupied: bit)
             }
@@ -113,14 +116,19 @@ enum OccupancyFusion {
     }
 }
 
-/// Drop globally noisy frames before move inference (hands, lighting, Δ15 flicker).
+/// Freeze only illegal-sized fused deltas. High fingerprint Δ means lighting
+/// chaos — ignore photometry in the pipeline; do not freeze occupancy.
 enum OccupancyNoiseGate {
-    /// Fingerprint change-detector count at or above this freezes occupancy.
+    /// Fingerprint change count at or above this discards fingerprint for fusion.
     static let maxFingerprintChanges = 6
     /// Fused Hamming vs committed above this freezes (quiet=2, castle/capture≤4).
     static let maxFusedHamming = 4
 
-    static func shouldFreeze(changedCount: Int, fusedHamming: Int) -> Bool {
-        changedCount >= maxFingerprintChanges || fusedHamming > maxFusedHamming
+    static func shouldFreeze(fusedHamming: Int) -> Bool {
+        fusedHamming > maxFusedHamming
+    }
+
+    static func fingerprintUnusable(changedCount: Int) -> Bool {
+        changedCount >= maxFingerprintChanges
     }
 }

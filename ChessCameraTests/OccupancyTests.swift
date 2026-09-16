@@ -150,7 +150,8 @@ import Testing
     #expect(fused.occupied(ChessSquare.parse("e4")!))
 }
 
-@Test func occupancyFusionDropsUnflaggedYOLOGhostFill() {
+@Test func occupancyFusionAppliesUnflaggedYOLOGhostFill() {
+    // Fusion trusts silent-FP YOLO; OccupancyPrior drops fills with no clears live.
     let start = Occupancy.standardStart()
     var yolo = start
     yolo.set(ChessSquare.parse("f4")!, occupied: true)
@@ -160,11 +161,11 @@ import Testing
         fingerprint: start,
         changed: Occupancy()
     )
-    #expect(!fused.occupied(ChessSquare.parse("f4")!))
-    #expect(fused == start)
+    #expect(fused.occupied(ChessSquare.parse("f4")!))
+    #expect(fused.hammingDistance(to: start) == 1)
 }
 
-@Test func occupancyFusionKeepsPreviousWhenYOLOMoveAndFingerprintAreSilent() {
+@Test func occupancyFusionAppliesYOLOMoveWhenFingerprintIsSilent() {
     let start = Occupancy.standardStart()
     var yolo = start
     yolo.set(ChessSquare.parse("e2")!, occupied: false)
@@ -175,7 +176,9 @@ import Testing
         fingerprint: start,
         changed: Occupancy()
     )
-    #expect(fused == start)
+    #expect(fused.hammingDistance(to: start) == 2)
+    #expect(!fused.occupied(ChessSquare.parse("e2")!))
+    #expect(fused.occupied(ChessSquare.parse("e4")!))
 }
 
 @Test func occupancyFusionKeepsOriginWhenFingerprintFailsEmptied() {
@@ -234,12 +237,25 @@ import Testing
     #expect(result.san == "e4")
 }
 
-@Test func occupancyNoiseGateFreezesHighChangeCount() {
-    #expect(OccupancyNoiseGate.shouldFreeze(changedCount: 6, fusedHamming: 2))
-    #expect(OccupancyNoiseGate.shouldFreeze(changedCount: 15, fusedHamming: 0))
-    #expect(OccupancyNoiseGate.shouldFreeze(changedCount: 2, fusedHamming: 5))
-    #expect(!OccupancyNoiseGate.shouldFreeze(changedCount: 5, fusedHamming: 4))
-    #expect(!OccupancyNoiseGate.shouldFreeze(changedCount: 0, fusedHamming: 2))
+@Test func occupancyNoiseGateFreezesOnlyOnHighFusedHamming() {
+    #expect(!OccupancyNoiseGate.shouldFreeze(fusedHamming: 2))
+    #expect(!OccupancyNoiseGate.shouldFreeze(fusedHamming: 4))
+    #expect(OccupancyNoiseGate.shouldFreeze(fusedHamming: 5))
+    #expect(!OccupancyNoiseGate.fingerprintUnusable(changedCount: 5))
+    #expect(OccupancyNoiseGate.fingerprintUnusable(changedCount: 6))
+    #expect(OccupancyNoiseGate.fingerprintUnusable(changedCount: 15))
+}
+
+@Test func occupancyChaosIgnoresFingerprintAndUsesYOLO() {
+    let start = Occupancy.standardStart()
+    var yolo = start
+    yolo.set(ChessSquare.parse("e2")!, occupied: false)
+    yolo.set(ChessSquare.parse("e4")!, occupied: true)
+    // Photometric chaos would rewrite many squares; pipeline skips FP and uses YOLO.
+    #expect(OccupancyNoiseGate.fingerprintUnusable(changedCount: 15))
+    #expect(!OccupancyNoiseGate.shouldFreeze(fusedHamming: start.hammingDistance(to: yolo)))
+    let fused = yolo
+    #expect(fused.hammingDistance(to: start) == 2)
 }
 
 @Test func recordedSessionMissedPawnFusesToUniqueE4() {

@@ -221,17 +221,20 @@ actor VisionPipeline {
                 previous: previousOccupancy
             )
             fingerprintChangedCount = change.changedCount
-            let fused = OccupancyFusion.combine(
-                previous: previousOccupancy,
-                yolo: yoloOccupancy,
-                fingerprint: change.occupancy,
-                changed: change.changed
-            )
+            // High Δ = lighting/shadow chaos: ignore fingerprint, let YOLO lead.
+            let fused: Occupancy
+            if OccupancyNoiseGate.fingerprintUnusable(changedCount: fingerprintChangedCount) {
+                fused = yoloOccupancy
+            } else {
+                fused = OccupancyFusion.combine(
+                    previous: previousOccupancy,
+                    yolo: yoloOccupancy,
+                    fingerprint: change.occupancy,
+                    changed: change.changed
+                )
+            }
             let fusedHamming = previousOccupancy.hammingDistance(to: fused)
-            if OccupancyNoiseGate.shouldFreeze(
-                changedCount: fingerprintChangedCount,
-                fusedHamming: fusedHamming
-            ) {
+            if OccupancyNoiseGate.shouldFreeze(fusedHamming: fusedHamming) {
                 occupancy = previousOccupancy
             } else {
                 occupancy = fused
@@ -239,7 +242,7 @@ actor VisionPipeline {
         } else {
             fingerprintChangedCount = 0
             let fusedHamming = previousOccupancy.hammingDistance(to: yoloOccupancy)
-            if OccupancyNoiseGate.shouldFreeze(changedCount: 0, fusedHamming: fusedHamming) {
+            if OccupancyNoiseGate.shouldFreeze(fusedHamming: fusedHamming) {
                 occupancy = previousOccupancy
             } else {
                 occupancy = yoloOccupancy
