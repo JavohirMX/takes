@@ -28,6 +28,48 @@ import Testing
     #expect(!result.occupied(ChessSquare.parse("a1")!))
 }
 
+@Test func yoloHysteresisThreeFrameMissStaysOccupied() {
+    var smoother = OccupancySmoother(emptyConfirmFrames: 5, fillConfirmFrames: 3)
+    let start = Occupancy.standardStart()
+    smoother.reset(seeding: start)
+    var missingA1 = start
+    missingA1.set(ChessSquare.parse("a1")!, occupied: false)
+
+    var result = Occupancy()
+    for _ in 0..<3 {
+        result = smoother.ingest(missingA1)
+    }
+    #expect(result.occupied(ChessSquare.parse("a1")!))
+}
+
+@Test func yoloHysteresisFiveFrameMissClearsOccupiedSquare() {
+    var smoother = OccupancySmoother(emptyConfirmFrames: 5, fillConfirmFrames: 3)
+    let start = Occupancy.standardStart()
+    smoother.reset(seeding: start)
+    var missingA1 = start
+    missingA1.set(ChessSquare.parse("a1")!, occupied: false)
+
+    var result = Occupancy()
+    for _ in 0..<5 {
+        result = smoother.ingest(missingA1)
+    }
+    #expect(!result.occupied(ChessSquare.parse("a1")!))
+}
+
+@Test func yoloHysteresisNeedsThreeHitsToFill() {
+    var smoother = OccupancySmoother(emptyConfirmFrames: 5, fillConfirmFrames: 3)
+    let start = Occupancy.standardStart()
+    smoother.reset(seeding: start)
+    var e4 = start
+    e4.set(ChessSquare.parse("e4")!, occupied: true)
+
+    _ = smoother.ingest(e4)
+    let afterTwo = smoother.ingest(e4)
+    #expect(!afterTwo.occupied(ChessSquare.parse("e4")!))
+    let afterThree = smoother.ingest(e4)
+    #expect(afterThree.occupied(ChessSquare.parse("e4")!))
+}
+
 @Test func oneFrameGhostOnEmptySquareStaysEmpty() {
     var smoother = OccupancySmoother()
     let start = Occupancy.standardStart()

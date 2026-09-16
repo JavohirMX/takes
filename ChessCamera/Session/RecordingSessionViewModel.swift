@@ -79,7 +79,6 @@ final class RecordingSessionViewModel: Identifiable {
     private var occupancySmoother = OccupancySmoother()
     private var occupancyPrior = OccupancyPrior.unconstrained
     private let moveSpeaker = MoveSpeaker()
-    private let earlyCommitDuration: Duration = .milliseconds(250)
     private var isProcessingFrame = false
     private var lastProcessTime: ContinuousClock.Instant?
     private var pausedForBackground = false
@@ -491,7 +490,7 @@ final class RecordingSessionViewModel: Identifiable {
             engine.resetToStart()
         }
         lastCommittedOccupancy = engine.occupancy()
-        occupancySmoother.reset(seeding: lastCommittedOccupancy)
+        resetOccupancyTracking(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
         settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
         syncCommittedNotation()
@@ -532,7 +531,7 @@ final class RecordingSessionViewModel: Identifiable {
         do {
             try engine.undo()
             lastCommittedOccupancy = engine.occupancy()
-            occupancySmoother.reset(seeding: lastCommittedOccupancy)
+            resetOccupancyTracking(seeding: lastCommittedOccupancy)
             occupancyPrior = makeOccupancyPrior()
             syncCommittedNotation()
             ambiguousMoves = []
@@ -554,7 +553,7 @@ final class RecordingSessionViewModel: Identifiable {
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
         liveOccupancy = lastCommittedOccupancy
-        occupancySmoother.reset(seeding: lastCommittedOccupancy)
+        resetOccupancyTracking(seeding: lastCommittedOccupancy)
         settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
         armFingerprintSnapshot(warmup: 3)
         phase = .recording
@@ -568,7 +567,7 @@ final class RecordingSessionViewModel: Identifiable {
     func commit(move: Move) throws {
         try engine.apply(move: move)
         lastCommittedOccupancy = engine.occupancy()
-        occupancySmoother.reset(seeding: lastCommittedOccupancy)
+        resetOccupancyTracking(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
         syncCommittedNotation()
         softRejectMessage = nil
@@ -579,6 +578,11 @@ final class RecordingSessionViewModel: Identifiable {
     private func syncCommittedNotation() {
         committedSANs = Array(engine.appliedSANs)
         lastSAN = engine.formattedLastSAN
+    }
+
+    private func resetOccupancyTracking(seeding occupancy: Occupancy) {
+        occupancySmoother.reset(seeding: occupancy)
+        Task { await pipeline.resetYoloOccupancySmoother(seeding: occupancy) }
     }
 
     private func makeOccupancyPrior() -> OccupancyPrior {
@@ -602,7 +606,7 @@ final class RecordingSessionViewModel: Identifiable {
                 try engine.apply(san: san)
             }
             lastCommittedOccupancy = engine.occupancy()
-            occupancySmoother.reset(seeding: lastCommittedOccupancy)
+            resetOccupancyTracking(seeding: lastCommittedOccupancy)
             occupancyPrior = makeOccupancyPrior()
             syncCommittedNotation()
             showEditSheet = false
@@ -930,7 +934,7 @@ final class RecordingSessionViewModel: Identifiable {
                     yoloPieceBoxes = []
                 }
                 liveOccupancy = lastCommittedOccupancy
-                occupancySmoother.reset(seeding: lastCommittedOccupancy)
+                resetOccupancyTracking(seeding: lastCommittedOccupancy)
                 liveDebugLine = "warmup \(fingerprintWarmupFramesRemaining)  ham 0  Δ0  ply \(committedPlyCount)  \(lastSAN ?? "-")"
                 return
             }
@@ -995,14 +999,7 @@ final class RecordingSessionViewModel: Identifiable {
         case .skipIgnored:
             liveOccupancy = lastCommittedOccupancy
         case .wait:
-            if phase == .disturbed,
-               settle.quietElapsed(at: observation.timestamp) >= earlyCommitDuration {
-                let result = inferMove(from: smoothed, classes: observation.classes)
-                if case .unique = result {
-                    inference = result
-                    motion = .stable(smoothed)
-                }
-            }
+            break
         case .infer(let occ):
             inference = inferMove(from: occ, classes: observation.classes)
         }
@@ -1051,7 +1048,7 @@ final class RecordingSessionViewModel: Identifiable {
             } catch {
                 softRejectMessage = "Couldn’t apply that move"
                 phase = .recording
-                occupancySmoother.reset(seeding: lastCommittedOccupancy)
+                resetOccupancyTracking(seeding: lastCommittedOccupancy)
                 settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
             }
         case (.recording, .illegal):
@@ -1211,6 +1208,7 @@ final class RecordingSessionViewModel: Identifiable {
         Task {
             await pipeline.setLockedQuad(nil)
             await pipeline.setOrientation(.whiteAtBottom)
+            await pipeline.resetYoloOccupancySmoother()
         }
     }
 }

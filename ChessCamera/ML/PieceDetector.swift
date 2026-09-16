@@ -11,8 +11,11 @@ protocol PieceDetector: Sendable {
 enum PieceDetection {
     static var confidenceThreshold: Float { DetectionSettings.yoloConfidence }
     static let defaultImgsz = 640
-    static let nmsIoUThreshold: CGFloat = 0.45
+    static let nmsIoUThreshold: CGFloat = 0.5
+    /// Caps live debug overlays; occupancy uses the larger list.
     static let maxOverlayBoxes = 32
+    /// Keep every on-board piece through NMS (standard game has 32; allow extras).
+    static let maxOccupancyBoxes = 64
 
     struct Candidate: Equatable, Sendable {
         var square: ChessSquare
@@ -472,7 +475,7 @@ enum PieceDetection {
                 )
             )
         }
-        return nms(found)
+        return nms(found, maxCount: maxOccupancyBoxes)
     }
 
     /// Highest-confidence piece per square. Unoccupied squares are `.empty`.
@@ -635,7 +638,7 @@ final class CoreMLPieceDetector: PieceDetector, @unchecked Sendable {
         height: CGFloat
     ) -> [PieceDetection.Box] {
         var found: [PieceDetection.Box] = []
-        found.reserveCapacity(min(observations.count, PieceDetection.maxOverlayBoxes))
+        found.reserveCapacity(min(observations.count, PieceDetection.maxOccupancyBoxes))
         for (index, observation) in observations.enumerated() {
             guard observation.confidence >= PieceDetection.confidenceThreshold,
                   let label = observation.labels.first,
@@ -654,7 +657,7 @@ final class CoreMLPieceDetector: PieceDetector, @unchecked Sendable {
                 )
             )
         }
-        return PieceDetection.nms(found)
+        return PieceDetection.nms(found, maxCount: PieceDetection.maxOccupancyBoxes)
     }
 
     private static func loadClassNames(bundle: Bundle, model: MLModel) -> [String] {

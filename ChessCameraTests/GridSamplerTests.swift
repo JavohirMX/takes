@@ -223,6 +223,24 @@ import Testing
     #expect(kept[0].id == 0)
 }
 
+@Test func occupancyNMSKeepsMoreThanOverlayCap() {
+    var boxes: [PieceDetection.Box] = []
+    for index in 0..<33 {
+        boxes.append(
+            PieceDetection.Box(
+                id: index,
+                piece: .whitePawn,
+                confidence: 0.9,
+                bufferRect: CGRect(x: CGFloat(index) * 80, y: 0, width: 40, height: 40)
+            )
+        )
+    }
+    let overlay = PieceDetection.nms(boxes, maxCount: PieceDetection.maxOverlayBoxes)
+    #expect(overlay.count == PieceDetection.maxOverlayBoxes)
+    let occupancy = PieceDetection.nms(boxes, maxCount: PieceDetection.maxOccupancyBoxes)
+    #expect(occupancy.count == 33)
+}
+
 @Test func occupancyIgnoresClassAndDropsOutsideQuad() {
     let quad = Quadrilateral(
         topLeft: CGPoint(x: 0, y: 0),

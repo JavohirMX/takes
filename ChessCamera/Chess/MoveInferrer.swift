@@ -22,7 +22,24 @@ enum InferenceResult: Equatable, Sendable {
 }
 
 enum MoveInferrer {
-    static let defaultHammingSlack = 2
+    /// Legacy default; quiet Hamming-2 moves use exact match via `slack(for:)`.
+    static let defaultHammingSlack = 1
+
+    static func slack(for visualHamming: Int, maxHammingSlack: Int = defaultHammingSlack) -> Int {
+        switch visualHamming {
+        case 1, 3, 4:
+            return min(1, maxHammingSlack)
+        case 2:
+            return 0
+        default:
+            return 0
+        }
+    }
+
+    /// Two-ply only for Hamming that can be quiet+quiet or quiet+capture.
+    static func allowsTwoPly(visualHamming: Int) -> Bool {
+        (3...4).contains(visualHamming)
+    }
 
     static func infer(
         delta: VisualDelta,
@@ -33,21 +50,21 @@ enum MoveInferrer {
         guard delta.previous != delta.current else { return .none }
 
         let visualHamming = delta.previous.hammingDistance(to: delta.current)
-        let slack = visualHamming <= 1 ? 0 : maxHammingSlack
+        let matchSlack = slack(for: visualHamming, maxHammingSlack: maxHammingSlack)
 
         let onePly = scorePly(
             on: board,
             current: delta.current,
             observedClasses: delta.observedClasses,
-            slack: slack
+            slack: matchSlack
         )
-        let twoPly = maxPlies >= 2
+        let twoPly = maxPlies >= 2 && allowsTwoPly(visualHamming: visualHamming)
             ? scoreTwoPly(
                 on: board,
                 current: delta.current,
                 observedClasses: delta.observedClasses,
-                slack: slack
-            )
+                slack: matchSlack
+            ).filter { sequenceCompatible($0.moves, on: board, observedClasses: delta.observedClasses) }
             : []
 
         let bestOne = onePly.map(\.distance).min() ?? Int.max
@@ -75,6 +92,7 @@ enum MoveInferrer {
             current: delta.current,
             observedClasses: delta.observedClasses
         )
+        matches = matches.filter { destinationCompatible($0, on: board, observedClasses: delta.observedClasses) }
 
         switch matches.count {
         case 0:
@@ -253,6 +271,44 @@ enum MoveInferrer {
         }
         return pool
     }
+
+    /// Reject moves whose destination YOLO class contradicts the moving piece.
+    private static func destinationCompatible(
+        _ move: Move,
+        on board: Board,
+        observedClasses: [ChessSquare: PieceClass]
+    ) -> Bool {
+        guard let dest = ChessSquare.parse(move.end.notation),
+              let observed = observedClasses[dest],
+              observed != .empty else {
+            return true
+        }
+        if let promoted = move.promotedPiece {
+            return observed.matches(kind: promoted.kind, color: promoted.color)
+        }
+        guard let piece = board.position.piece(at: move.start) else { return true }
+        return observed.matches(kind: piece.kind, color: piece.color)
+    }
+
+    private static func sequenceCompatible(
+        _ moves: [Move],
+        on board: Board,
+        observedClasses: [ChessSquare: PieceClass]
+    ) -> Bool {
+        var trial = board
+        for move in moves {
+            if !destinationCompatible(move, on: trial, observedClasses: observedClasses) {
+                return false
+            }
+            if let promoted = move.promotedPiece {
+                guard let base = trial.move(pieceAt: move.start, to: move.end) else { return false }
+                _ = trial.completePromotion(of: base, to: promoted.kind)
+            } else {
+                guard trial.move(pieceAt: move.start, to: move.end) != nil else { return false }
+            }
+        }
+        return true
+    }
 }
 
 private extension PieceClass {
@@ -263,6 +319,24 @@ private extension PieceClass {
         case .whiteBishop, .blackBishop: .bishop
         case .whiteKnight, .blackKnight: .knight
         default: nil
+        }
+    }
+
+    func matches(kind: Piece.Kind, color: Piece.Color) -> Bool {
+        guard isWhite == (color == .white) else { return false }
+        switch kind {
+        case .pawn:
+            return self == (isWhite ? .whitePawn : .blackPawn)
+        case .knight:
+            return self == (isWhite ? .whiteKnight : .blackKnight)
+        case .bishop:
+            return self == (isWhite ? .whiteBishop : .blackBishop)
+        case .rook:
+            return self == (isWhite ? .whiteRook : .blackRook)
+        case .queen:
+            return self == (isWhite ? .whiteQueen : .blackQueen)
+        case .king:
+            return self == (isWhite ? .whiteKing : .blackKing)
         }
     }
 }

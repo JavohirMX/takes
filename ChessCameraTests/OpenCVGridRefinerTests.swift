@@ -34,7 +34,8 @@ import Testing
                 id: 0,
                 piece: .blackQueen,
                 confidence: 0.9,
-                bufferRect: CGRect(x: 9, y: 400, width: 40, height: 80)
+                // Center anchor must land inside uneven a1 (x 0…58, y 448…512).
+                bufferRect: CGRect(x: 9, y: 448, width: 40, height: 60)
             )
         ],
         quad: Quadrilateral(

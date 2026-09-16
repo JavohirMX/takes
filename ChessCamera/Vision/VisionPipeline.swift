@@ -7,7 +7,7 @@ struct BoardObservation: Sendable {
     var quad: Quadrilateral
     var occupancy: Occupancy
     var classes: [ChessSquare: PieceClass]
-    /// Squares the change detector flagged this frame (0 when using absolute/heuristic fallback).
+    /// Fingerprint change-detector count this frame (0 without a snapshot / heuristic fallback).
     var changedSquareCount: Int
     /// YOLO piece bases in tight playing-surface UV (0…1). Empty without a detector.
     var yoloBases: [CGPoint] = []
@@ -26,6 +26,8 @@ actor VisionPipeline {
     private let classifier: (any PieceClassifier)?
     private let detector: (any PieceDetector)?
     private var needsFingerprintSnapshot = false
+    /// Pre-fusion YOLO vote: 3 hits to fill, 5 misses to clear.
+    private var yoloOccupancySmoother = OccupancySmoother(emptyConfirmFrames: 5, fillConfirmFrames: 3)
 
     init(
         localizer: any BoardLocalizer = VisionBoardLocalizer(),
@@ -57,6 +59,10 @@ actor VisionPipeline {
 
     func requestFingerprintSnapshot() {
         needsFingerprintSnapshot = true
+    }
+
+    func resetYoloOccupancySmoother(seeding occupancy: Occupancy? = nil) {
+        yoloOccupancySmoother.reset(seeding: occupancy)
     }
 
     func captureEmptyBaselines(from warped: CGImage, occupied: Occupancy) {
@@ -174,23 +180,25 @@ actor VisionPipeline {
         let image = detectWarp.squareImage
         let boxes = await detector?.detectBoxes(in: image) ?? []
         let paddedSize = CGFloat(min(image.width, image.height))
+        let overlayBoxes = Array(boxes.prefix(PieceDetection.maxOverlayBoxes))
         let yoloBases = PieceDetection.bases(
             from: boxes,
             paddedImageSize: paddedSize,
             margin: usedMargin
         )
         let yoloBoxes = PieceDetection.overlayBoxes(
-            from: boxes,
+            from: overlayBoxes,
             paddedImageSize: paddedSize,
             margin: usedMargin
         )
-        let yoloOccupancy = PieceDetection.occupancy(
+        let rawYoloOccupancy = PieceDetection.occupancy(
             from: boxes,
             paddedImageSize: paddedSize,
             margin: usedMargin,
             orientation: orientation,
             grid: refinedGrid
         )
+        let yoloOccupancy = yoloOccupancySmoother.ingest(rawYoloOccupancy)
         let classes = PieceDetection.classes(
             from: boxes,
             paddedImageSize: paddedSize,
@@ -206,19 +214,36 @@ actor VisionPipeline {
         }
 
         let occupancy: Occupancy
+        let fingerprintChangedCount: Int
         if occupancyEstimator.hasSnapshot {
             let change = occupancyEstimator.applyChanges(
                 crops: crops,
                 previous: previousOccupancy
             )
-            occupancy = OccupancyFusion.combine(
+            fingerprintChangedCount = change.changedCount
+            let fused = OccupancyFusion.combine(
                 previous: previousOccupancy,
                 yolo: yoloOccupancy,
                 fingerprint: change.occupancy,
                 changed: change.changed
             )
+            let fusedHamming = previousOccupancy.hammingDistance(to: fused)
+            if OccupancyNoiseGate.shouldFreeze(
+                changedCount: fingerprintChangedCount,
+                fusedHamming: fusedHamming
+            ) {
+                occupancy = previousOccupancy
+            } else {
+                occupancy = fused
+            }
         } else {
-            occupancy = yoloOccupancy
+            fingerprintChangedCount = 0
+            let fusedHamming = previousOccupancy.hammingDistance(to: yoloOccupancy)
+            if OccupancyNoiseGate.shouldFreeze(changedCount: 0, fusedHamming: fusedHamming) {
+                occupancy = previousOccupancy
+            } else {
+                occupancy = yoloOccupancy
+            }
         }
 
         return BoardObservation(
@@ -226,7 +251,7 @@ actor VisionPipeline {
             quad: quad,
             occupancy: occupancy,
             classes: classes,
-            changedSquareCount: previousOccupancy.hammingDistance(to: occupancy),
+            changedSquareCount: fingerprintChangedCount,
             yoloBases: yoloBases,
             yoloBoxes: yoloBoxes,
             warpedImage: warped.squareImage

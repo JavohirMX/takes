@@ -150,7 +150,7 @@ import Testing
     #expect(fused.occupied(ChessSquare.parse("e4")!))
 }
 
-@Test func occupancyFusionIncludesUnflaggedYOLOGhostFill() {
+@Test func occupancyFusionDropsUnflaggedYOLOGhostFill() {
     let start = Occupancy.standardStart()
     var yolo = start
     yolo.set(ChessSquare.parse("f4")!, occupied: true)
@@ -160,11 +160,11 @@ import Testing
         fingerprint: start,
         changed: Occupancy()
     )
-    #expect(fused.occupied(ChessSquare.parse("f4")!))
-    #expect(fused.hammingDistance(to: start) == 1)
+    #expect(!fused.occupied(ChessSquare.parse("f4")!))
+    #expect(fused == start)
 }
 
-@Test func occupancyFusionTrustsYOLOMoveWhenFingerprintIsSilent() {
+@Test func occupancyFusionKeepsPreviousWhenYOLOMoveAndFingerprintAreSilent() {
     let start = Occupancy.standardStart()
     var yolo = start
     yolo.set(ChessSquare.parse("e2")!, occupied: false)
@@ -174,6 +174,45 @@ import Testing
         yolo: yolo,
         fingerprint: start,
         changed: Occupancy()
+    )
+    #expect(fused == start)
+}
+
+@Test func occupancyFusionKeepsOriginWhenFingerprintFailsEmptied() {
+    let start = Occupancy.standardStart()
+    var yolo = start
+    yolo.set(ChessSquare.parse("e2")!, occupied: false)
+    yolo.set(ChessSquare.parse("e4")!, occupied: true)
+    var fingerprint = start
+    fingerprint.set(ChessSquare.parse("e4")!, occupied: true)
+    var changed = Occupancy()
+    changed.set(ChessSquare.parse("e2")!, occupied: true)
+    changed.set(ChessSquare.parse("e4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: yolo,
+        fingerprint: fingerprint,
+        changed: changed
+    )
+    // Disagreement on e2 with YOLO≠previous → keep committed origin.
+    #expect(fused.occupied(ChessSquare.parse("e2")!))
+    #expect(fused.occupied(ChessSquare.parse("e4")!))
+}
+
+@Test func occupancyFusionAppliesFlaggedAgreementMove() {
+    let start = Occupancy.standardStart()
+    var yolo = start
+    yolo.set(ChessSquare.parse("e2")!, occupied: false)
+    yolo.set(ChessSquare.parse("e4")!, occupied: true)
+    var fingerprint = yolo
+    var changed = Occupancy()
+    changed.set(ChessSquare.parse("e2")!, occupied: true)
+    changed.set(ChessSquare.parse("e4")!, occupied: true)
+    let fused = OccupancyFusion.combine(
+        previous: start,
+        yolo: yolo,
+        fingerprint: fingerprint,
+        changed: changed
     )
     #expect(fused.hammingDistance(to: start) == 2)
     #expect(!fused.occupied(ChessSquare.parse("e2")!))
@@ -195,24 +234,12 @@ import Testing
     #expect(result.san == "e4")
 }
 
-@Test func occupancyFusionClearsOriginWhenFingerprintFailsEmptied() {
-    let start = Occupancy.standardStart()
-    var yolo = start
-    yolo.set(ChessSquare.parse("e2")!, occupied: false)
-    yolo.set(ChessSquare.parse("e4")!, occupied: true)
-    var fingerprint = start
-    fingerprint.set(ChessSquare.parse("e4")!, occupied: true)
-    var changed = Occupancy()
-    changed.set(ChessSquare.parse("e2")!, occupied: true)
-    changed.set(ChessSquare.parse("e4")!, occupied: true)
-    let fused = OccupancyFusion.combine(
-        previous: start,
-        yolo: yolo,
-        fingerprint: fingerprint,
-        changed: changed
-    )
-    #expect(!fused.occupied(ChessSquare.parse("e2")!))
-    #expect(fused.occupied(ChessSquare.parse("e4")!))
+@Test func occupancyNoiseGateFreezesHighChangeCount() {
+    #expect(OccupancyNoiseGate.shouldFreeze(changedCount: 6, fusedHamming: 2))
+    #expect(OccupancyNoiseGate.shouldFreeze(changedCount: 15, fusedHamming: 0))
+    #expect(OccupancyNoiseGate.shouldFreeze(changedCount: 2, fusedHamming: 5))
+    #expect(!OccupancyNoiseGate.shouldFreeze(changedCount: 5, fusedHamming: 4))
+    #expect(!OccupancyNoiseGate.shouldFreeze(changedCount: 0, fusedHamming: 2))
 }
 
 @Test func recordedSessionMissedPawnFusesToUniqueE4() {

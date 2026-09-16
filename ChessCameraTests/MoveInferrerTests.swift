@@ -128,13 +128,14 @@ import Testing
     #expect(result.san == canonicalSAN("e4", on: engine.board))
 }
 
-@Test func infersE4WhenPawnClassMarksDestinationAmongGhostFills() {
+@Test func doesNotInferE4WhenOriginStillOccupiedAmongGhostFills() {
     let engine = GameEngine()
     let before = engine.occupancy()
     var after = before
     after.set(ChessSquare.parse("e4")!, occupied: true)
     after.set(ChessSquare.parse("f4")!, occupied: true)
     let e4 = ChessSquare.parse("e4")!
+    #expect(before.hammingDistance(to: after) == 2)
     let result = MoveInferrer.infer(
         delta: VisualDelta(
             previous: before,
@@ -143,7 +144,8 @@ import Testing
         ),
         board: engine.board
     )
-    #expect(result.san == canonicalSAN("e4", on: engine.board))
+    // Quiet Hamming-2 requires an exact occupancy match; origin still filled → illegal.
+    #expect(result == .illegal)
 }
 
 @Test func infersE4WhenOneGhostSquareIsOccupied() {
@@ -194,7 +196,7 @@ import Testing
     #expect(result == .illegal)
 }
 
-@Test func capturePlusGhostRimSquareStaysUnique() throws {
+@Test func capturePlusGhostRimSquareIsIllegalWithExactQuietSlack() throws {
     let engine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR w KQkq - 2 3")
     let before = engine.occupancy()
     var after = before
@@ -205,7 +207,7 @@ import Testing
         delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
         board: engine.board
     )
-    #expect(result.san == canonicalSAN("Bxc6", on: engine.board))
+    #expect(result == .illegal)
 }
 
 @Test func checkCaptureBxc6IsUnique() throws {
@@ -264,7 +266,7 @@ import Testing
     #expect(moves[1].san == canonicalSAN("e5", on: mid.board))
 }
 
-@Test func infersSinglePlyWhenMaxPliesIsOne() {
+@Test func infersIllegalWhenMaxPliesIsOneButDeltaNeedsTwo() {
     let engine = GameEngine()
     let before = engine.occupancy()
     var after = before
@@ -277,11 +279,7 @@ import Testing
         board: engine.board,
         maxPlies: 1
     )
-    guard case .unique(let moves) = result else {
-        Issue.record("expected unique 1-ply when maxPlies is 1, got \(result)")
-        return
-    }
-    #expect(moves.count == 1)
+    #expect(result == .illegal)
 }
 
 @Test func infersOnlyE5WhenE4AlreadyCommitted() throws {
@@ -303,7 +301,7 @@ import Testing
     #expect(moves[0].san == canonicalSAN("e5", on: engine.board))
 }
 
-@Test func infersCastleAndOpponentQuietAsTwoPly() throws {
+@Test func castlePlusOpponentQuietNeedsSequentialCommitsNotTwoPly() throws {
     let engine = try GameEngine(fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
     let before = engine.occupancy()
     var after = before
@@ -314,20 +312,46 @@ import Testing
     after.set(ChessSquare.parse("e8")!, occupied: false)
     after.set(ChessSquare.parse("e7")!, occupied: true)
     #expect(before.hammingDistance(to: after) == 6)
+    #expect(!MoveInferrer.allowsTwoPly(visualHamming: 6))
     let result = MoveInferrer.infer(
         delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
         board: engine.board
     )
-    guard case .unique(let moves) = result else {
-        Issue.record("expected unique O-O then Ke7, got \(result)")
-        return
-    }
-    #expect(moves.count == 2)
-    guard moves.count == 2 else { return }
-    #expect(moves[0].san == canonicalSAN("O-O", on: engine.board))
-    let mid = try GameEngine(fen: engine.fen)
-    try mid.apply(san: "O-O")
-    #expect(moves[1].san == canonicalSAN("Ke7", on: mid.board))
+    #expect(result == .illegal)
+}
+
+@Test func rejectsQueenMoveWhenDestinationLabeledPawn() throws {
+    let engine = try GameEngine(fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("d1")!, occupied: false)
+    after.set(ChessSquare.parse("f3")!, occupied: true)
+    #expect(before.hammingDistance(to: after) == 2)
+    let withPawnLabel = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [ChessSquare.parse("f3")!: .whitePawn]
+        ),
+        board: engine.board
+    )
+    #expect(withPawnLabel.san != canonicalSAN("Qf3", on: engine.board))
+
+    let unlabeled = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    #expect(unlabeled.san == canonicalSAN("Qf3", on: engine.board))
+}
+
+@Test func quietMoveSlackIsExact() {
+    #expect(MoveInferrer.slack(for: 2) == 0)
+    #expect(MoveInferrer.slack(for: 1) == 1)
+    #expect(MoveInferrer.slack(for: 3) == 1)
+    #expect(MoveInferrer.slack(for: 4) == 1)
+    #expect(MoveInferrer.slack(for: 6) == 0)
+    #expect(MoveInferrer.allowsTwoPly(visualHamming: 4))
+    #expect(!MoveInferrer.allowsTwoPly(visualHamming: 2))
 }
 
 private func canonicalSAN(_ san: String, on board: Board) -> String? {

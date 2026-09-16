@@ -84,7 +84,8 @@ struct OccupancyPrior: Equatable, Sendable {
 /// Combine YOLO occupancy with fingerprint change detection.
 enum OccupancyFusion {
     /// Prefer agreement. On disagreement, trust a flagged fingerprint only when
-    /// YOLO still matches the committed bit (YOLO missed the change). Otherwise YOLO.
+    /// YOLO still matches the committed bit (YOLO missed the change). Otherwise
+    /// keep the previous bit so unflagged ghosts and flicker do not stick.
     static func combine(
         previous: Occupancy,
         yolo: Occupancy,
@@ -103,11 +104,23 @@ enum OccupancyFusion {
                 } else if changed.occupied(square), yoloBit == previous.occupied(square) {
                     bit = fingerprintBit
                 } else {
-                    bit = yoloBit
+                    bit = previous.occupied(square)
                 }
                 fused.set(square, occupied: bit)
             }
         }
         return fused
+    }
+}
+
+/// Drop globally noisy frames before move inference (hands, lighting, Δ15 flicker).
+enum OccupancyNoiseGate {
+    /// Fingerprint change-detector count at or above this freezes occupancy.
+    static let maxFingerprintChanges = 6
+    /// Fused Hamming vs committed above this freezes (quiet=2, castle/capture≤4).
+    static let maxFusedHamming = 4
+
+    static func shouldFreeze(changedCount: Int, fusedHamming: Int) -> Bool {
+        changedCount >= maxFingerprintChanges || fusedHamming > maxFusedHamming
     }
 }
