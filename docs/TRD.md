@@ -291,10 +291,13 @@ final class GameRecord {
     var pgn: String
     var finalFen: String
     var title: String          // default "Game · MMM d"
+    var analysisJSON: Data?    // PersistedGameAnalysis blob; nil until user taps Analyze
+    var analysisSpeedRaw: String?
+    var analyzedAt: Date?
 }
 ```
 
-Replay is derived from PGN via `Game(pgn:)`; do not store a second move list unless profiling shows parse cost.
+Replay is derived from PGN via `Game(pgn:)`; do not store a second move list unless profiling shows parse cost. Post-game Stockfish analysis is **manual** (Analyze / Re-analyze in Replay) and **cached** on `GameRecord` so reopen does not re-run the engine.
 
 ---
 
@@ -541,14 +544,14 @@ Stockfish is GPLv3 — optional, Settings-gated, not used for move legality. No 
 Analysis/
   AnalysisService.swift     actor wrapping ChessKitEngine.Engine
   ChessAnalyzing.swift      protocol (+ FakeChessAnalyzer for tests)
-  GameAnalyzer.swift        ply-by-ply walk + classification
+  GameAnalyzer.swift        ply-by-ply walk + classification (progressive onPly)
   MoveQualityClassifier.swift  Lichess-style win% / accuracy
   AnalysisSettings.swift    AppStorage keys
-  AnalysisTypes.swift       eval, quality, arrows
+  AnalysisTypes.swift       eval, quality, arrows, PersistedGameAnalysis
   UCIMove.swift             e2e4 → squares
 ```
 
-NNUE nets live in `ChessCamera/Resources/NNUE/` (gitignored). Fetch with `./scripts/fetch-nnue.sh`.
+NNUE nets live in `ChessCamera/Resources/NNUE/` (gitignored). Fetch with `./scripts/fetch-nnue.sh`. Replay analysis starts only when the user taps Analyze; completed runs are stored on `GameRecord.analysisJSON`.
 
 ---
 

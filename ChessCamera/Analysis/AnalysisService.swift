@@ -16,14 +16,21 @@ actor AnalysisService: ChessAnalyzing {
 
     var availability: AnalysisAvailability { availabilityState }
 
+    static var bigNNUEPath: String? {
+        Bundle.main.url(forResource: "nn-1111cefa1111", withExtension: "nnue")?.path()
+    }
+
+    static var smallNNUEPath: String? {
+        Bundle.main.url(forResource: "nn-37f18f62d772", withExtension: "nnue")?.path()
+    }
+
     static var nnuePresent: Bool {
-        Bundle.main.url(forResource: "nn-37f18f62d772", withExtension: "nnue") != nil
-            || Bundle.main.url(forResource: "nn-1111cefa1111", withExtension: "nnue") != nil
+        bigNNUEPath != nil && smallNNUEPath != nil
     }
 
     func start(threads: Int, hashMB: Int) async {
         if started { return }
-        guard Self.nnuePresent else {
+        guard let bigPath = Self.bigNNUEPath, let smallPath = Self.smallNNUEPath else {
             availabilityState = .missingNNUE
             return
         }
@@ -45,14 +52,28 @@ actor AnalysisService: ChessAnalyzing {
             return
         }
 
+        // Listen before setoption so NNUE load errors are observed.
+        beginListening()
+
+        await engine.send(command: .setoption(id: "EvalFile", value: bigPath))
+        await engine.send(command: .setoption(id: "EvalFileSmall", value: smallPath))
         await engine.send(command: .setoption(id: "Hash", value: "\(hashMB)"))
-        if let small = Bundle.main.url(forResource: "nn-37f18f62d772", withExtension: "nnue")?.path() {
-            await engine.send(command: .setoption(id: "EvalFile", value: small))
-            await engine.send(command: .setoption(id: "EvalFileSmall", value: small))
+        await engine.send(command: .isready)
+
+        // Give NNUE a moment to finish loading after isready.
+        try? await Task.sleep(for: .milliseconds(80))
+
+        if case .failed = availabilityState {
+            await engine.stop()
+            self.engine = nil
+            started = false
+            listenTask?.cancel()
+            listenTask = nil
+            return
         }
+
         started = true
         availabilityState = .ready
-        beginListening()
     }
 
     func stop() async {
@@ -130,6 +151,16 @@ actor AnalysisService: ChessAnalyzing {
     private func handle(_ response: EngineResponse) {
         switch response {
         case let .info(info):
+            // Soft-fail if Stockfish reports a network load error via info string.
+            if let message = info.string?.lowercased(),
+               message.contains("network") && message.contains("error") {
+                availabilityState = .failed("Stockfish NNUE failed to load.")
+                if let cont = searchContinuation {
+                    searchContinuation = nil
+                    cont.resume(returning: nil)
+                }
+                return
+            }
             if info.score != nil {
                 latestInfo = info
             } else if latestInfo == nil {

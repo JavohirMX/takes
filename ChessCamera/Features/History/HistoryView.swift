@@ -68,7 +68,11 @@ struct HistoryView: View {
                 SettingsView()
             }
             .navigationDestination(item: $replay) { route in
-                ReplayView(pgn: route.pgn, title: route.title)
+                ReplayView(
+                    pgn: route.pgn,
+                    title: route.title,
+                    gamePersistentID: route.gamePersistentID
+                )
             }
         }
         .preferredColorScheme(.dark)
@@ -180,7 +184,11 @@ struct HistoryView: View {
                 Section {
                     ForEach(section.games) { game in
                         Button {
-                            replay = ReplayRoute(pgn: game.pgn, title: game.title)
+                            replay = ReplayRoute(
+                                pgn: game.pgn,
+                                title: game.title,
+                                gamePersistentID: game.persistentModelID
+                            )
                         } label: {
                             HistoryRow(game: game)
                         }
@@ -195,7 +203,11 @@ struct HistoryView: View {
                         }
                         .contextMenu {
                             Button("Replay", systemImage: "play") {
-                                replay = ReplayRoute(pgn: game.pgn, title: game.title)
+                                replay = ReplayRoute(
+                                    pgn: game.pgn,
+                                    title: game.title,
+                                    gamePersistentID: game.persistentModelID
+                                )
                             }
                             Button("Share PGN", systemImage: "square.and.arrow.up") {
                                 share(game)
@@ -413,9 +425,10 @@ private struct HistoryRow: View {
 }
 
 struct ReplayRoute: Hashable, Identifiable {
-    var id: String { title + pgn }
+    var id: String { title + pgn + (gamePersistentID.map { String(describing: $0) } ?? "") }
     var pgn: String
     var title: String
+    var gamePersistentID: PersistentIdentifier?
 }
 
 #Preview("History empty") {

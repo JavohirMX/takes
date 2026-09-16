@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -5,6 +6,11 @@ struct ReplayView: View {
     let pgn: String
     let title: String
     var initialFen: String? = nil
+    /// When set, load/save analysis cache on this SwiftData game.
+    var gamePersistentID: PersistentIdentifier? = nil
+    var engine: (any ChessAnalyzing)? = nil
+
+    @Environment(\.modelContext) private var modelContext
 
     @State private var plyIndex = 0
     @State private var sans: [String] = []
@@ -15,6 +21,8 @@ struct ReplayView: View {
     @State private var analysisProgress: GameAnalyzer.Progress?
     @State private var analysisMessage: String?
     @State private var isAnalyzing = false
+    @State private var cachedSpeedRaw: String?
+    @State private var analysisTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage(AnalysisSettings.postGameKey) private var postGameEnabled = true
@@ -25,7 +33,12 @@ struct ReplayView: View {
     @AppStorage(AnalysisSettings.postShowAccuracyKey) private var showAccuracy = true
     @AppStorage(AnalysisSettings.postShowGraphKey) private var showGraph = true
 
-    private let analysisEngine: any ChessAnalyzing = AnalysisServiceFactory.make()
+    private var analysisEngine: any ChessAnalyzing { engine ?? AnalysisServiceFactory.shared }
+
+    private var hasCachedResult: Bool {
+        guard let result = analysisResult else { return false }
+        return !result.plies.isEmpty && result.whiteAccuracy != nil
+    }
 
     var body: some View {
         ZStack {
@@ -33,6 +46,9 @@ struct ReplayView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     boardRow
+                    if postGameEnabled {
+                        analysisControls
+                    }
                     if AnalysisSettings.effectivePostShowAccuracy, let result = analysisResult {
                         accuracyRow(result)
                     }
@@ -83,17 +99,14 @@ struct ReplayView: View {
                     Button("Copy PGN") { UIPasteboard.general.string = pgn }
                     Button("Copy FEN") { UIPasteboard.general.string = finalFEN }
                     Button("Copy current position FEN") { UIPasteboard.general.string = currentFEN }
-                    if postGameEnabled {
-                        Button(isAnalyzing ? "Analyzing…" : "Re-analyze") {
-                            Task { await runAnalysis() }
-                        }
-                        .disabled(isAnalyzing || sans.isEmpty)
+                    if postGameEnabled, hasCachedResult, !isAnalyzing, !sans.isEmpty {
+                        Button("Re-analyze") { startAnalysis() }
                     }
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: "ellipsis.circle")
                         .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel("Share")
+                .accessibilityLabel("More")
             }
         }
         .toolbarBackground(Theme.background, for: .navigationBar)
@@ -102,19 +115,53 @@ struct ReplayView: View {
         .sheet(isPresented: $showShare) {
             ShareSheet(items: shareItems)
         }
-        .onAppear { rebuild() }
-        .task(id: postGameEnabled) {
-            if postGameEnabled {
-                await runAnalysis()
-            } else {
-                analysisResult = nil
-                analysisMessage = nil
-                await analysisEngine.stop()
-            }
+        .onAppear {
+            rebuild()
+            loadCachedAnalysis()
         }
         .onDisappear {
-            Task { await analysisEngine.stop() }
+            analysisTask?.cancel()
+            analysisTask = nil
+            let engine = analysisEngine
+            Task { await engine.stop() }
         }
+    }
+
+    @ViewBuilder
+    private var analysisControls: some View {
+        VStack(spacing: 8) {
+            if let cachedSpeedRaw,
+               let speed = AnalysisSpeed(rawValue: cachedSpeedRaw),
+               hasCachedResult, !isAnalyzing {
+                Text(cachedSpeedCaption(speed))
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+
+            // First-run only: once analyzed, Re-analyze lives in the top-right menu.
+            if !hasCachedResult, !isAnalyzing {
+                Button {
+                    startAnalysis()
+                } label: {
+                    Text("Analyze")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .disabled(sans.isEmpty)
+                .padding(.horizontal, 16)
+                .accessibilityLabel("Analyze")
+            }
+        }
+    }
+
+    private func cachedSpeedCaption(_ speed: AnalysisSpeed) -> String {
+        let current = AnalysisSettings.speed
+        if speed == current {
+            return "Analyzed · \(speed.title)"
+        }
+        return "Analyzed · \(speed.title) (current setting: \(current.title))"
     }
 
     @ViewBuilder
@@ -173,7 +220,7 @@ struct ReplayView: View {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
-            Text(value.map { String(format: "%.0f%%" , $0) } ?? "—")
+            Text(value.map { String(format: "%.0f%%", $0) } ?? "—")
                 .font(.body.monospaced().weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
         }
@@ -268,35 +315,113 @@ struct ReplayView: View {
                 break
             }
         }
+        if frames.count != sans.count + 1 {
+            sans = Array(sans.prefix(max(0, frames.count - 1)))
+        }
         fens = frames
         plyIndex = 0
     }
 
-    private func runAnalysis() async {
-        guard AnalysisSettings.postGameEnabled, !sans.isEmpty, fens.count == sans.count + 1 else { return }
+    private func resolveGameRecord() -> GameRecord? {
+        guard let gamePersistentID else { return nil }
+        return modelContext.model(for: gamePersistentID) as? GameRecord
+    }
+
+    private func loadCachedAnalysis() {
+        guard postGameEnabled, let persisted = resolveGameRecord()?.loadPersistedAnalysis() else {
+            return
+        }
+        analysisResult = persisted.result
+        cachedSpeedRaw = persisted.speedRaw
+        analysisMessage = nil
+    }
+
+    private func startAnalysis() {
+        guard AnalysisSettings.postGameEnabled else { return }
+        guard !sans.isEmpty, fens.count == sans.count + 1 else {
+            analysisMessage = nil
+            return
+        }
+        analysisTask?.cancel()
         isAnalyzing = true
         analysisMessage = nil
         analysisProgress = GameAnalyzer.Progress(completed: 0, total: sans.count)
-        let analyzer = GameAnalyzer(engine: analysisEngine)
+        // Keep showing previous labels until first new ply arrives; clear accuracies for progressive run.
+        if var existing = analysisResult {
+            existing.whiteAccuracy = nil
+            existing.blackAccuracy = nil
+            existing.plies = []
+            existing.evalSeries = [.centipawns(0)]
+            analysisResult = existing
+        } else {
+            analysisResult = GameAnalysisResult.empty
+        }
+
+        let engine = analysisEngine
         let sansCopy = sans
         let fensCopy = fens
-        let result = await analyzer.analyze(sans: sansCopy, fens: fensCopy) { progress in
-            Task { @MainActor in
-                analysisProgress = progress
+        let speedRaw = AnalysisSettings.speed.rawValue
+
+        analysisTask = Task {
+            let analyzer = GameAnalyzer(engine: engine)
+            do {
+                let result = try await analyzer.analyze(sans: sansCopy, fens: fensCopy) { ply, series, progress in
+                    Task { @MainActor in
+                        var partial = analysisResult ?? .empty
+                        if ply.plyIndex < partial.plies.count {
+                            partial.plies[ply.plyIndex] = ply
+                        } else {
+                            partial.plies.append(ply)
+                        }
+                        partial.evalSeries = series
+                        partial.whiteAccuracy = nil
+                        partial.blackAccuracy = nil
+                        analysisResult = partial
+                        analysisProgress = progress
+                    }
+                }
+                let availability = await engine.availability
+                await MainActor.run {
+                    isAnalyzing = false
+                    analysisProgress = nil
+                    if Task.isCancelled { return }
+                    if result.plies.isEmpty {
+                        analysisMessage = availability.userMessage
+                            ?? (availability == .ready ? nil : "Analysis unavailable.")
+                    } else {
+                        analysisResult = result
+                        analysisMessage = nil
+                        cachedSpeedRaw = speedRaw
+                        persistCompletedAnalysis(result, speedRaw: speedRaw)
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    isAnalyzing = false
+                    analysisProgress = nil
+                    // Keep partial on-screen; do not write incomplete cache.
+                }
+                await engine.stop()
+            } catch {
+                await MainActor.run {
+                    isAnalyzing = false
+                    analysisProgress = nil
+                    analysisMessage = "Analysis failed."
+                }
             }
         }
-        let availability = await analysisEngine.availability
-        await MainActor.run {
-            isAnalyzing = false
-            analysisProgress = nil
-            if result.plies.isEmpty, let message = availability.userMessage {
-                analysisMessage = message
-                analysisResult = nil
-            } else {
-                analysisResult = result
-                analysisMessage = nil
-            }
-        }
+    }
+
+    private func persistCompletedAnalysis(_ result: GameAnalysisResult, speedRaw: String) {
+        guard let record = resolveGameRecord() else { return }
+        let persisted = PersistedGameAnalysis(
+            schemaVersion: PersistedGameAnalysis.currentSchemaVersion,
+            speedRaw: speedRaw,
+            analyzedAt: .now,
+            result: result
+        )
+        record.savePersistedAnalysis(persisted)
+        try? modelContext.save()
     }
 
     private func sharePGN() {

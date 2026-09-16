@@ -107,7 +107,7 @@ struct EvaluationScoreTests {
 
 @Suite("Game analyzer with fake engine")
 struct GameAnalyzerTests {
-    @Test func classifiesPliesFromFixtures() async {
+    @Test func classifiesPliesFromFixtures() async throws {
         let start = FenCodec.standard
         let afterE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
         let afterE5 = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
@@ -140,7 +140,7 @@ struct GameAnalyzerTests {
         ])
 
         let analyzer = GameAnalyzer(engine: fake)
-        let result = await analyzer.analyze(
+        let result = try await analyzer.analyze(
             sans: ["e4", "e5"],
             fens: [start, afterE4, afterE5]
         )
@@ -149,5 +149,141 @@ struct GameAnalyzerTests {
         #expect(result.whiteAccuracy != nil)
         #expect(result.blackAccuracy != nil)
         #expect(result.plies[0].quality != nil)
+    }
+
+    @Test func callsOnPlyProgressively() async throws {
+        let start = FenCodec.standard
+        let afterE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        let afterE5 = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+        let fake = FakeChessAnalyzer()
+        let analyzer = GameAnalyzer(engine: fake)
+        let box = ProgressBox()
+        let result = try await analyzer.analyze(
+            sans: ["e4", "e5"],
+            fens: [start, afterE4, afterE5]
+        ) { _, _, progress in
+            box.values.append(progress.completed)
+        }
+        #expect(result.plies.count == 2)
+        #expect(box.values == [1, 2])
+    }
+}
+
+/// Collects onPly callbacks without racing detached Tasks.
+final class ProgressBox: @unchecked Sendable {
+    var values: [Int] = []
+}
+
+@Suite("Persisted analysis")
+struct PersistedAnalysisTests {
+    @Test func encodeDecodeRoundTrip() {
+        let result = GameAnalysisResult(
+            plies: [
+                PlyAnalysis(
+                    plyIndex: 0,
+                    fenBefore: FenCodec.standard,
+                    best: PositionAnalysis(
+                        fen: FenCodec.standard,
+                        score: .centipawns(30),
+                        bestMoveUCI: "e2e4",
+                        bestArrow: BoardArrow(
+                            from: ChessSquare.parse("e2")!,
+                            to: ChessSquare.parse("e4")!
+                        ),
+                        pvUCI: ["e2e4"],
+                        depth: 8
+                    ),
+                    playedScore: .centipawns(25),
+                    quality: .best,
+                    winPercentBefore: 55,
+                    winPercentAfter: 54,
+                    winPercentLoss: 1
+                )
+            ],
+            whiteAccuracy: 98,
+            blackAccuracy: 97,
+            evalSeries: [.centipawns(0), .centipawns(25)]
+        )
+        let persisted = PersistedGameAnalysis(
+            schemaVersion: PersistedGameAnalysis.currentSchemaVersion,
+            speedRaw: AnalysisSpeed.balanced.rawValue,
+            analyzedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            result: result
+        )
+        let data = PersistedGameAnalysis.encode(persisted)
+        #expect(data != nil)
+        let decoded = PersistedGameAnalysis.decode(from: data!)
+        #expect(decoded == persisted)
+    }
+
+    @Test func rejectsWrongSchemaVersion() {
+        struct Wrapper: Codable {
+            var schemaVersion: Int
+            var speedRaw: String
+            var analyzedAt: Date
+            var result: GameAnalysisResult
+        }
+        let bad = Wrapper(
+            schemaVersion: 999,
+            speedRaw: "fast",
+            analyzedAt: .now,
+            result: .empty
+        )
+        let data = try! JSONEncoder().encode(bad)
+        #expect(PersistedGameAnalysis.decode(from: data) == nil)
+    }
+
+    @Test func gameRecordSaveLoad() {
+        let record = GameRecord(
+            createdAt: .now,
+            pgn: "1. e4 e5",
+            finalFen: FenCodec.standard,
+            title: "Test"
+        )
+        #expect(!record.hasCachedAnalysis)
+        let persisted = PersistedGameAnalysis(
+            schemaVersion: 1,
+            speedRaw: "fast",
+            analyzedAt: .now,
+            result: .empty
+        )
+        record.savePersistedAnalysis(persisted)
+        #expect(record.hasCachedAnalysis)
+        #expect(record.loadPersistedAnalysis()?.speedRaw == "fast")
+        record.clearPersistedAnalysis()
+        #expect(!record.hasCachedAnalysis)
+    }
+}
+
+@Suite("Live AnalysisService")
+struct AnalysisServiceLiveTests {
+    @Test func testStockfishAnalysisAndRestart() async throws {
+        let service = AnalysisService()
+        await service.start(threads: 1, hashMB: 16)
+        let avail = await service.availability
+        guard avail == .ready else {
+            // NNUE missing in CI — skip soft.
+            return
+        }
+        let fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        let result = await service.analyze(AnalysisRequest(fen: fen, movetimeMs: 100, threads: 1, hashMB: 16))
+        #expect(result != nil)
+
+        await service.stop()
+
+        await service.start(threads: 1, hashMB: 16)
+        let result2 = await service.analyze(AnalysisRequest(fen: fen, movetimeMs: 100, threads: 1, hashMB: 16))
+        #expect(result2 != nil)
+
+        let analyzer = GameAnalyzer(engine: service)
+        let start = FenCodec.standard
+        let afterE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        let afterE5 = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+        let gameResult = try await analyzer.analyze(sans: ["e4", "e5"], fens: [start, afterE4, afterE5])
+        #expect(gameResult.plies.count == 2)
+        #expect(gameResult.whiteAccuracy != nil)
+        #expect(gameResult.blackAccuracy != nil)
+
+        await service.stop()
     }
 }

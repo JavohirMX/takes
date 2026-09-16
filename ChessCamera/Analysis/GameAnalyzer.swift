@@ -8,17 +8,21 @@ actor GameAnalyzer {
         self.engine = engine
     }
 
-    struct Progress: Sendable {
+    struct Progress: Sendable, Equatable {
         var completed: Int
         var total: Int
     }
 
+    /// Analyzes each ply. Calls `onPly` after every completed ply so the UI can update progressively.
+    /// Throws `CancellationError` if the task is cancelled mid-run.
     func analyze(
         sans: [String],
         fens: [String],
-        onProgress: (@Sendable (Progress) -> Void)? = nil
-    ) async -> GameAnalysisResult {
-        precondition(fens.count == sans.count + 1, "fens must include start + after each ply")
+        onPly: (@Sendable (PlyAnalysis, [EvaluationScore], Progress) -> Void)? = nil
+    ) async throws -> GameAnalysisResult {
+        guard fens.count == sans.count + 1 else {
+            return GameAnalysisResult.empty
+        }
 
         let speed = AnalysisSettings.speed
         await engine.start(threads: speed.threads, hashMB: speed.hashMB)
@@ -28,6 +32,8 @@ actor GameAnalyzer {
         let total = sans.count
 
         for index in sans.indices {
+            try Task.checkCancellation()
+
             let fenBefore = fens[index]
             let fenAfter = fens[index + 1]
             let playedByWhite = FenSide.toMove(fenBefore) == "w"
@@ -42,6 +48,8 @@ actor GameAnalyzer {
                     depth: nil
                 )
 
+            try Task.checkCancellation()
+
             let afterRaw = await engine.analyze(.replay(fen: fenAfter))
             let afterWhite = afterRaw?.score ?? best.score
 
@@ -53,20 +61,20 @@ actor GameAnalyzer {
                 playedByWhite: playedByWhite
             )
 
-            plies.append(
-                PlyAnalysis(
-                    plyIndex: index,
-                    fenBefore: fenBefore,
-                    best: best,
-                    playedScore: afterWhite,
-                    quality: classified.quality,
-                    winPercentBefore: wpBefore,
-                    winPercentAfter: wpAfter,
-                    winPercentLoss: classified.loss
-                )
+            let ply = PlyAnalysis(
+                plyIndex: index,
+                fenBefore: fenBefore,
+                best: best,
+                playedScore: afterWhite,
+                quality: classified.quality,
+                winPercentBefore: wpBefore,
+                winPercentAfter: wpAfter,
+                winPercentLoss: classified.loss
             )
+            plies.append(ply)
             evalSeries.append(afterWhite)
-            onProgress?(Progress(completed: index + 1, total: total))
+            let progress = Progress(completed: index + 1, total: total)
+            onPly?(ply, evalSeries, progress)
         }
 
         let accuracies = MoveQualityClassifier.gameAccuracies(plies: plies)

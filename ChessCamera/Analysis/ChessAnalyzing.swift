@@ -11,7 +11,9 @@ protocol ChessAnalyzing: Sendable {
 
 /// Shared factory used by live recording and replay.
 enum AnalysisServiceFactory {
+    static let shared: any ChessAnalyzing = AnalysisService()
+
     static func make() -> any ChessAnalyzing {
-        AnalysisService()
+        shared
     }
 }

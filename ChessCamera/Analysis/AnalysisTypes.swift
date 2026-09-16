@@ -1,9 +1,40 @@
 import Foundation
 
 /// Engine evaluation from White's point of view.
-enum EvaluationScore: Equatable, Sendable, Hashable {
+enum EvaluationScore: Equatable, Sendable, Hashable, Codable {
     case centipawns(Int)
     case mate(Int)
+
+    private enum CodingKeys: String, CodingKey {
+        case type, value
+    }
+
+    private enum Kind: String, Codable {
+        case centipawns
+        case mate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .type)
+        let value = try container.decode(Int.self, forKey: .value)
+        switch kind {
+        case .centipawns: self = .centipawns(value)
+        case .mate: self = .mate(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .centipawns(let cp):
+            try container.encode(Kind.centipawns, forKey: .type)
+            try container.encode(cp, forKey: .value)
+        case .mate(let moves):
+            try container.encode(Kind.mate, forKey: .type)
+            try container.encode(moves, forKey: .value)
+        }
+    }
 
     /// Display string, White-positive (e.g. `+0.42`, `-1.2`, `M3`, `-M2`).
     var display: String {
@@ -35,7 +66,6 @@ enum EvaluationScore: Equatable, Sendable, Hashable {
         case .mate(let moves):
             return moves >= 0 ? 1 : 0
         case .centipawns(let cp):
-            // Soft clamp around ±8 pawns.
             let pawns = Double(cp) / 100.0
             let clamped = max(-8, min(8, pawns))
             return (clamped + 8) / 16
@@ -43,7 +73,7 @@ enum EvaluationScore: Equatable, Sendable, Hashable {
     }
 }
 
-enum MoveQuality: String, Sendable, Equatable, CaseIterable {
+enum MoveQuality: String, Sendable, Equatable, CaseIterable, Codable {
     case best
     case excellent
     case good
@@ -74,13 +104,13 @@ enum MoveQuality: String, Sendable, Equatable, CaseIterable {
     }
 }
 
-struct BoardArrow: Equatable, Sendable, Hashable {
+struct BoardArrow: Equatable, Sendable, Hashable, Codable {
     var from: ChessSquare
     var to: ChessSquare
 }
 
 /// One engine snapshot for a FEN.
-struct PositionAnalysis: Equatable, Sendable {
+struct PositionAnalysis: Equatable, Sendable, Codable {
     var fen: String
     var score: EvaluationScore
     /// Best move in UCI (`e2e4`, `e7e8q`).
@@ -94,7 +124,7 @@ struct PositionAnalysis: Equatable, Sendable {
 }
 
 /// Per-ply annotation produced while walking a PGN.
-struct PlyAnalysis: Equatable, Sendable, Identifiable {
+struct PlyAnalysis: Equatable, Sendable, Identifiable, Codable {
     var id: Int { plyIndex }
     /// 0-based ply index into the SAN list.
     var plyIndex: Int
@@ -108,14 +138,43 @@ struct PlyAnalysis: Equatable, Sendable, Identifiable {
     var winPercentBefore: Double
     var winPercentAfter: Double
     var winPercentLoss: Double
+
+    enum CodingKeys: String, CodingKey {
+        case plyIndex, fenBefore, best, playedScore, quality
+        case winPercentBefore, winPercentAfter, winPercentLoss
+    }
 }
 
-struct GameAnalysisResult: Equatable, Sendable {
+struct GameAnalysisResult: Equatable, Sendable, Codable {
     var plies: [PlyAnalysis]
     var whiteAccuracy: Double?
     var blackAccuracy: Double?
     /// Eval after each ply (index 0 = start), White POV, for the graph.
     var evalSeries: [EvaluationScore]
+
+    static let empty = GameAnalysisResult(plies: [], whiteAccuracy: nil, blackAccuracy: nil, evalSeries: [.centipawns(0)])
+}
+
+/// Versioned blob stored on `GameRecord.analysisJSON`.
+struct PersistedGameAnalysis: Equatable, Sendable, Codable {
+    static let currentSchemaVersion = 1
+
+    var schemaVersion: Int
+    var speedRaw: String
+    var analyzedAt: Date
+    var result: GameAnalysisResult
+
+    static func encode(_ value: PersistedGameAnalysis) -> Data? {
+        try? JSONEncoder().encode(value)
+    }
+
+    static func decode(from data: Data) -> PersistedGameAnalysis? {
+        guard let value = try? JSONDecoder().decode(PersistedGameAnalysis.self, from: data),
+              value.schemaVersion == currentSchemaVersion else {
+            return nil
+        }
+        return value
+    }
 }
 
 enum AnalysisAvailability: Equatable, Sendable {
