@@ -149,7 +149,7 @@ Out of scope for this challenge. Do not build them, and do not apologize for the
 - Handheld / walking camera; the phone may be angled but should stay still.
 - Automatic detection of a1 from printed letters/numbers on the physical board.
 - Per-frame 12-class classification as the source of truth for the whole game.
-- Stockfish, eval bars, accuracy %, blunder hints, opening names.
+- Play-vs-computer, cloud analysis, opening books, or using Stockfish to decide move legality (ChessKit remains source of truth for recording).
 - Clocks, time controls, increment.
 - Online play, accounts, iCloud sync, Chess.com OAuth.
 - Multi-game broadcast, spectator mode, two phones.

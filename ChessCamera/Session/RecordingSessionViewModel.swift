@@ -62,6 +62,9 @@ final class RecordingSessionViewModel: Identifiable {
     var liveDebugLine = ""
     /// Brief soft-reject copy after ChessKit fails to apply a unique move.
     var softRejectMessage: String?
+    /// Live engine analysis for the current position (optional, settings-gated).
+    var liveAnalysis: PositionAnalysis?
+    var liveAnalysisMessage: String?
     /// Occupancy bits already rejected as unmatched; skip re-inference until they change or TTL expires.
     private var lastIgnoredOccupancy: Occupancy?
     private var lastIgnoredAt: ContinuousClock.Instant?
@@ -70,6 +73,8 @@ final class RecordingSessionViewModel: Identifiable {
 
     let engine = GameEngine()
     let pipeline = VisionPipeline()
+    private let analysisEngine: any ChessAnalyzing = AnalysisServiceFactory.make()
+    private var liveAnalysisTask: Task<Void, Never>?
 
     private var frameSource: (any FrameSource)?
     private var liveCamera: LiveCameraSource?
@@ -542,6 +547,7 @@ final class RecordingSessionViewModel: Identifiable {
                 phase = engine.isTerminal ? .gameOver : .recording
                 setKeepsScreenAwake(phase == .recording)
             }
+            scheduleLiveAnalysis()
         } catch {
             alertMessage = "Nothing to undo."
         }
@@ -573,6 +579,7 @@ final class RecordingSessionViewModel: Identifiable {
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
         lastIgnoredAt = nil
+        scheduleLiveAnalysis()
     }
 
     private func syncCommittedNotation() {
@@ -617,6 +624,7 @@ final class RecordingSessionViewModel: Identifiable {
             phase = engine.isTerminal ? .gameOver : .recording
             setKeepsScreenAwake(phase == .recording)
             announceCommit()
+            scheduleLiveAnalysis()
         } catch {
             alertMessage = "Couldn’t apply that move. Try another square."
         }
@@ -698,6 +706,11 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func teardown() async {
+        liveAnalysisTask?.cancel()
+        liveAnalysisTask = nil
+        liveAnalysis = nil
+        liveAnalysisMessage = nil
+        await analysisEngine.stop()
         consumeTask?.cancel()
         consumeTask = nil
         isPieceDetecting = false
@@ -1065,11 +1078,13 @@ final class RecordingSessionViewModel: Identifiable {
             ambiguousMoves = moves
             softRejectMessage = nil
             phase = .awaitingEdit
+            clearLiveAnalysisForDisturbance()
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             AttentionBeep.play()
         default:
             if next == .disturbed {
                 softRejectMessage = nil
+                clearLiveAnalysisForDisturbance()
             }
             phase = next
         }
@@ -1118,6 +1133,46 @@ final class RecordingSessionViewModel: Identifiable {
             let phrase = spoken.map { SANSpeech.speak($0) }.joined(separator: ". ")
             moveSpeaker.speak(phrase)
         }
+        scheduleLiveAnalysis()
+    }
+
+    private func scheduleLiveAnalysis() {
+        liveAnalysisTask?.cancel()
+        guard AnalysisSettings.liveHintsEnabled else {
+            liveAnalysis = nil
+            liveAnalysisMessage = nil
+            return
+        }
+        guard phase == .recording || phase == .gameOver else {
+            liveAnalysis = nil
+            return
+        }
+        let fen = engine.fen
+        let analysisEngine = analysisEngine
+        liveAnalysisTask = Task { [weak self] in
+            let result = await analysisEngine.analyze(.live(fen: fen))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                if let result {
+                    self.liveAnalysis = result
+                    self.liveAnalysisMessage = nil
+                } else {
+                    Task {
+                        let availability = await analysisEngine.availability
+                        await MainActor.run {
+                            self.liveAnalysis = nil
+                            self.liveAnalysisMessage = availability.userMessage
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func clearLiveAnalysisForDisturbance() {
+        liveAnalysisTask?.cancel()
+        liveAnalysis = nil
     }
 
     private func setKeepsScreenAwake(_ awake: Bool) {

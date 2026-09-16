@@ -530,9 +530,25 @@ ChessCameraTests/
 | Package                                                                       | Purpose                                          |
 | ----------------------------------------------------------------------------- | ------------------------------------------------ |
 | [chesskit-app/chesskit-swift](https://github.com/chesskit-app/chesskit-swift) | Legal moves, special moves, FEN, PGN, game state |
+| [chesskit-app/chesskit-engine](https://github.com/chesskit-app/chesskit-engine) | UCI bridge to Stockfish 17 (optional analysis) |
 | [yeatse/opencv-spm](https://github.com/yeatse/opencv-spm) | OpenCV imgproc only, for grid refine at confirm-start |
 
-No Stockfish. No iCloud.
+Stockfish is GPLv3 — optional, Settings-gated, not used for move legality. No iCloud.
+
+### Analysis module
+
+```
+Analysis/
+  AnalysisService.swift     actor wrapping ChessKitEngine.Engine
+  ChessAnalyzing.swift      protocol (+ FakeChessAnalyzer for tests)
+  GameAnalyzer.swift        ply-by-ply walk + classification
+  MoveQualityClassifier.swift  Lichess-style win% / accuracy
+  AnalysisSettings.swift    AppStorage keys
+  AnalysisTypes.swift       eval, quality, arrows
+  UCIMove.swift             e2e4 → squares
+```
+
+NNUE nets live in `ChessCamera/Resources/NNUE/` (gitignored). Fetch with `./scripts/fetch-nnue.sh`.
 
 ---
 

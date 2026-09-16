@@ -5,6 +5,8 @@ struct DigitalBoardView: View {
     /// Display mapping. Call sites should keep the default so the diagram stays White-at-bottom.
     var orientation: BoardOrientation = .whiteAtBottom
     var lastMove: (from: ChessSquare, to: ChessSquare)?
+    /// Optional engine best-move arrow (from, to).
+    var bestMove: BoardArrow?
     var selected: ChessSquare?
     var interactive = false
     var showsCoordinates = true
@@ -27,46 +29,58 @@ struct DigitalBoardView: View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
             let squareSize = side / 8
-            VStack(spacing: 0) {
-                ForEach(0..<8, id: \.self) { displayRank in
-                    HStack(spacing: 0) {
-                        ForEach(0..<8, id: \.self) { displayFile in
-                            let square = mappedSquare(file: displayFile, rankFromTop: displayRank)
-                            let isLight = (square.file + square.rank).isMultiple(of: 2) == false
-                            let piece = pieces[square]
-                            ZStack {
-                                (isLight ? style.light : style.dark)
-                                if isHighlighted(square) {
-                                    style.lastMove
+            ZStack {
+                VStack(spacing: 0) {
+                    ForEach(0..<8, id: \.self) { displayRank in
+                        HStack(spacing: 0) {
+                            ForEach(0..<8, id: \.self) { displayFile in
+                                let square = mappedSquare(file: displayFile, rankFromTop: displayRank)
+                                let isLight = (square.file + square.rank).isMultiple(of: 2) == false
+                                let piece = pieces[square]
+                                ZStack {
+                                    (isLight ? style.light : style.dark)
+                                    if isHighlighted(square) {
+                                        style.lastMove
+                                    }
+                                    if selected == square {
+                                        Theme.accent.opacity(0.35)
+                                    }
+                                    if showsCoordinates {
+                                        coordinates(
+                                            square: square,
+                                            displayFile: displayFile,
+                                            displayRank: displayRank,
+                                            isLight: isLight,
+                                            squareSize: squareSize
+                                        )
+                                    }
+                                    if let piece, piece != .empty {
+                                        PieceView(piece: piece, size: squareSize * 0.88)
+                                            .scaleEffect(arrivalScale(for: square))
+                                            .opacity(arrivalOpacity(for: square))
+                                    }
                                 }
-                                if selected == square {
-                                    Theme.accent.opacity(0.35)
+                                .frame(width: squareSize, height: squareSize)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    guard interactive else { return }
+                                    onTap?(square)
                                 }
-                                if showsCoordinates {
-                                    coordinates(
-                                        square: square,
-                                        displayFile: displayFile,
-                                        displayRank: displayRank,
-                                        isLight: isLight,
-                                        squareSize: squareSize
-                                    )
-                                }
-                                if let piece, piece != .empty {
-                                    PieceView(piece: piece, size: squareSize * 0.88)
-                                        .scaleEffect(arrivalScale(for: square))
-                                        .opacity(arrivalOpacity(for: square))
-                                }
+                                .accessibilityLabel(accessibilityLabel(square: square, piece: piece))
+                                .accessibilityAddTraits(interactive ? .isButton : [])
                             }
-                            .frame(width: squareSize, height: squareSize)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard interactive else { return }
-                                onTap?(square)
-                            }
-                            .accessibilityLabel(accessibilityLabel(square: square, piece: piece))
-                            .accessibilityAddTraits(interactive ? .isButton : [])
                         }
                     }
+                }
+
+                if let bestMove {
+                    BoardArrowOverlay(
+                        from: bestMove.from,
+                        to: bestMove.to,
+                        side: side,
+                        orientation: orientation
+                    )
+                    .frame(width: side, height: side)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))

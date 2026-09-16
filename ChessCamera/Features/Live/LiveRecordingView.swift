@@ -17,6 +17,12 @@ struct LiveRecordingView: View {
 
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
+    private var liveBestArrow: BoardArrow? {
+        guard AnalysisSettings.effectiveLiveShowArrow else { return nil }
+        guard model.phase == .recording || model.phase == .gameOver else { return nil }
+        return model.liveAnalysis?.bestArrow
+    }
+
     var body: some View {
         let layout = isLandscape
             ? AnyLayout(HStackLayout(spacing: 0))
@@ -58,10 +64,29 @@ struct LiveRecordingView: View {
             landscapeSidebar
         } else {
             VStack(spacing: 0) {
-                DigitalBoardView(
-                    fen: model.engine.fen,
-                    lastMove: model.engine.lastMoveSquares
-                )
+                HStack(alignment: .top, spacing: 8) {
+                    if AnalysisSettings.effectiveLiveShowEval, model.liveAnalysis != nil || model.liveAnalysisMessage != nil {
+                        VStack(spacing: 4) {
+                            if let analysis = model.liveAnalysis {
+                                Text(analysis.evalDisplay)
+                                    .font(.caption.monospaced().weight(.semibold))
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .accessibilityLabel("Evaluation \(analysis.evalDisplay)")
+                            } else if let message = model.liveAnalysisMessage {
+                                Text("—")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .accessibilityLabel(message)
+                            }
+                        }
+                        .frame(width: 44)
+                    }
+                    DigitalBoardView(
+                        fen: model.engine.fen,
+                        lastMove: model.engine.lastMoveSquares,
+                        bestMove: liveBestArrow
+                    )
+                }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .frame(maxHeight: .infinity)
@@ -79,10 +104,16 @@ struct LiveRecordingView: View {
             statusBanner
             DigitalBoardView(
                 fen: model.engine.fen,
-                lastMove: model.engine.lastMoveSquares
+                lastMove: model.engine.lastMoveSquares,
+                bestMove: liveBestArrow
             )
             .frame(maxWidth: 180, maxHeight: 180)
             .frame(maxWidth: .infinity)
+            if AnalysisSettings.effectiveLiveShowEval, let analysis = model.liveAnalysis {
+                Text(analysis.evalDisplay)
+                    .font(.caption.monospaced().weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+            }
             MoveListView(sans: model.committedSANs)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             hudControls

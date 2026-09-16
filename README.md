@@ -4,7 +4,7 @@ iPhone prototype: point a camera at a physical chessboard, reconstruct the game,
 
 ## Status
 
-SwiftUI app on iOS 18+ / Swift 6. Chess rules, FEN, and PGN come from [ChessKit](https://github.com/chesskit-app/chesskit-swift). Vision localizes the board; occupancy settle + legal-move inference record the game. **No Core ML model is bundled yet** — confirm-start uses the standard position, and occupancy uses a non-ML heuristic until you train `PieceClassifier.mlmodel` (see [docs/training-notes.md](docs/training-notes.md)).
+SwiftUI app on iOS 18+ / Swift 6. Chess rules, FEN, and PGN come from [ChessKit](https://github.com/chesskit-app/chesskit-swift). Vision localizes the board; occupancy settle + legal-move inference record the game. Optional on-device analysis uses [Stockfish 17](https://stockfishchess.org) via [ChessKitEngine](https://github.com/chesskit-app/chesskit-engine) (live hints + post-game replay studio, all Settings-gated).
 
 ## Docs
 
@@ -24,6 +24,11 @@ SwiftUI app on iOS 18+ / Swift 6. Chess rules, FEN, and PGN come from [ChessKit]
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) to regenerate `ChessCamera.xcodeproj` from `project.yml`
 - Physical iPhone for live camera, board detect, and a real game
 - Simulator: chess-logic tests, History, primer, confirm-start (standard FEN), live HUD, replay, share/copy PGN
+- Stockfish NNUE nets (optional for recording; required for analysis):
+
+```bash
+./scripts/fetch-nnue.sh
+```
 
 ```bash
 xcodegen generate
@@ -33,8 +38,9 @@ xcodebuild -scheme ChessCamera -destination 'platform=iOS Simulator,name=iPhone 
 ## Locked scope
 
 - **Platform:** iPhone, iOS 18+, SwiftUI, AVFoundation
-- **Vision:** Vision + optional Core ML on *your* chess set. OpenCV imgproc only, for grid refine at confirm-start. No paid AI APIs, no Stockfish, no iCloud
+- **Vision:** Vision + optional Core ML on *your* chess set. OpenCV imgproc only, for grid refine at confirm-start. No paid AI APIs, no iCloud
 - **Game:** standard start → occupancy changes + chess rules → full-game PGN
+- **Analysis (optional):** on-device Stockfish 17 for live eval/arrow and post-game accuracy (GPLv3 — see Settings → About Stockfish)
 - **Calibration:** auto board detect, 4-corner fallback
 - **UX:** auto-accept moves; edit/undo last ply; wait until the board is still
 - **Output:** live digital board, FEN, replay, SwiftData history, share PGN

@@ -19,6 +19,9 @@ scripts/.cache/
 **/__pycache__/
 *.pyc
 
+# Stockfish NNUE nets (fetch with scripts/fetch-nnue.sh)
+ChessCamera/Resources/NNUE/*.nnue
+
 # YOLO / Colab training artifacts (do not ignore ChessCamera/ML/*.mlpackage)
 notebooks/datasets/
 notebooks/runs/

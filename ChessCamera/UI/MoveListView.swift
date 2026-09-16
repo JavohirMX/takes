@@ -3,6 +3,9 @@ import SwiftUI
 struct MoveListView: View {
     var sans: [String]
     var selectedPly: Int?
+    /// Optional per-ply quality (same length as `sans`, or sparse via dictionary).
+    var qualities: [Int: MoveQuality] = [:]
+    var showsQualityLabels = false
     var onSelect: ((Int) -> Void)?
 
     var body: some View {
@@ -42,28 +45,55 @@ struct MoveListView: View {
     private func plyButton(index: Int) -> some View {
         let san = sans[index]
         let selected = selectedPly == index
+        let quality = showsQualityLabels ? qualities[index] : nil
+        let label = qualityLabel(san: san, quality: quality)
         return Button {
             onSelect?(index)
         } label: {
-            Text(san)
-                .font(.body.monospaced())
-                .foregroundStyle(Theme.textPrimary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    selected ? Theme.accent.opacity(0.25) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .frame(minHeight: 44)
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.body.monospaced())
+                    .foregroundStyle(qualityColor(quality))
+                if let quality, !quality.glyph.isEmpty {
+                    Text(quality.glyph)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(qualityColor(quality))
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                selected ? Theme.accent.opacity(0.25) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .frame(minHeight: 44)
         }
         .id(index)
         .disabled(onSelect == nil)
-        .accessibilityLabel(spokenMove(index: index, san: san))
+        .accessibilityLabel(spokenMove(index: index, san: san, quality: quality))
     }
 
-    private func spokenMove(index: Int, san: String) -> String {
+    private func qualityLabel(san: String, quality: MoveQuality?) -> String {
+        san
+    }
+
+    private func qualityColor(_ quality: MoveQuality?) -> Color {
+        switch quality {
+        case .best, .excellent: Theme.accent
+        case .good, .none: Theme.textPrimary
+        case .inaccuracy: Theme.caution
+        case .mistake, .blunder: Theme.danger
+        }
+    }
+
+    private func spokenMove(index: Int, san: String, quality: MoveQuality? = nil) -> String {
         let number = index / 2 + 1
-        return "Move \(number), \(SANSpeech.speak(san))"
+        var base = "Move \(number), \(SANSpeech.speak(san))"
+        if let quality {
+            base += ", \(quality.title)"
+        }
+        return base
     }
 }
 

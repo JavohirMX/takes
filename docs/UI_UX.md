@@ -6,7 +6,7 @@
 
 This is a **recording instrument**. The physical board is the hero. The digital board is a live transcript. UI stays out of the way during play and becomes precise when something is wrong.
 
-Product-type references used: scanner / document digitizer (viewfinder, edge detect, export) + board-game transcript (move list, replay). Not a 3D felt-table game, not a social network, not an engine studio. App chrome stays dark. Board skins are flat color pairs, not wood textures.
+Product-type references used: scanner / document digitizer (viewfinder, edge detect, export) + board-game transcript (move list, replay). Not a 3D felt-table game, not a social network. Optional Stockfish analysis is quiet chrome (eval bar, thin arrow, move labels) — the physical board and PGN remain the product. App chrome stays dark. Board skins are flat color pairs, not wood textures.
 
 ---
 

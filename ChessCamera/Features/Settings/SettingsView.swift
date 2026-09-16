@@ -13,10 +13,31 @@ struct SettingsView: View {
     @AppStorage(DebugOverlaySettings.showBoardGridKey) private var showBoardGrid = true
     @AppStorage(DebugOverlaySettings.showOccupancyOverlayKey) private var showOccupancyOverlay = true
     @AppStorage(DebugOverlaySettings.showPieceBoxesKey) private var showPieceBoxes = false
+
+    @AppStorage(AnalysisSettings.liveHintsKey) private var liveHints = false
+    @AppStorage(AnalysisSettings.liveShowEvalKey) private var liveShowEval = true
+    @AppStorage(AnalysisSettings.liveShowArrowKey) private var liveShowArrow = true
+    @AppStorage(AnalysisSettings.postGameKey) private var postGame = true
+    @AppStorage(AnalysisSettings.postShowEvalBarKey) private var postShowEvalBar = true
+    @AppStorage(AnalysisSettings.postShowArrowKey) private var postShowArrow = true
+    @AppStorage(AnalysisSettings.postShowPVKey) private var postShowPV = true
+    @AppStorage(AnalysisSettings.postShowLabelsKey) private var postShowLabels = true
+    @AppStorage(AnalysisSettings.postShowAccuracyKey) private var postShowAccuracy = true
+    @AppStorage(AnalysisSettings.postShowGraphKey) private var postShowGraph = true
+    @AppStorage(AnalysisSettings.speedKey) private var speedRaw = AnalysisSpeed.balanced.rawValue
+
     @State private var showAppearance = false
+    @State private var showStockfishLicense = false
 
     private var selectedStyle: BoardStyle {
         BoardStyle(rawValue: styleRaw) ?? BoardAppearance.defaultStyle
+    }
+
+    private var analysisSpeed: Binding<String> {
+        Binding(
+            get: { speedRaw },
+            set: { speedRaw = $0 }
+        )
     }
 
     private var settleMilliseconds: Binding<Int> {
@@ -69,6 +90,130 @@ struct SettingsView: View {
                         systemImage: "speaker.wave.2",
                         isOn: $speakMoves
                     )
+                }
+
+                settingsSection(title: "Analysis") {
+                    VStack(spacing: 0) {
+                        toggleRow(
+                            title: "Live hints",
+                            subtitle: "Show eval and a best-move arrow on the digital board while recording. Uses more battery.",
+                            systemImage: "lightbulb",
+                            isOn: $liveHints
+                        )
+                        if liveHints {
+                            divider
+                            toggleRow(
+                                title: "Show eval",
+                                subtitle: "Display the Stockfish score next to the live board.",
+                                systemImage: "plusminus",
+                                isOn: $liveShowEval
+                            )
+                            divider
+                            toggleRow(
+                                title: "Best-move arrow",
+                                subtitle: "Draw the engine’s suggested move on the digital board.",
+                                systemImage: "arrow.up.right",
+                                isOn: $liveShowArrow
+                            )
+                        }
+                        divider
+                        toggleRow(
+                            title: "Post-game analysis",
+                            subtitle: "Analyze saved games in Replay with eval, labels, and accuracy.",
+                            systemImage: "chart.line.uptrend.xyaxis",
+                            isOn: $postGame
+                        )
+                        if postGame {
+                            divider
+                            toggleRow(
+                                title: "Eval bar",
+                                subtitle: "Show a White/Black eval bar beside the replay board.",
+                                systemImage: "chart.bar.fill",
+                                isOn: $postShowEvalBar
+                            )
+                            divider
+                            toggleRow(
+                                title: "Best-move arrow",
+                                subtitle: "Highlight the engine’s best move at the current ply.",
+                                systemImage: "arrow.up.right",
+                                isOn: $postShowArrow
+                            )
+                            divider
+                            toggleRow(
+                                title: "Principal variation",
+                                subtitle: "Show the engine’s main line under the board.",
+                                systemImage: "list.number",
+                                isOn: $postShowPV
+                            )
+                            divider
+                            toggleRow(
+                                title: "Move labels",
+                                subtitle: "Mark inaccuracies, mistakes, and blunders in the move list.",
+                                systemImage: "exclamationmark.bubble",
+                                isOn: $postShowLabels
+                            )
+                            divider
+                            toggleRow(
+                                title: "Accuracy %",
+                                subtitle: "Show White and Black accuracy after analysis finishes.",
+                                systemImage: "percent",
+                                isOn: $postShowAccuracy
+                            )
+                            divider
+                            toggleRow(
+                                title: "Eval graph",
+                                subtitle: "Plot evaluation across the game; tap to jump to a ply.",
+                                systemImage: "waveform.path.ecg",
+                                isOn: $postShowGraph
+                            )
+                        }
+                        divider
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                settingIcon("gauge.with.dots.needle.33percent")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Analysis speed")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("How long Stockfish thinks per position in Replay.")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Picker("Analysis speed", selection: analysisSpeed) {
+                                ForEach(AnalysisSpeed.allCases) { speed in
+                                    Text(speed.title).tag(speed.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityLabel("Analysis speed")
+                        }
+                        .padding(16)
+                        divider
+                        Button {
+                            showStockfishLicense = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                settingIcon("doc.text")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("About Stockfish")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Analysis by Stockfish 17 (GPLv3).")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                            .padding(16)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("About Stockfish")
+                    }
                 }
 
                 settingsSection(title: "Board") {
@@ -216,6 +361,43 @@ struct SettingsView: View {
         .tint(Theme.accent)
         .sheet(isPresented: $showAppearance) {
             BoardAppearanceSheet()
+        }
+        .sheet(isPresented: $showStockfishLicense) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Stockfish 17")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(
+                            """
+                            Chess Camera uses the Stockfish chess engine for optional on-device analysis. Stockfish is free software licensed under the GNU General Public License version 3 (GPLv3).
+
+                            Source: https://github.com/official-stockfish/Stockfish
+
+                            The Swift UCI bridge is ChessKitEngine (MIT): https://github.com/chesskit-app/chesskit-engine
+
+                            Distributing this app with Stockfish linked in-process generally requires offering corresponding source under GPLv3. This Academy prototype ships Stockfish for local analysis; review licensing before App Store release.
+                            """
+                        )
+                        .font(.body)
+                        .foregroundStyle(Theme.textSecondary)
+                        .textSelection(.enabled)
+                    }
+                    .padding(16)
+                }
+                .background(Theme.background.ignoresSafeArea())
+                .navigationTitle("About Stockfish")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { showStockfishLicense = false }
+                    }
+                }
+                .toolbarBackground(Theme.background, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+            }
+            .preferredColorScheme(.dark)
         }
     }
 
