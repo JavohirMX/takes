@@ -47,6 +47,7 @@
 		558D6B0218A11D50738FF5EF /* SessionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED39002C57FA3559FAB339C /* SessionFlowView.swift */; };
 		5724114A3102A693276D4065 /* EditMoveSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6716FC7C8065EF77F736FBD6 /* EditMoveSheet.swift */; };
 		59D32746CF0C3E240AAA3DAA /* MoveSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C413AE6BEE8F771631F14D59 /* MoveSpeaker.swift */; };
+		5A1BEEB0A1BEEB0A1BEEB001 /* AttentionBeep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1BEEB0A1BEEB0A1BEEB002 /* AttentionBeep.swift */; };
 		5A492688FEB784976A5253F8 /* RefinedBoardGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143835A5BEE7D877E323E5D1 /* RefinedBoardGrid.swift */; };
 		5B35A801578A14E6BAC5661A /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F267858130A613897B2531 /* HistoryView.swift */; };
 		5B9CBD76688D6499602BADA6 /* GridSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2687048DD7EAFFA84374F96C /* GridSamplerTests.swift */; };
@@ -190,6 +191,7 @@
 		BFDD8467E08D3556ADE144C0 /* ChessboardGridScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChessboardGridScore.swift; sourceTree = "<group>"; };
 		C1013B27E23EDD807311855C /* CornerTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerTracker.swift; sourceTree = "<group>"; };
 		C413AE6BEE8F771631F14D59 /* MoveSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveSpeaker.swift; sourceTree = "<group>"; };
+		5A1BEEB0A1BEEB0A1BEEB002 /* AttentionBeep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionBeep.swift; sourceTree = "<group>"; };
 		C46CC9DDC9504DBD80822876 /* BoardDetectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardDetectionView.swift; sourceTree = "<group>"; };
 		C728BC089E05D1DE58D4A98E /* BoardStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardStudioView.swift; sourceTree = "<group>"; };
 		CB29D9EA63E620A3ED0BA7E6 /* HeatmapCornerDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCornerDecodeTests.swift; sourceTree = "<group>"; };
@@ -439,6 +441,7 @@
 				7AB2C097D4F49229B6F0C6E9 /* DigitalBoardView.swift */,
 				77D0BFBF62F1C1BE14BABFA4 /* FenBar.swift */,
 				345B8F34C0C137F732B2A45F /* MoveListView.swift */,
+				5A1BEEB0A1BEEB0A1BEEB002 /* AttentionBeep.swift */,
 				C413AE6BEE8F771631F14D59 /* MoveSpeaker.swift */,
 				B9187FD9661CEFF90455249C /* OccupancyGridOverlay.swift */,
 				CB4E96C0AE884220A03AB795 /* PieceBoxOverlay.swift */,
@@ -659,6 +662,7 @@
 				29EA8CF6D8ED8595F28747DD /* MoveInferrer.swift in Sources */,
 				EE982BA48D41A96F96BE4F63 /* MoveListView.swift in Sources */,
 				59D32746CF0C3E240AAA3DAA /* MoveSpeaker.swift in Sources */,
+				5A1BEEB0A1BEEB0A1BEEB001 /* AttentionBeep.swift in Sources */,
 				A1C3A2F6D053D4FC266969BF /* Occupancy.swift in Sources */,
 				803E1176B99E1E0251B2D4D6 /* OccupancyEstimator.swift in Sources */,
 				8D3B37420D3FBC8855BF9A79 /* OccupancyGridOverlay.swift in Sources */,

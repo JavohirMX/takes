@@ -1050,6 +1050,7 @@ final class RecordingSessionViewModel: Identifiable {
                 phase = .recording
                 resetOccupancyTracking(seeding: lastCommittedOccupancy)
                 settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
+                AttentionBeep.play()
             }
         case (.recording, .illegal):
             lastIgnoredOccupancy = smoothed
@@ -1065,6 +1066,7 @@ final class RecordingSessionViewModel: Identifiable {
             softRejectMessage = nil
             phase = .awaitingEdit
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            AttentionBeep.play()
         default:
             if next == .disturbed {
                 softRejectMessage = nil
