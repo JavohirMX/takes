@@ -311,3 +311,27 @@ import Testing
     )
     #expect(result == .none)
 }
+
+@Test func differingSquaresReturnsChangedSquaresInBitIndexOrder() {
+    let start = Occupancy.standardStart()
+    #expect(start.differingSquares(with: start).isEmpty)
+
+    var modified = start
+    modified.set(ChessSquare.parse("e2")!, occupied: false)
+    modified.set(ChessSquare.parse("e4")!, occupied: true)
+
+    let diff = start.differingSquares(with: modified)
+    #expect(diff == [ChessSquare.parse("e2")!, ChessSquare.parse("e4")!])
+    #expect(diff.map(\.algebraic) == ["e2", "e4"])
+}
+
+@Test func differingSquaresIllegalDeltaSquares() {
+    let start = Occupancy.standardStart()
+    var modified = start
+    modified.set(ChessSquare.parse("e4")!, occupied: true)
+    modified.set(ChessSquare.parse("d5")!, occupied: true)
+
+    let diff = start.differingSquares(with: modified)
+    #expect(diff == [ChessSquare.parse("e4")!, ChessSquare.parse("d5")!])
+    #expect(diff.map(\.algebraic) == ["e4", "d5"])
+}

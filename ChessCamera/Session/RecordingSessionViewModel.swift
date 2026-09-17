@@ -989,7 +989,7 @@ final class RecordingSessionViewModel: Identifiable {
                 }
                 liveOccupancy = lastCommittedOccupancy
                 resetOccupancyTracking(seeding: lastCommittedOccupancy)
-                liveDebugLine = "warmup \(fingerprintWarmupFramesRemaining)  ham 0  Δ0  ply \(committedPlyCount)  \(lastSAN ?? "-")"
+                liveDebugLine = "warmup \(fingerprintWarmupFramesRemaining)  ham 0  Δ0"
                 return
             }
             await pipeline.requestFingerprintSnapshot()
@@ -1058,30 +1058,24 @@ final class RecordingSessionViewModel: Identifiable {
             inference = inferMove(from: occ, classes: observation.classes)
         }
 
-        let motionLabel: String
-        switch motion {
-        case .stable:
-            motionLabel = "stable"
-        case .disturbed:
-            motionLabel = "disturbed"
+        if inference == .illegal {
+            lastIgnoredOccupancy = smoothed
+            lastIgnoredAt = observation.timestamp
         }
 
-        var debugParts = [
-            phaseLabel(phase),
-            motionLabel,
-            "ham \(hamming)",
-            "Δ\(observation.changedSquareCount)",
-            "ply \(committedPlyCount)",
-            lastSAN ?? "-"
-        ]
-        if case .skipIgnored = decision {
-            debugParts.append("ignored")
-        }
-        let amb = MoveInferrer.debugSans(for: inference)
-        if !amb.isEmpty {
-            debugParts.append(amb)
-        }
-        liveDebugLine = debugParts.joined(separator: "  ")
+        liveDebugLine = Self.formatLiveDebugLine(
+            phase: phase,
+            motion: motion,
+            hamming: hamming,
+            changedSquareCount: observation.changedSquareCount,
+            decision: decision,
+            inference: inference,
+            lastCommittedOccupancy: lastCommittedOccupancy,
+            smoothedOccupancy: smoothed,
+            lastIgnoredAt: lastIgnoredAt,
+            now: observation.timestamp,
+            ambiguousMoves: ambiguousMoves
+        )
 
         let next = SessionReducer.next(phase: phase, motion: motion, inference: inference)
         switch (next, inference) {
@@ -1156,7 +1150,7 @@ final class RecordingSessionViewModel: Identifiable {
         )
     }
 
-    private func phaseLabel(_ phase: SessionPhase) -> String {
+    nonisolated static func phaseLabel(_ phase: SessionPhase) -> String {
         switch phase {
         case .recording: "rec"
         case .disturbed: "dist"
@@ -1164,6 +1158,64 @@ final class RecordingSessionViewModel: Identifiable {
         case .gameOver: "over"
         default: "\(phase)"
         }
+    }
+
+    nonisolated static func formatLiveDebugLine(
+        phase: SessionPhase,
+        motion: BoardMotion,
+        hamming: Int,
+        changedSquareCount: Int,
+        decision: LiveSettleAction,
+        inference: InferenceResult,
+        lastCommittedOccupancy: Occupancy,
+        smoothedOccupancy: Occupancy,
+        lastIgnoredAt: ContinuousClock.Instant?,
+        now: ContinuousClock.Instant,
+        ambiguousMoves: [Move] = []
+    ) -> String {
+        let motionLabel: String
+        switch motion {
+        case .stable:
+            motionLabel = "stable"
+        case .disturbed:
+            motionLabel = "disturbed"
+        }
+
+        var debugParts = [
+            phaseLabel(phase),
+            motionLabel,
+            "ham \(hamming)",
+            "Δ\(changedSquareCount)"
+        ]
+
+        let isIgnored = (decision == .skipIgnored) || (inference == .illegal)
+        if isIgnored {
+            let ignoredTime = lastIgnoredAt ?? now
+            let elapsed = now - ignoredTime
+            let remaining = max(.zero, LiveSettleDecision.ignoredTTL - elapsed)
+            let diffSquares = lastCommittedOccupancy.differingSquares(with: smoothedOccupancy)
+            let formattedSquares: String
+            if diffSquares.count > 4 {
+                formattedSquares = diffSquares.prefix(4).map(\.algebraic).joined(separator: ", ") + "..."
+            } else {
+                formattedSquares = diffSquares.map(\.algebraic).joined(separator: ", ")
+            }
+            let sqPart = formattedSquares.isEmpty ? "" : " [\(formattedSquares)]"
+            debugParts.append("ignored: illegal delta\(sqPart) (\(String(format: "%.1fs", remaining.inSeconds)))")
+        }
+
+        var candidateSans = MoveInferrer.debugSans(for: inference)
+        if candidateSans.isEmpty, phase == .awaitingEdit, !ambiguousMoves.isEmpty {
+            let sans = ambiguousMoves.prefix(3).map(\.san).joined(separator: ",")
+            if !sans.isEmpty {
+                candidateSans = "amb \(sans)"
+            }
+        }
+        if !candidateSans.isEmpty {
+            debugParts.append(candidateSans)
+        }
+
+        return debugParts.joined(separator: "  ")
     }
 
     private func announceCommit(sans: [String]? = nil) {

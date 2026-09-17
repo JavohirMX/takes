@@ -106,3 +106,10 @@ enum LiveSettleDecision {
         }
     }
 }
+
+extension Duration {
+    var inSeconds: Double {
+        let c = components
+        return Double(c.seconds) + Double(c.attoseconds) * 1e-18
+    }
+}

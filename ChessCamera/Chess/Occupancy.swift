@@ -18,6 +18,17 @@ struct Occupancy: Equatable, Sendable {
         (bits ^ other.bits).nonzeroBitCount
     }
 
+    func differingSquares(with other: Occupancy) -> [ChessSquare] {
+        var diff = bits ^ other.bits
+        var squares: [ChessSquare] = []
+        while diff != 0 {
+            let bitIndex = diff.trailingZeroBitCount
+            squares.append(ChessSquare(bitIndex: bitIndex))
+            diff &= diff - 1
+        }
+        return squares
+    }
+
     static func from(classes: [ChessSquare: PieceClass]) -> Occupancy {
         var occupancy = Occupancy()
         for (square, piece) in classes where piece != .empty {

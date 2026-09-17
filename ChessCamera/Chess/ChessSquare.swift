@@ -20,3 +20,9 @@ struct ChessSquare: Hashable, Sendable, Codable {
         return ChessSquare(file: file, rank: rank - 1)
     }
 }
+
+extension ChessSquare {
+    init(bitIndex: Int) {
+        self.init(file: bitIndex % 8, rank: bitIndex / 8)
+    }
+}

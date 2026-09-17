@@ -177,4 +177,148 @@ struct RecordingSessionViewModelTests {
         model.undoLast()
         #expect(model.savedRecord == nil)
     }
+
+    @Test
+    func formatLiveDebugLineNormalRecordingPhase() {
+        let clock = ContinuousClock()
+        let now = clock.now
+        let occ = Occupancy.standardStart()
+
+        let line = RecordingSessionViewModel.formatLiveDebugLine(
+            phase: .recording,
+            motion: .stable(occ),
+            hamming: 0,
+            changedSquareCount: 0,
+            decision: .wait,
+            inference: .none,
+            lastCommittedOccupancy: occ,
+            smoothedOccupancy: occ,
+            lastIgnoredAt: nil,
+            now: now
+        )
+        #expect(line == "rec  stable  ham 0  Δ0")
+        #expect(!line.contains("ply"))
+        #expect(!line.contains("-"))
+    }
+
+    @Test
+    func formatLiveDebugLineDisturbedMotion() {
+        let clock = ContinuousClock()
+        let now = clock.now
+        let occ = Occupancy.standardStart()
+
+        let line = RecordingSessionViewModel.formatLiveDebugLine(
+            phase: .recording,
+            motion: .disturbed(since: occ),
+            hamming: 2,
+            changedSquareCount: 2,
+            decision: .wait,
+            inference: .none,
+            lastCommittedOccupancy: occ,
+            smoothedOccupancy: occ,
+            lastIgnoredAt: nil,
+            now: now
+        )
+        #expect(line == "rec  disturbed  ham 2  Δ2")
+    }
+
+    @Test
+    func formatLiveDebugLineIgnoredIllegalDeltaWithCountdown() {
+        let clock = ContinuousClock()
+        let ignoredTime = clock.now
+        let now = ignoredTime + .milliseconds(600) // 0.6s elapsed, 1.4s remaining of 2.0s TTL
+        let start = Occupancy.standardStart()
+        var smoothed = start
+        smoothed.set(ChessSquare.parse("e4")!, occupied: true)
+        smoothed.set(ChessSquare.parse("d5")!, occupied: true)
+
+        let line = RecordingSessionViewModel.formatLiveDebugLine(
+            phase: .recording,
+            motion: .stable(smoothed),
+            hamming: 2,
+            changedSquareCount: 2,
+            decision: .skipIgnored,
+            inference: .none,
+            lastCommittedOccupancy: start,
+            smoothedOccupancy: smoothed,
+            lastIgnoredAt: ignoredTime,
+            now: now
+        )
+        #expect(line == "rec  stable  ham 2  Δ2  ignored: illegal delta [e4, d5] (1.4s)")
+    }
+
+    @Test
+    func formatLiveDebugLineIgnoredIllegalDeltaDirectInference() {
+        let clock = ContinuousClock()
+        let now = clock.now
+        let start = Occupancy.standardStart()
+        var smoothed = start
+        smoothed.set(ChessSquare.parse("e4")!, occupied: true)
+        smoothed.set(ChessSquare.parse("d5")!, occupied: true)
+
+        let line = RecordingSessionViewModel.formatLiveDebugLine(
+            phase: .recording,
+            motion: .stable(smoothed),
+            hamming: 2,
+            changedSquareCount: 2,
+            decision: .infer(smoothed),
+            inference: .illegal,
+            lastCommittedOccupancy: start,
+            smoothedOccupancy: smoothed,
+            lastIgnoredAt: now,
+            now: now
+        )
+        #expect(line == "rec  stable  ham 2  Δ2  ignored: illegal delta [e4, d5] (2.0s)")
+    }
+
+    @Test
+    func formatLiveDebugLineTruncatesMoreThanFourChangedSquares() {
+        let clock = ContinuousClock()
+        let now = clock.now
+        let start = Occupancy.standardStart()
+        var smoothed = start
+        // Change 5 squares: a3, b3, c3, d3, e3
+        for sqName in ["a3", "b3", "c3", "d3", "e3"] {
+            smoothed.set(ChessSquare.parse(sqName)!, occupied: true)
+        }
+
+        let line = RecordingSessionViewModel.formatLiveDebugLine(
+            phase: .recording,
+            motion: .stable(smoothed),
+            hamming: 5,
+            changedSquareCount: 5,
+            decision: .skipIgnored,
+            inference: .none,
+            lastCommittedOccupancy: start,
+            smoothedOccupancy: smoothed,
+            lastIgnoredAt: now,
+            now: now
+        )
+        #expect(line == "rec  stable  ham 5  Δ5  ignored: illegal delta [a3, b3, c3, d3...] (2.0s)")
+    }
+
+    @Test @MainActor
+    func formatLiveDebugLineAwaitingEditCandidateMoves() throws {
+        let clock = ContinuousClock()
+        let now = clock.now
+        let model = RecordingSessionViewModel()
+        let move1 = try #require(Move(san: "Nf3", position: model.engine.board.position))
+        let move2 = try #require(Move(san: "Nc3", position: model.engine.board.position))
+        let occ = Occupancy.standardStart()
+
+        let line = RecordingSessionViewModel.formatLiveDebugLine(
+            phase: .awaitingEdit,
+            motion: .stable(occ),
+            hamming: 2,
+            changedSquareCount: 0,
+            decision: .wait,
+            inference: .none,
+            lastCommittedOccupancy: occ,
+            smoothedOccupancy: occ,
+            lastIgnoredAt: nil,
+            now: now,
+            ambiguousMoves: [move1, move2]
+        )
+        #expect(line == "edit  stable  ham 2  Δ0  amb Nf3,Nc3")
+    }
 }
