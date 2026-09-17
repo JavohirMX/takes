@@ -372,6 +372,58 @@ import Testing
     #expect(!MoveInferrer.allowsTwoPly(visualHamming: 2))
 }
 
+@Test func infersNf3WhenG1OriginIsVacatedEvenIfBinaryOccupancyLagged() throws {
+    let engine = try GameEngine(fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2")
+    let before = engine.occupancy()
+    var after = before
+    // Simulate camera lagging on clearing g1: only f3 is marked filled
+    after.set(ChessSquare.parse("f3")!, occupied: true)
+    #expect(before.hammingDistance(to: after) == 1)
+
+    // Unlabeled / empty observedClasses cannot tell if f2, d1, or g1 moved -> stays ambiguous
+    let unlabeled = MoveInferrer.infer(
+        delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
+        board: engine.board
+    )
+    guard case .ambiguous(let ambiguousMoves) = unlabeled else {
+        Issue.record("expected ambiguous moves when observedClasses is empty, got \(unlabeled)")
+        return
+    }
+    #expect(ambiguousMoves.count == 3)
+
+    // With observedClasses showing f2 and d1 occupied, but g1 empty -> resolves uniquely to Nf3
+    let withClasses = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [
+                ChessSquare.parse("f3")!: .whiteKnight,
+                ChessSquare.parse("f2")!: .whitePawn,
+                ChessSquare.parse("d1")!: .whiteQueen,
+                ChessSquare.parse("g1")!: .empty
+            ]
+        ),
+        board: engine.board
+    )
+    #expect(withClasses.san == canonicalSAN("Nf3", on: engine.board))
+
+    // Also works when g1 has no entry in observedClasses at all (unobserved / no detection)
+    let withAbsentG1 = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [
+                ChessSquare.parse("f3")!: .whiteKnight,
+                ChessSquare.parse("f2")!: .whitePawn,
+                ChessSquare.parse("d1")!: .whiteQueen
+            ]
+        ),
+        board: engine.board
+    )
+    #expect(withAbsentG1.san == canonicalSAN("Nf3", on: engine.board))
+}
+
 private func canonicalSAN(_ san: String, on board: Board) -> String? {
     Move(san: san, position: board.position)?.san
 }
+

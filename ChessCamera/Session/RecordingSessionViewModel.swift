@@ -79,6 +79,7 @@ final class RecordingSessionViewModel: Identifiable {
     private var analyzingFEN: String?
     private var autoResumeTask: Task<Void, Never>?
     var autoResumeDelayMilliseconds: Int = AutoResumeSettings.delayMilliseconds
+    private(set) var consecutiveAutoResumes: Int = 0
 
     private var frameSource: (any FrameSource)?
     private var liveCamera: LiveCameraSource?
@@ -507,6 +508,7 @@ final class RecordingSessionViewModel: Identifiable {
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
         liveDebugLine = ""
+        consecutiveAutoResumes = 0
         armFingerprintSnapshot(warmup: 5)
         phase = .recording
         setKeepsScreenAwake(true)
@@ -540,6 +542,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func undoLast() {
         cancelAutoResume()
+        consecutiveAutoResumes = 0
         do {
             try engine.undo()
             lastCommittedOccupancy = engine.occupancy()
@@ -583,11 +586,20 @@ final class RecordingSessionViewModel: Identifiable {
     func scheduleAutoResumeIfNeeded() {
         guard AutoResumeSettings.enabled else { return }
         cancelAutoResume()
-        let delay = autoResumeDelayMilliseconds
+        guard consecutiveAutoResumes < 4 else { return }
+
+        let delay: Int
+        if autoResumeDelayMilliseconds != AutoResumeSettings.delayMilliseconds {
+            delay = autoResumeDelayMilliseconds
+        } else {
+            delay = consecutiveAutoResumes < 2 ? 1000 : 3000
+        }
+
         autoResumeTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(delay))
             guard !Task.isCancelled, let self else { return }
             if self.phase == .awaitingEdit && !self.showEditSheet {
+                self.consecutiveAutoResumes += 1
                 self.resumeRecordingAfterReject()
             }
         }
@@ -600,12 +612,14 @@ final class RecordingSessionViewModel: Identifiable {
 
     func beginEdit(replacingLast: Bool) {
         cancelAutoResume()
+        consecutiveAutoResumes = 0
         editReplacesLast = replacingLast && committedPlyCount > 0
         showEditSheet = true
     }
 
     func commit(move: Move) throws {
         try engine.apply(move: move)
+        consecutiveAutoResumes = 0
         lastCommittedOccupancy = engine.occupancy()
         resetOccupancyTracking(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
@@ -641,6 +655,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func applyEdit(san: String) {
         cancelAutoResume()
+        consecutiveAutoResumes = 0
         do {
             if editReplacesLast {
                 try engine.replaceLast(with: san)
@@ -1358,6 +1373,7 @@ final class RecordingSessionViewModel: Identifiable {
         classifiedClasses = FenCodec.standardClasses()
         lastSAN = nil
         committedSANs = []
+        consecutiveAutoResumes = 0
         trackingLost = false
         detectTimedOut = false
         cameraUnavailable = false

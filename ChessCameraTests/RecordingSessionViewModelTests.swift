@@ -88,6 +88,37 @@ struct RecordingSessionViewModelTests {
     }
 
     @Test @MainActor
+    func autoResumeStopsAfterConsecutiveRetryLimit() async throws {
+        let saved = AutoResumeSettings.enabled
+        defer { AutoResumeSettings.enabled = saved }
+
+        AutoResumeSettings.enabled = true
+        let model = RecordingSessionViewModel()
+        model.autoResumeDelayMilliseconds = 20
+
+        for retry in 1...4 {
+            model.phase = .awaitingEdit
+            model.scheduleAutoResumeIfNeeded()
+            #expect(model.consecutiveAutoResumes == retry - 1)
+            try await Task.sleep(for: .milliseconds(40))
+            #expect(model.phase == .recording)
+            #expect(model.consecutiveAutoResumes == retry)
+        }
+
+        // 5th attempt: consecutiveAutoResumes is 4 -> stops auto-resuming, stays in awaitingEdit
+        model.phase = .awaitingEdit
+        model.scheduleAutoResumeIfNeeded()
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(model.phase == .awaitingEdit)
+        #expect(model.consecutiveAutoResumes == 4)
+
+        // Committing a move resets the counter
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        #expect(model.consecutiveAutoResumes == 0)
+    }
+
+    @Test @MainActor
     func liveAnalysisScheduledOnStartRecordingWhenEnabled() async throws {
         let saved = AnalysisSettings.liveHintsEnabled
         defer { AnalysisSettings.liveHintsEnabled = saved }

@@ -246,9 +246,26 @@ enum MoveInferrer {
         if originEmpty.count == 1 {
             return originEmpty
         }
-        if !originEmpty.isEmpty, originEmpty.count < pool.count {
-            return originEmpty
+        let afterOriginEmpty = (!originEmpty.isEmpty && originEmpty.count < pool.count) ? originEmpty : pool
+
+        // Disambiguate by origin square presence in YOLO detections:
+        // When binary occupancy has not cleared the origin yet (e.g. fusion fallback or smoother lag),
+        // inspect observedClasses at candidate origins. An origin is still occupied if any piece is detected on it.
+        // If candidate origins still have detected pieces while one origin is vacant, select that move.
+        let originVacated = afterOriginEmpty.filter { move in
+            guard let from = ChessSquare.parse(move.start.notation) else { return true }
+            if let observed = observedClasses[from], observed != .empty {
+                return false
+            }
+            return true
         }
-        return pool
+        if originVacated.count == 1 {
+            return originVacated
+        }
+        if !originVacated.isEmpty, originVacated.count < afterOriginEmpty.count {
+            return originVacated
+        }
+
+        return afterOriginEmpty
     }
 }
