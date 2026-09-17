@@ -112,10 +112,8 @@ struct SessionFlowView: View {
         .onChange(of: model.committedPlyCount) { _, newPlyCount in
             if newPlyCount > 0 {
                 ensureGameSaved()
-            } else if newPlyCount == 0, let record = model.savedRecord {
-                modelContext.delete(record)
-                try? modelContext.save()
-                model.savedRecord = nil
+            } else if newPlyCount == 0 {
+                model.discardSavedRecord()
             }
         }
         .onAppear {
@@ -125,15 +123,9 @@ struct SessionFlowView: View {
                 ensureGameSaved()
             }
         }
-        .onChange(of: model.phase) { oldPhase, newPhase in
+        .onChange(of: model.phase) { _, newPhase in
             if newPhase == .gameOver || newPhase == .replay {
                 ensureGameSaved()
-            } else if oldPhase == .gameOver && newPhase == .recording {
-                if let record = model.savedRecord {
-                    modelContext.delete(record)
-                    try? modelContext.save()
-                    model.savedRecord = nil
-                }
             }
         }
         .onDisappear {

@@ -178,6 +178,62 @@ struct RecordingSessionViewModelTests {
         #expect(model.savedRecord == nil)
     }
 
+    @Test @MainActor
+    func undoLastPreservesExistingRecordWhenMovesRemain() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        let e5 = try #require(Move(san: "e5", position: model.engine.board.position))
+        try model.commit(move: e5)
+
+        let record1 = try #require(model.savedRecordIfNeeded())
+        #expect(record1.pgn.contains("e4"))
+        #expect(record1.pgn.contains("e5"))
+
+        model.undoLast()
+
+        #expect(model.savedRecord != nil)
+        let record2 = try #require(model.savedRecordIfNeeded())
+        #expect(record2 === record1)
+        #expect(record2.pgn.contains("e4"))
+        #expect(!record2.pgn.contains("e5"))
+
+        let c5 = try #require(Move(san: "c5", position: model.engine.board.position))
+        try model.commit(move: c5)
+
+        let record3 = try #require(model.savedRecordIfNeeded())
+        #expect(record3 === record1)
+        #expect(record3.pgn.contains("c5"))
+    }
+
+    @Test @MainActor
+    func undoLastClearsCachedAnalysisOnSavedRecord() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        let e5 = try #require(Move(san: "e5", position: model.engine.board.position))
+        try model.commit(move: e5)
+
+        let record = try #require(model.savedRecordIfNeeded())
+        let persisted = PersistedGameAnalysis(
+            schemaVersion: 1,
+            speedRaw: "fast",
+            analyzedAt: .now,
+            result: .empty
+        )
+        record.savePersistedAnalysis(persisted)
+        #expect(record.hasCachedAnalysis)
+
+        model.undoLast()
+
+        #expect(!record.hasCachedAnalysis)
+        #expect(model.savedRecord === record)
+    }
+
     @Test
     func formatLiveDebugLineNormalRecordingPhase() {
         let clock = ContinuousClock()

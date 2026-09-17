@@ -5,6 +5,7 @@ import CoreImage
 import CoreVideo
 import Foundation
 import Observation
+import SwiftData
 import UIKit
 
 @MainActor
@@ -553,7 +554,13 @@ final class RecordingSessionViewModel: Identifiable {
                 phase = engine.isTerminal ? .gameOver : .recording
                 setKeepsScreenAwake(phase == .recording)
             }
-            savedRecord = nil
+            if engine.plyCount == 0 {
+                discardSavedRecord()
+            } else if let existing = savedRecord {
+                existing.pgn = engine.pgn
+                existing.finalFen = engine.fen
+                existing.clearPersistedAnalysis()
+            }
             scheduleLiveAnalysis()
         } catch {
             alertMessage = "Nothing to undo."
@@ -744,6 +751,16 @@ final class RecordingSessionViewModel: Identifiable {
         )
         savedRecord = record
         return record
+    }
+
+    func discardSavedRecord() {
+        if let record = savedRecord {
+            if let context = record.modelContext {
+                context.delete(record)
+                try? context.save()
+            }
+            savedRecord = nil
+        }
     }
 
     func teardown() async {
