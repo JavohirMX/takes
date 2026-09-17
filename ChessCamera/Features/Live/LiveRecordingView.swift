@@ -50,7 +50,11 @@ struct LiveRecordingView: View {
             Button("End", role: .destructive, action: model.confirmEndAndSave)
             Button("Keep playing", role: .cancel) { model.confirmEndGame = false }
         }
-        .sheet(isPresented: $model.showEditSheet) {
+        .sheet(isPresented: $model.showEditSheet, onDismiss: {
+            if model.phase == .awaitingEdit {
+                model.scheduleAutoResumeIfNeeded()
+            }
+        }) {
             EditMoveSheet(model: model)
         }
         .sheet(isPresented: $model.showShareSheet) {

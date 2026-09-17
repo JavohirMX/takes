@@ -60,6 +60,16 @@ enum FastReplySettings {
     }
 }
 
+enum AutoResumeSettings {
+    static let key = "autoResumeAfterReject"
+    static let delayMilliseconds: Int = 1000
+
+    static var enabled: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
 enum DetectionSettings {
     static let yoloConfidenceKey = "yoloConfidenceThreshold"
     static let classifierConfidenceKey = "classifierConfidenceThreshold"

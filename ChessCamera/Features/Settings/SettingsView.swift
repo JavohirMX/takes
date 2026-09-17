@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage(FastReplySettings.key) private var detectFastReplies = true
+    @AppStorage(AutoResumeSettings.key) private var autoResume = false
     @AppStorage(SpeechSettings.key) private var speakMoves = false
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
     @AppStorage(DetectionSettings.yoloConfidenceKey) private var yoloConfidenceRaw =
@@ -75,12 +76,21 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 settingsSection(title: "Detection") {
-                    toggleRow(
-                        title: "Fast replies",
-                        subtitle: "Record both players when one replies before the board settles.",
-                        systemImage: "arrow.left.arrow.right",
-                        isOn: $detectFastReplies
-                    )
+                    VStack(spacing: 0) {
+                        toggleRow(
+                            title: "Fast replies",
+                            subtitle: "Record both players when one replies before the board settles.",
+                            systemImage: "arrow.left.arrow.right",
+                            isOn: $detectFastReplies
+                        )
+                        divider
+                        toggleRow(
+                            title: "Auto-resume",
+                            subtitle: "Automatically resume recording 1 second after an unrecognized move.",
+                            systemImage: "arrow.clockwise",
+                            isOn: $autoResume
+                        )
+                    }
                 }
 
                 settingsSection(title: "Playback") {

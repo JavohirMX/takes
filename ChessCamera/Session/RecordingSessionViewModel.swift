@@ -75,6 +75,8 @@ final class RecordingSessionViewModel: Identifiable {
     let pipeline = VisionPipeline()
     private let analysisEngine: any ChessAnalyzing = AnalysisServiceFactory.make()
     private var liveAnalysisTask: Task<Void, Never>?
+    private var autoResumeTask: Task<Void, Never>?
+    var autoResumeDelayMilliseconds: Int = AutoResumeSettings.delayMilliseconds
 
     private var frameSource: (any FrameSource)?
     private var liveCamera: LiveCameraSource?
@@ -527,12 +529,14 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func finishGame() {
+        cancelAutoResume()
         phase = .gameOver
         setKeepsScreenAwake(false)
         Task { await stopCapture() }
     }
 
     func undoLast() {
+        cancelAutoResume()
         do {
             try engine.undo()
             lastCommittedOccupancy = engine.occupancy()
@@ -555,6 +559,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     /// Discard a bad settle and keep recording from the last committed position.
     func resumeRecordingAfterReject() {
+        cancelAutoResume()
         ambiguousMoves = []
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
@@ -565,7 +570,26 @@ final class RecordingSessionViewModel: Identifiable {
         phase = .recording
     }
 
+    func scheduleAutoResumeIfNeeded() {
+        guard AutoResumeSettings.enabled else { return }
+        cancelAutoResume()
+        let delay = autoResumeDelayMilliseconds
+        autoResumeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            if self.phase == .awaitingEdit && !self.showEditSheet {
+                self.resumeRecordingAfterReject()
+            }
+        }
+    }
+
+    func cancelAutoResume() {
+        autoResumeTask?.cancel()
+        autoResumeTask = nil
+    }
+
     func beginEdit(replacingLast: Bool) {
+        cancelAutoResume()
         editReplacesLast = replacingLast && committedPlyCount > 0
         showEditSheet = true
     }
@@ -606,6 +630,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func applyEdit(san: String) {
+        cancelAutoResume()
         do {
             if editReplacesLast {
                 try engine.replaceLast(with: san)
@@ -631,6 +656,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func handleBackground() {
+        cancelAutoResume()
         // Presenting a fullScreenCover can report a false `.background` scene
         // phase while the app is still active. Only pause the real camera then.
         guard UIApplication.shared.applicationState == .background else { return }
@@ -647,8 +673,11 @@ final class RecordingSessionViewModel: Identifiable {
         pausedForBackground = false
         guard phase != .idle, phase != .gameOver, phase != .replay else { return }
         switch phase {
-        case .recording, .disturbed, .awaitingEdit:
+        case .recording, .disturbed:
             setKeepsScreenAwake(true)
+        case .awaitingEdit:
+            setKeepsScreenAwake(true)
+            scheduleAutoResumeIfNeeded()
         default:
             break
         }
@@ -1081,10 +1110,14 @@ final class RecordingSessionViewModel: Identifiable {
             clearLiveAnalysisForDisturbance()
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             AttentionBeep.play()
+            scheduleAutoResumeIfNeeded()
         default:
             if next == .disturbed {
                 softRejectMessage = nil
                 clearLiveAnalysisForDisturbance()
+            }
+            if next == .awaitingEdit {
+                scheduleAutoResumeIfNeeded()
             }
             phase = next
         }
@@ -1199,6 +1232,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func stopCapture() async {
+        cancelAutoResume()
         consumeTask?.cancel()
         consumeTask = nil
         await frameSource?.stop()
@@ -1206,6 +1240,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func resetGameState() {
+        cancelAutoResume()
         phase = .idle
         quad = nil
         visionQuad = nil
