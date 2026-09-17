@@ -136,4 +136,45 @@ struct RecordingSessionViewModelTests {
         #expect(model.liveAnalysis == nil)
         #expect(model.liveAnalysisMessage == nil)
     }
+
+    @Test @MainActor
+    func savedRecordReturnsNilWhenZeroMoves() {
+        let model = RecordingSessionViewModel()
+        #expect(model.savedRecordIfNeeded() == nil)
+    }
+
+    @Test @MainActor
+    func savedRecordPersistsAndUpdatesAcrossMoves() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+
+        let record1 = try #require(model.savedRecordIfNeeded())
+        #expect(record1.pgn.contains("e4"))
+        #expect(!record1.pgn.contains("e5"))
+
+        let e5 = try #require(Move(san: "e5", position: model.engine.board.position))
+        try model.commit(move: e5)
+
+        let record2 = try #require(model.savedRecordIfNeeded())
+        #expect(record2 === record1)
+        #expect(record2.pgn.contains("e4"))
+        #expect(record2.pgn.contains("e5"))
+    }
+
+    @Test @MainActor
+    func undoLastResetsSavedRecordDraft() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        _ = model.savedRecordIfNeeded()
+        #expect(model.savedRecord != nil)
+
+        model.undoLast()
+        #expect(model.savedRecord == nil)
+    }
 }

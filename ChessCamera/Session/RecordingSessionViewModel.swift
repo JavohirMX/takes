@@ -553,6 +553,7 @@ final class RecordingSessionViewModel: Identifiable {
                 phase = engine.isTerminal ? .gameOver : .recording
                 setKeepsScreenAwake(phase == .recording)
             }
+            savedRecord = nil
             scheduleLiveAnalysis()
         } catch {
             alertMessage = "Nothing to undo."
@@ -726,14 +727,23 @@ final class RecordingSessionViewModel: Identifiable {
         UIPasteboard.general.string = engine.fen
     }
 
+    var savedRecord: GameRecord?
+
     func savedRecordIfNeeded() -> GameRecord? {
         guard engine.plyCount > 0 else { return nil }
-        return GameRecord(
+        if let existing = savedRecord {
+            existing.pgn = engine.pgn
+            existing.finalFen = engine.fen
+            return existing
+        }
+        let record = GameRecord(
             createdAt: .now,
             pgn: engine.pgn,
             finalFen: engine.fen,
             title: GameRecord.defaultTitle(for: .now)
         )
+        savedRecord = record
+        return record
     }
 
     func teardown() async {
@@ -1251,6 +1261,7 @@ final class RecordingSessionViewModel: Identifiable {
     private func resetGameState() {
         cancelAutoResume()
         clearLiveAnalysis()
+        savedRecord = nil
         phase = .idle
         quad = nil
         visionQuad = nil

@@ -78,12 +78,20 @@ struct HistoryView: View {
         .preferredColorScheme(.dark)
         .tint(Theme.accent)
         .fullScreenCover(item: $session, onDismiss: {
+            if let session, session.engine.plyCount > 0 {
+                let record = session.savedRecordIfNeeded()
+                if let record, record.modelContext == nil {
+                    modelContext.insert(record)
+                }
+                try? modelContext.save()
+            }
             Task { await session?.teardown() }
         }) { session in
             SessionFlowView(model: session) { record in
-                if let record {
+                if let record, record.modelContext == nil {
                     modelContext.insert(record)
                 }
+                try? modelContext.save()
                 Task { await session.teardown() }
                 self.session = nil
             }

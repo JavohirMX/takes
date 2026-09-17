@@ -9,6 +9,7 @@ struct ReplayView: View {
     /// When set, load/save analysis cache on this SwiftData game.
     var gamePersistentID: PersistentIdentifier? = nil
     var engine: (any ChessAnalyzing)? = nil
+    var onDone: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -94,19 +95,27 @@ struct ReplayView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Share PGN") { sharePGN() }
-                    Button("Copy PGN") { UIPasteboard.general.string = pgn }
-                    Button("Copy FEN") { UIPasteboard.general.string = finalFEN }
-                    Button("Copy current position FEN") { UIPasteboard.general.string = currentFEN }
-                    if postGameEnabled, hasCachedResult, !isAnalyzing, !sans.isEmpty {
-                        Button("Re-analyze") { startAnalysis() }
+                HStack(spacing: 8) {
+                    Menu {
+                        Button("Share PGN") { sharePGN() }
+                        Button("Copy PGN") { UIPasteboard.general.string = pgn }
+                        Button("Copy FEN") { UIPasteboard.general.string = finalFEN }
+                        Button("Copy current position FEN") { UIPasteboard.general.string = currentFEN }
+                        if postGameEnabled, hasCachedResult, !isAnalyzing, !sans.isEmpty {
+                            Button("Re-analyze") { startAnalysis() }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 44, height: 44)
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .frame(width: 44, height: 44)
+                    .accessibilityLabel("More")
+
+                    if let onDone {
+                        Button("Done", action: onDone)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
-                .accessibilityLabel("More")
             }
         }
         .toolbarBackground(Theme.background, for: .navigationBar)

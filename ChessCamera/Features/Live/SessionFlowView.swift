@@ -1,9 +1,11 @@
+import SwiftData
 import SwiftUI
 import UIKit
 
 struct SessionFlowView: View {
     @Bindable var model: RecordingSessionViewModel
     var onFinished: (GameRecord?) -> Void
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var replayFromGameOver = false
@@ -29,22 +31,45 @@ struct SessionFlowView: View {
                 case .gameOver:
                     GameOverView(
                         model: model,
-                        onReplay: { replayFromGameOver = true },
-                        onDone: { onFinished(model.savedRecordIfNeeded()) }
+                        onReplay: {
+                            ensureGameSaved()
+                            replayFromGameOver = true
+                        },
+                        onDone: {
+                            let record = ensureGameSaved()
+                            onFinished(record)
+                        }
                     )
                 case .replay:
-                    ReplayView(pgn: model.pgn, title: "Replay")
+                    ReplayView(
+                        pgn: model.pgn,
+                        title: model.savedRecord?.title ?? "Replay",
+                        gamePersistentID: ensureGameSaved()?.persistentModelID,
+                        onDone: {
+                            let record = ensureGameSaved()
+                            onFinished(record)
+                        }
+                    )
                 }
             }
             .navigationDestination(isPresented: $replayFromGameOver) {
-                ReplayView(pgn: model.pgn, title: "Replay")
+                ReplayView(
+                    pgn: model.pgn,
+                    title: model.savedRecord?.title ?? "Replay",
+                    gamePersistentID: model.savedRecord?.persistentModelID,
+                    onDone: {
+                        let record = ensureGameSaved()
+                        onFinished(record)
+                    }
+                )
             }
             .overlay(alignment: .topLeading) {
                 if canCloseWithoutConfirm {
                     Button {
+                        let record = ensureGameSaved()
                         Task {
                             await model.teardown()
-                            onFinished(nil)
+                            onFinished(record)
                         }
                     } label: {
                         Image(systemName: "xmark")
@@ -74,6 +99,9 @@ struct SessionFlowView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background:
+                if model.engine.plyCount > 0 {
+                    ensureGameSaved()
+                }
                 model.handleBackground()
             case .active:
                 model.handleForeground()
@@ -81,9 +109,32 @@ struct SessionFlowView: View {
                 break
             }
         }
+        .onChange(of: model.committedPlyCount) { _, newPlyCount in
+            if newPlyCount > 0 {
+                ensureGameSaved()
+            } else if newPlyCount == 0, let record = model.savedRecord {
+                modelContext.delete(record)
+                try? modelContext.save()
+                model.savedRecord = nil
+            }
+        }
         .onAppear {
             UIDevice.current.beginGeneratingDeviceOrientationNotifications()
             syncVideoRotation()
+            if model.engine.plyCount > 0 {
+                ensureGameSaved()
+            }
+        }
+        .onChange(of: model.phase) { oldPhase, newPhase in
+            if newPhase == .gameOver || newPhase == .replay {
+                ensureGameSaved()
+            } else if oldPhase == .gameOver && newPhase == .recording {
+                if let record = model.savedRecord {
+                    modelContext.delete(record)
+                    try? modelContext.save()
+                    model.savedRecord = nil
+                }
+            }
         }
         .onDisappear {
             UIDevice.current.endGeneratingDeviceOrientationNotifications()
@@ -94,6 +145,16 @@ struct SessionFlowView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             syncVideoRotation()
         }
+    }
+
+    @discardableResult
+    private func ensureGameSaved() -> GameRecord? {
+        guard let record = model.savedRecordIfNeeded() else { return nil }
+        if record.modelContext == nil {
+            modelContext.insert(record)
+        }
+        try? modelContext.save()
+        return record
     }
 
     private func syncVideoRotation() {
