@@ -14,12 +14,15 @@ struct LiveRecordingView: View {
     @AppStorage(DebugOverlaySettings.showBoardGridKey) private var showBoardGrid = true
     @AppStorage(DebugOverlaySettings.showOccupancyOverlayKey) private var showOccupancyOverlay = true
     @AppStorage(DebugOverlaySettings.showPieceBoxesKey) private var showPieceBoxes = false
+    @AppStorage(AnalysisSettings.liveHintsKey) private var liveHints = false
+    @AppStorage(AnalysisSettings.liveShowEvalKey) private var liveShowEval = true
+    @AppStorage(AnalysisSettings.liveShowArrowKey) private var liveShowArrow = true
 
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     private var liveBestArrow: BoardArrow? {
-        guard AnalysisSettings.effectiveLiveShowArrow else { return nil }
-        guard model.phase == .recording || model.phase == .gameOver else { return nil }
+        guard liveHints, liveShowArrow else { return nil }
+        guard model.phase == .recording || model.phase == .disturbed || model.phase == .awaitingEdit || model.phase == .gameOver else { return nil }
         return model.liveAnalysis?.bestArrow
     }
 
@@ -36,7 +39,19 @@ struct LiveRecordingView: View {
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .animation(nil, value: verticalSizeClass)
-        .onAppear { warpIsPrimary = false }
+        .onAppear {
+            warpIsPrimary = false
+            if liveHints {
+                model.scheduleLiveAnalysis()
+            }
+        }
+        .onChange(of: liveHints) { _, isEnabled in
+            if isEnabled {
+                model.scheduleLiveAnalysis()
+            } else {
+                model.clearLiveAnalysis()
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             if !isLandscape {
                 hud
@@ -69,7 +84,7 @@ struct LiveRecordingView: View {
         } else {
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: 8) {
-                    if AnalysisSettings.effectiveLiveShowEval, model.liveAnalysis != nil || model.liveAnalysisMessage != nil {
+                    if liveHints, liveShowEval {
                         VStack(spacing: 4) {
                             if let analysis = model.liveAnalysis {
                                 Text(analysis.evalDisplay)
@@ -81,6 +96,10 @@ struct LiveRecordingView: View {
                                     .font(.caption.monospaced())
                                     .foregroundStyle(Theme.textSecondary)
                                     .accessibilityLabel(message)
+                            } else {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .tint(Theme.textSecondary)
                             }
                         }
                         .frame(width: 44)
@@ -113,10 +132,20 @@ struct LiveRecordingView: View {
             )
             .frame(maxWidth: 180, maxHeight: 180)
             .frame(maxWidth: .infinity)
-            if AnalysisSettings.effectiveLiveShowEval, let analysis = model.liveAnalysis {
-                Text(analysis.evalDisplay)
-                    .font(.caption.monospaced().weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
+            if liveHints, liveShowEval {
+                if let analysis = model.liveAnalysis {
+                    Text(analysis.evalDisplay)
+                        .font(.caption.monospaced().weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                } else if let message = model.liveAnalysisMessage {
+                    Text("—")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Theme.textSecondary)
+                } else {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(Theme.textSecondary)
+                }
             }
             MoveListView(sans: model.committedSANs)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

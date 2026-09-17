@@ -86,4 +86,54 @@ struct RecordingSessionViewModelTests {
 
         #expect(model.phase == .awaitingEdit)
     }
+
+    @Test @MainActor
+    func liveAnalysisScheduledOnStartRecordingWhenEnabled() async throws {
+        let saved = AnalysisSettings.liveHintsEnabled
+        defer { AnalysisSettings.liveHintsEnabled = saved }
+
+        AnalysisSettings.liveHintsEnabled = true
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        // Give the analysis task time to initiate/run
+        for _ in 0..<30 {
+            if model.liveAnalysis != nil || model.liveAnalysisMessage != nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        #expect(model.liveAnalysis != nil || model.liveAnalysisMessage != nil)
+    }
+
+    @Test @MainActor
+    func liveAnalysisNotScheduledWhenDisabled() async throws {
+        let saved = AnalysisSettings.liveHintsEnabled
+        defer { AnalysisSettings.liveHintsEnabled = saved }
+
+        AnalysisSettings.liveHintsEnabled = false
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(model.liveAnalysis == nil)
+        #expect(model.liveAnalysisMessage == nil)
+    }
+
+    @Test @MainActor
+    func clearLiveAnalysisClearsState() async throws {
+        let model = RecordingSessionViewModel()
+        model.liveAnalysis = PositionAnalysis(
+            fen: FenCodec.standard,
+            score: .centipawns(20),
+            bestMoveUCI: "e2e4",
+            bestArrow: BoardArrow(from: ChessSquare(file: 4, rank: 1), to: ChessSquare(file: 4, rank: 3)),
+            pvUCI: ["e2e4"],
+            depth: 10
+        )
+        model.liveAnalysisMessage = "Calculating"
+
+        model.clearLiveAnalysis()
+        #expect(model.liveAnalysis == nil)
+        #expect(model.liveAnalysisMessage == nil)
+    }
 }

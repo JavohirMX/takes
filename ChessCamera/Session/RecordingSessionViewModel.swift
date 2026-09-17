@@ -75,6 +75,7 @@ final class RecordingSessionViewModel: Identifiable {
     let pipeline = VisionPipeline()
     private let analysisEngine: any ChessAnalyzing = AnalysisServiceFactory.make()
     private var liveAnalysisTask: Task<Void, Never>?
+    private var analyzingFEN: String?
     private var autoResumeTask: Task<Void, Never>?
     var autoResumeDelayMilliseconds: Int = AutoResumeSettings.delayMilliseconds
 
@@ -513,6 +514,7 @@ final class RecordingSessionViewModel: Identifiable {
                 await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
             }
         }
+        scheduleLiveAnalysis()
     }
 
     func requestEndGame() {
@@ -1107,14 +1109,12 @@ final class RecordingSessionViewModel: Identifiable {
             ambiguousMoves = moves
             softRejectMessage = nil
             phase = .awaitingEdit
-            clearLiveAnalysisForDisturbance()
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             AttentionBeep.play()
             scheduleAutoResumeIfNeeded()
         default:
             if next == .disturbed {
                 softRejectMessage = nil
-                clearLiveAnalysisForDisturbance()
             }
             if next == .awaitingEdit {
                 scheduleAutoResumeIfNeeded()
@@ -1169,43 +1169,51 @@ final class RecordingSessionViewModel: Identifiable {
         scheduleLiveAnalysis()
     }
 
-    private func scheduleLiveAnalysis() {
-        liveAnalysisTask?.cancel()
+    func scheduleLiveAnalysis() {
         guard AnalysisSettings.liveHintsEnabled else {
-            liveAnalysis = nil
-            liveAnalysisMessage = nil
+            clearLiveAnalysis()
             return
         }
-        guard phase == .recording || phase == .gameOver else {
-            liveAnalysis = nil
+        guard phase == .recording || phase == .disturbed || phase == .awaitingEdit || phase == .gameOver else {
+            clearLiveAnalysis()
             return
         }
         let fen = engine.fen
+        if liveAnalysis?.fen == fen {
+            return
+        }
+        if analyzingFEN == fen, liveAnalysisTask != nil {
+            return
+        }
+        liveAnalysisTask?.cancel()
+        analyzingFEN = fen
+        liveAnalysis = nil
         let analysisEngine = analysisEngine
         liveAnalysisTask = Task { [weak self] in
             let result = await analysisEngine.analyze(.live(fen: fen))
             guard !Task.isCancelled else { return }
+            let availability = result == nil ? await analysisEngine.availability : nil
+            guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard let self else { return }
+                guard let self, self.engine.fen == fen else { return }
+                self.analyzingFEN = nil
                 if let result {
                     self.liveAnalysis = result
                     self.liveAnalysisMessage = nil
                 } else {
-                    Task {
-                        let availability = await analysisEngine.availability
-                        await MainActor.run {
-                            self.liveAnalysis = nil
-                            self.liveAnalysisMessage = availability.userMessage
-                        }
-                    }
+                    self.liveAnalysis = nil
+                    self.liveAnalysisMessage = availability?.userMessage
                 }
             }
         }
     }
 
-    private func clearLiveAnalysisForDisturbance() {
+    func clearLiveAnalysis() {
         liveAnalysisTask?.cancel()
+        liveAnalysisTask = nil
+        analyzingFEN = nil
         liveAnalysis = nil
+        liveAnalysisMessage = nil
     }
 
     private func setKeepsScreenAwake(_ awake: Bool) {
@@ -1233,6 +1241,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     private func stopCapture() async {
         cancelAutoResume()
+        clearLiveAnalysis()
         consumeTask?.cancel()
         consumeTask = nil
         await frameSource?.stop()
@@ -1241,6 +1250,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     private func resetGameState() {
         cancelAutoResume()
+        clearLiveAnalysis()
         phase = .idle
         quad = nil
         visionQuad = nil

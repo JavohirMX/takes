@@ -120,7 +120,6 @@ actor AnalysisService: ChessAnalyzing {
         currentFEN = request.fen
 
         await engine.send(command: .setoption(id: "Hash", value: "\(request.hashMB)"))
-        await engine.send(command: .stop)
         await engine.send(command: .position(.fen(request.fen)))
         await engine.send(command: .go(movetime: request.movetimeMs))
 
