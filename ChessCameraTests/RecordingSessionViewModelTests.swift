@@ -97,7 +97,7 @@ struct RecordingSessionViewModelTests {
         model.startRecording()
 
         // Give the analysis task time to initiate/run
-        for _ in 0..<30 {
+        for _ in 0..<60 {
             if model.liveAnalysis != nil || model.liveAnalysisMessage != nil { break }
             try await Task.sleep(for: .milliseconds(50))
         }

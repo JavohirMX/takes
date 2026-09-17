@@ -205,12 +205,13 @@ struct Quadrilateral: Equatable, Sendable {
         minimum: CGFloat = 0.02
     ) -> (quad: Quadrilateral, margin: CGFloat) {
         var current = fraction
-        while current >= minimum {
+        while current >= minimum - 0.001 {
             let padded = expanded(by: current)
-            if padded.clamped(to: size) == padded {
-                return (padded, current)
+            let clamped = padded.clamped(to: size)
+            if padded.maxCornerDistance(to: clamped) <= 1.5 {
+                return (clamped, current)
             }
-            current /= 2
+            current -= 0.01
         }
         return (self, 0)
     }

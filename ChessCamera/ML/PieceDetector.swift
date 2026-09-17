@@ -224,13 +224,14 @@ enum PieceDetection {
         }
         let gridSize = grid?.imageSize ?? paddedImageSize
         let warped = CGPoint(x: uv.x * gridSize, y: uv.y * gridSize)
-        if let grid {
-            return grid.square(containingWarped: warped, orientation: orientation)
+        if let grid, let square = grid.square(containingWarped: warped, orientation: orientation, borderToleranceFraction: 0.035) {
+            return square
         }
         return GridSampler.square(
             containing: warped,
             imageSize: gridSize,
-            orientation: orientation
+            orientation: orientation,
+            borderToleranceFraction: 0.035
         )
     }
 

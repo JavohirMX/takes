@@ -132,6 +132,35 @@ import Testing
     )
 }
 
+@Test func pointNearBorderClampsWithTolerance() {
+    // -5px is within 3.5% (17.9px) of 512px
+    let nearLeft = GridSampler.square(
+        containing: CGPoint(x: -5, y: 480),
+        imageSize: 512,
+        orientation: .whiteAtBottom,
+        borderToleranceFraction: 0.035
+    )
+    #expect(nearLeft?.algebraic == "a1")
+
+    // 515px is within 3.5% (17.9px) of 512px
+    let nearRight = GridSampler.square(
+        containing: CGPoint(x: 515, y: 32),
+        imageSize: 512,
+        orientation: .whiteAtBottom,
+        borderToleranceFraction: 0.035
+    )
+    #expect(nearRight?.algebraic == "h8")
+
+    // -30px is outside tolerance and returns nil
+    let farOutside = GridSampler.square(
+        containing: CGPoint(x: -30, y: 32),
+        imageSize: 512,
+        orientation: .whiteAtBottom,
+        borderToleranceFraction: 0.035
+    )
+    #expect(farOutside == nil)
+}
+
 @Test func visionBoxBottomCenterMapsToA1() {
     let box = CGRect(x: 0, y: 0, width: 0.125, height: 0.125)
     let point = PieceDetection.imagePoint(fromVisionBox: box, imageWidth: 512, imageHeight: 512)

@@ -320,7 +320,7 @@ import Testing
     #expect(result == .illegal)
 }
 
-@Test func rejectsQueenMoveWhenDestinationLabeledPawn() throws {
+@Test func queenMoveSucceedsEvenWhenDestinationLabeledPawn() throws {
     let engine = try GameEngine(fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2")
     let before = engine.occupancy()
     var after = before
@@ -335,13 +335,31 @@ import Testing
         ),
         board: engine.board
     )
-    #expect(withPawnLabel.san != canonicalSAN("Qf3", on: engine.board))
+    #expect(withPawnLabel.san == canonicalSAN("Qf3", on: engine.board))
 
     let unlabeled = MoveInferrer.infer(
         delta: VisualDelta(previous: before, current: after, observedClasses: [:]),
         board: engine.board
     )
     #expect(unlabeled.san == canonicalSAN("Qf3", on: engine.board))
+}
+
+@Test func bishopMoveSucceedsEvenWhenDestinationLabeledPawn() throws {
+    let engine = try GameEngine(fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("f1")!, occupied: false)
+    after.set(ChessSquare.parse("c4")!, occupied: true)
+    #expect(before.hammingDistance(to: after) == 2)
+    let withPawnLabel = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [ChessSquare.parse("c4")!: .whitePawn]
+        ),
+        board: engine.board
+    )
+    #expect(withPawnLabel.san == canonicalSAN("Bc4", on: engine.board))
 }
 
 @Test func quietMoveSlackIsExact() {

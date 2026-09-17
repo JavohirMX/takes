@@ -50,18 +50,22 @@ enum GridSampler {
     }
 
     /// Maps a pixel in a square warped board (top-left origin) to an algebraic square.
-    /// Points on the far right/bottom edge clamp into the last file/rank.
+    /// Points near the boundary (within ~3.5% tolerance) clamp into the outer file/rank.
     static func square(
         containing point: CGPoint,
         imageSize: CGFloat,
-        orientation: BoardOrientation
+        orientation: BoardOrientation,
+        borderToleranceFraction: CGFloat = 0
     ) -> ChessSquare? {
-        guard imageSize > 0,
-              point.x >= 0, point.y >= 0,
-              point.x <= imageSize, point.y <= imageSize else { return nil }
+        guard imageSize > 0 else { return nil }
+        let tolerance = imageSize * borderToleranceFraction
+        guard point.x >= -tolerance, point.y >= -tolerance,
+              point.x <= imageSize + tolerance, point.y <= imageSize + tolerance else { return nil }
         let cell = imageSize / 8
-        let fileIndex = min(7, Int(point.x / cell))
-        let rankFromImageTop = min(7, Int(point.y / cell))
+        let clampedX = min(max(0, point.x), imageSize - 0.001)
+        let clampedY = min(max(0, point.y), imageSize - 0.001)
+        let fileIndex = min(7, max(0, Int(clampedX / cell)))
+        let rankFromImageTop = min(7, max(0, Int(clampedY / cell)))
         return square(
             fileIndex: fileIndex,
             rankFromImageTop: rankFromImageTop,

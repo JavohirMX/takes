@@ -57,17 +57,26 @@ struct RefinedBoardGrid: Equatable, Sendable {
         )
     }
 
-    func square(containingWarped warped: CGPoint, orientation: BoardOrientation) -> ChessSquare? {
+    func square(
+        containingWarped warped: CGPoint,
+        orientation: BoardOrientation,
+        borderToleranceFraction: CGFloat = 0
+    ) -> ChessSquare? {
+        let tolerance = imageSize * borderToleranceFraction
         for row in 0..<8 {
             for col in 0..<8 {
                 let tl = point(row: row, col: col)
                 let tr = point(row: row, col: col + 1)
                 let br = point(row: row + 1, col: col + 1)
                 let bl = point(row: row + 1, col: col)
-                let minX = min(min(tl.x, tr.x), min(br.x, bl.x))
-                let maxX = max(max(tl.x, tr.x), max(br.x, bl.x))
-                let minY = min(min(tl.y, tr.y), min(br.y, bl.y))
-                let maxY = max(max(tl.y, tr.y), max(br.y, bl.y))
+                let rawMinX = min(min(tl.x, tr.x), min(br.x, bl.x))
+                let rawMaxX = max(max(tl.x, tr.x), max(br.x, bl.x))
+                let rawMinY = min(min(tl.y, tr.y), min(br.y, bl.y))
+                let rawMaxY = max(max(tl.y, tr.y), max(br.y, bl.y))
+                let minX = col == 0 ? rawMinX - tolerance : rawMinX
+                let maxX = col == 7 ? rawMaxX + tolerance : rawMaxX
+                let minY = row == 0 ? rawMinY - tolerance : rawMinY
+                let maxY = row == 7 ? rawMaxY + tolerance : rawMaxY
                 if warped.x >= minX, warped.x <= maxX, warped.y >= minY, warped.y <= maxY {
                     return GridSampler.square(
                         fileIndex: col,

@@ -64,14 +64,14 @@ enum MoveInferrer {
                 current: delta.current,
                 observedClasses: delta.observedClasses,
                 slack: matchSlack
-            ).filter { sequenceCompatible($0.moves, on: board, observedClasses: delta.observedClasses) }
+            )
             : []
 
         let bestOne = onePly.map(\.distance).min() ?? Int.max
         let betterTwo = twoPly.filter { $0.distance < bestOne }
         if let bestTwo = betterTwo.map(\.distance).min() {
             var sequences = betterTwo.filter { $0.distance == bestTwo }.map(\.moves)
-            sequences = disambiguateSequences(sequences, observedClasses: delta.observedClasses)
+            sequences = disambiguateSequences(sequences)
             var seen = Set<String>()
             sequences = sequences.filter { sequence in
                 seen.insert(sequence.map(\.san).joined(separator: " ")).inserted
@@ -86,13 +86,12 @@ enum MoveInferrer {
         }
 
         var matches = onePly.filter { $0.distance == bestDistance }.map(\.moves).compactMap(\.first)
-        matches = disambiguatePromotions(matches, observedClasses: delta.observedClasses)
+        matches = disambiguatePromotions(matches)
         matches = disambiguateNeighborFiles(
             matches,
             current: delta.current,
             observedClasses: delta.observedClasses
         )
-        matches = matches.filter { destinationCompatible($0, on: board, observedClasses: delta.observedClasses) }
 
         switch matches.count {
         case 0:
@@ -167,7 +166,7 @@ enum MoveInferrer {
                 var trial = board
                 guard let executed = trial.move(pieceAt: start, to: end) else { continue }
                 if case .promotion = trial.state {
-                    let kinds = promotionKinds(destination: end, observedClasses: observedClasses)
+                    let kinds = promotionKinds()
                     for kind in kinds {
                         var promoTrial = board
                         guard let base = promoTrial.move(pieceAt: start, to: end) else { continue }
@@ -182,21 +181,12 @@ enum MoveInferrer {
         return results
     }
 
-    private static func promotionKinds(
-        destination: Square,
-        observedClasses: [ChessSquare: PieceClass]
-    ) -> [Piece.Kind] {
-        if let square = ChessSquare.parse(destination.notation),
-           let observed = observedClasses[square],
-           let kind = observed.promotionKind {
-            return [kind]
-        }
-        return [.queen, .rook, .bishop, .knight]
+    private static func promotionKinds() -> [Piece.Kind] {
+        [.queen, .rook, .bishop, .knight]
     }
 
     private static func disambiguateSequences(
-        _ sequences: [[Move]],
-        observedClasses: [ChessSquare: PieceClass]
+        _ sequences: [[Move]]
     ) -> [[Move]] {
         guard let first = sequences.first,
               sequences.allSatisfy({ $0.count == first.count }) else {
@@ -205,7 +195,7 @@ enum MoveInferrer {
         var result = sequences
         for ply in first.indices {
             let plyMoves = result.map { $0[ply] }
-            let filtered = disambiguatePromotions(plyMoves, observedClasses: observedClasses)
+            let filtered = disambiguatePromotions(plyMoves)
             if filtered.count < plyMoves.count {
                 let allowed = Set(filtered.map(\.san))
                 result = result.filter { allowed.contains($0[ply].san) }
@@ -215,22 +205,12 @@ enum MoveInferrer {
     }
 
     private static func disambiguatePromotions(
-        _ matches: [Move],
-        observedClasses: [ChessSquare: PieceClass]
+        _ matches: [Move]
     ) -> [Move] {
         let promotions = matches.filter { $0.promotedPiece != nil }
         guard promotions.count > 1, promotions.count == matches.count else {
             return matches
         }
-
-        let destination = promotions[0].end
-        if let square = ChessSquare.parse(destination.notation),
-           let observed = observedClasses[square],
-           let kind = observed.promotionKind {
-            let filtered = promotions.filter { $0.promotedPiece?.kind == kind }
-            if !filtered.isEmpty { return filtered }
-        }
-
         if let queen = promotions.first(where: { $0.promotedPiece?.kind == .queen }) {
             return [queen]
         }
@@ -270,73 +250,5 @@ enum MoveInferrer {
             return originEmpty
         }
         return pool
-    }
-
-    /// Reject moves whose destination YOLO class contradicts the moving piece.
-    private static func destinationCompatible(
-        _ move: Move,
-        on board: Board,
-        observedClasses: [ChessSquare: PieceClass]
-    ) -> Bool {
-        guard let dest = ChessSquare.parse(move.end.notation),
-              let observed = observedClasses[dest],
-              observed != .empty else {
-            return true
-        }
-        if let promoted = move.promotedPiece {
-            return observed.matches(kind: promoted.kind, color: promoted.color)
-        }
-        guard let piece = board.position.piece(at: move.start) else { return true }
-        return observed.matches(kind: piece.kind, color: piece.color)
-    }
-
-    private static func sequenceCompatible(
-        _ moves: [Move],
-        on board: Board,
-        observedClasses: [ChessSquare: PieceClass]
-    ) -> Bool {
-        var trial = board
-        for move in moves {
-            if !destinationCompatible(move, on: trial, observedClasses: observedClasses) {
-                return false
-            }
-            if let promoted = move.promotedPiece {
-                guard let base = trial.move(pieceAt: move.start, to: move.end) else { return false }
-                _ = trial.completePromotion(of: base, to: promoted.kind)
-            } else {
-                guard trial.move(pieceAt: move.start, to: move.end) != nil else { return false }
-            }
-        }
-        return true
-    }
-}
-
-private extension PieceClass {
-    var promotionKind: Piece.Kind? {
-        switch self {
-        case .whiteQueen, .blackQueen: .queen
-        case .whiteRook, .blackRook: .rook
-        case .whiteBishop, .blackBishop: .bishop
-        case .whiteKnight, .blackKnight: .knight
-        default: nil
-        }
-    }
-
-    func matches(kind: Piece.Kind, color: Piece.Color) -> Bool {
-        guard isWhite == (color == .white) else { return false }
-        switch kind {
-        case .pawn:
-            return self == (isWhite ? .whitePawn : .blackPawn)
-        case .knight:
-            return self == (isWhite ? .whiteKnight : .blackKnight)
-        case .bishop:
-            return self == (isWhite ? .whiteBishop : .blackBishop)
-        case .rook:
-            return self == (isWhite ? .whiteRook : .blackRook)
-        case .queen:
-            return self == (isWhite ? .whiteQueen : .blackQueen)
-        case .king:
-            return self == (isWhite ? .whiteKing : .blackKing)
-        }
     }
 }
