@@ -28,7 +28,7 @@ struct HistoryView: View {
                     populated
                 }
             }
-            .navigationTitle("Chess Camera")
+            .navigationTitle("Takes")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)

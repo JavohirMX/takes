@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export YOLO piece-detector weights to Core ML for Chess Camera.
+"""Export YOLO piece-detector weights to Core ML for Takes.
 
 YOLO11's C2PSA block often fails torch→Core ML (NMS pipeline). Fall back to
 ONNX → coremltools; the iOS runtime decodes the raw YOLO head.

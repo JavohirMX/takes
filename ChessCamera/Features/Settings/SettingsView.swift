@@ -381,7 +381,7 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.textPrimary)
                         Text(
                             """
-                            Chess Camera uses the Stockfish chess engine for optional on-device analysis. Stockfish is free software licensed under the GNU General Public License version 3 (GPLv3).
+                            Takes uses the Stockfish chess engine for optional on-device analysis. Stockfish is free software licensed under the GNU General Public License version 3 (GPLv3).
 
                             Source: https://github.com/official-stockfish/Stockfish
 

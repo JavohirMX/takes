@@ -9,6 +9,6 @@ Stockfish is free software licensed under the GNU General Public License v3.
 Full text: https://www.gnu.org/licenses/gpl-3.0.html
 Source: https://github.com/official-stockfish/Stockfish
 
-Chess Camera embeds Stockfish 17 via ChessKitEngine for optional on-device analysis.
+Takes embeds Stockfish 17 via ChessKitEngine for optional on-device analysis.
 If you distribute this application with Stockfish linked in-process, you must comply
 with GPLv3 (including offering corresponding source).

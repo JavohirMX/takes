@@ -77,7 +77,7 @@ def convert_coreml(saved_dir: Path, out_path: Path):
         minimum_deployment_target=ct.target.iOS16,
         inputs=[ct.TensorType(name="input_image", shape=(1, 128, 128, 3))],
     )
-    mlmodel.author = "Elucidation (converted for Chess Camera)"
+    mlmodel.author = "Elucidation (converted for Takes)"
     mlmodel.short_description = (
         "U-Net++ chessboard segmentation + 4 corner heatmaps "
         "(https://github.com/Elucidation/chessdetect-tfjs)"

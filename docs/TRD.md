@@ -1,4 +1,4 @@
-# Chess Camera — Technical Requirements Document
+# Takes — Technical Requirements Document
 
 **Companion to:** [PRD.md](PRD.md)
 **Stack:** Swift 6, SwiftUI, AVFoundation, Vision, Core ML, ChessKit, OpenCV imgproc only, for grid refine at confirm-start, SwiftData, Swift Testing
@@ -561,6 +561,6 @@ NNUE nets live in `ChessCamera/Resources/NNUE/` (gitignored). Fetch with `./scri
 
 Waste-sort: camera → object class → category.
 
-Chess Camera: camera → **geometry (homography, 64-square map)** → **temporal settle** → **constraint solve against legal moves** → PGN.
+Takes: camera → **geometry (homography, 64-square map)** → **temporal settle** → **constraint solve against legal moves** → PGN.
 
 The Core ML classifier is a bootstrap for move 0 (and promotion), not the product.

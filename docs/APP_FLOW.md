@@ -1,4 +1,4 @@
-# Chess Camera — App Flow
+# Takes — App Flow
 
 **Companion to:** [PRD.md](PRD.md), [UI_UX.md](UI_UX.md), [TRD.md](TRD.md)
 

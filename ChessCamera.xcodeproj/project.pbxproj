@@ -807,8 +807,8 @@
 					"$(SRCROOT)/ChessCamera",
 					"$(SRCROOT)/ChessCamera/Vision/OpenCV",
 				);
-				INFOPLIST_KEY_CFBundleDisplayName = "Chess Camera";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Chess Camera watches the board to record your game.";
+				INFOPLIST_KEY_CFBundleDisplayName = Takes;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Takes watches the board to record your game.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import a recorded video to test the same pipeline.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -843,8 +843,8 @@
 					"$(SRCROOT)/ChessCamera",
 					"$(SRCROOT)/ChessCamera/Vision/OpenCV",
 				);
-				INFOPLIST_KEY_CFBundleDisplayName = "Chess Camera";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Chess Camera watches the board to record your game.";
+				INFOPLIST_KEY_CFBundleDisplayName = Takes;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Takes watches the board to record your game.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import a recorded video to test the same pipeline.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

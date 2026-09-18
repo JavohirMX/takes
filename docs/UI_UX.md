@@ -1,4 +1,4 @@
-# Chess Camera — UI / UX
+# Takes — UI / UX
 
 **Companion to:** [PRD.md](PRD.md), [APP_FLOW.md](APP_FLOW.md)
 **Platform:** iPhone, SwiftUI, iOS 18+

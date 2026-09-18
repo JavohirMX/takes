@@ -1,4 +1,4 @@
-# Training notes — Chess Camera
+# Training notes — Takes
 
 ## Piece classifier
 

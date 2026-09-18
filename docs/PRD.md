@@ -1,6 +1,6 @@
-# Chess Camera — Product Requirements Document
+# Takes — Product Requirements Document
 
-**Working title:** Chess Camera
+**App name:** Takes
 **Platform:** iPhone (iOS 18+)
 **Horizon:** 10-day Apple Developer Academy Solo Challenge
 **Framing:** Product-shaped UI, research-honest scope
@@ -9,7 +9,7 @@
 
 ## 1. One-sentence product
 
-Chess Camera turns a physical chess game into a digitally reviewable game by watching the board with a normal iPhone camera, reading the starting position, detecting when a move has settled, using the rules of chess to infer what happened, and producing a live digital board, FEN, PGN, and replay.
+Takes turns a physical chess game into a digitally reviewable game by watching the board with a normal iPhone camera, reading the starting position, detecting when a move has settled, using the rules of chess to infer what happened, and producing a live digital board, FEN, PGN, and replay.
 
 ---
 
@@ -212,7 +212,7 @@ The intended use, which the UI should teach in one screen:
 
 1. Place the board under indoor light. Standard starting position.
 2. Mount the iPhone (tripod or stand) so every square is visible. Angle is OK.
-3. Open Chess Camera → New Game.
+3. Open Takes → New Game.
 4. Grant camera. Wait for auto-detect, or tap four corners.
 5. Confirm the classified start (flip if orientation is wrong).
 6. Play. Do not hover over the board between moves.

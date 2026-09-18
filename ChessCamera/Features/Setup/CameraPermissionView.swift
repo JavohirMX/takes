@@ -64,9 +64,9 @@ struct CameraPermissionView: View {
     private var copy: String {
         switch status {
         case .denied, .restricted:
-            "Chess Camera needs the camera to watch the board. Turn it on in Settings."
+            "Takes needs the camera to watch the board. Turn it on in Settings."
         default:
-            "Chess Camera watches the board to record your game."
+            "Takes watches the board to record your game."
         }
     }
 

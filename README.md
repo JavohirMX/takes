@@ -1,4 +1,4 @@
-# Chess Camera
+# Takes
 
 iPhone prototype: point a camera at a physical chessboard, reconstruct the game, and leave with PGN you can replay or paste into another tool.
 

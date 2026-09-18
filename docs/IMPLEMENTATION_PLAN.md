@@ -1,4 +1,4 @@
-# Chess Camera Implementation Plan
+# Takes Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -20,7 +20,7 @@ Read first: [docs/PRD.md](PRD.md), [docs/TRD.md](TRD.md), [docs/UI_UX.md](UI_UX.
 - Auto-accept moves; user edits/undos later. Only last ply is editable in MVP.
 - Dark-only UI tokens from [UI_UX.md](UI_UX.md). SF Symbols, no emoji icons.
 - Swift Testing (`import Testing`), not XCTest, for new tests.
-- Bundle name / display name: Chess Camera. Module name: `ChessCamera`.
+- Bundle name / display name: Takes. Module name: `ChessCamera`.
 
 ---
 
@@ -96,7 +96,7 @@ Xcode → App → product name `ChessCamera`, interface SwiftUI, language Swift,
 
 Info.plist keys (or target Info tab):
 
-- `NSCameraUsageDescription` = `Chess Camera watches the board to record your game.`
+- `NSCameraUsageDescription` = `Takes watches the board to record your game.`
 - `NSPhotoLibraryUsageDescription` = `Import a recorded video to test the same pipeline.`
 
 - [ ] **Step 2: Add `Theme.swift`**
@@ -122,7 +122,7 @@ enum Theme {
 
 - [ ] **Step 3: Empty History + `PrimaryButton` + `#Preview`**
 
-Root `NavigationStack` with title Chess Camera, empty copy from UI_UX, one **New Game** button (can be a no-op until Task 7). Dark `Theme.background`.
+Root `NavigationStack` with title Takes, empty copy from UI_UX, one **New Game** button (can be a no-op until Task 7). Dark `Theme.background`.
 
 - [ ] **Step 4: Run on simulator**
 
@@ -133,7 +133,7 @@ Expected: dark History empty state, Dynamic Type does not clip the CTA (44 pt mi
 ```bash
 git add -A
 git commit -m "$(cat <<'EOF'
-feat: bootstrap Chess Camera app shell and dark theme
+feat: bootstrap Takes app shell and dark theme
 
 EOF
 )"
