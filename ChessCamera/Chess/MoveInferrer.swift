@@ -72,6 +72,11 @@ enum MoveInferrer {
         if let bestTwo = betterTwo.map(\.distance).min() {
             var sequences = betterTwo.filter { $0.distance == bestTwo }.map(\.moves)
             sequences = disambiguateSequences(sequences)
+            sequences = disambiguateSequencesByPieceColor(
+                sequences,
+                board: board,
+                observedClasses: delta.observedClasses
+            )
             var seen = Set<String>()
             sequences = sequences.filter { sequence in
                 seen.insert(sequence.map(\.san).joined(separator: " ")).inserted
@@ -90,6 +95,11 @@ enum MoveInferrer {
         matches = disambiguateNeighborFiles(
             matches,
             current: delta.current,
+            observedClasses: delta.observedClasses
+        )
+        matches = disambiguateByPieceColor(
+            matches,
+            board: board,
             observedClasses: delta.observedClasses
         )
 
@@ -267,5 +277,114 @@ enum MoveInferrer {
         }
 
         return afterOriginEmpty
+    }
+
+    private static func disambiguateByPieceColor(
+        _ matches: [Move],
+        board: Board,
+        observedClasses: [ChessSquare: PieceClass]
+    ) -> [Move] {
+        guard matches.count > 1 else { return matches }
+
+        let candidates: [(item: Move, pieces: [ChessSquare: PieceClass])] = matches.compactMap { move in
+            var trial = board
+            guard let executed = trial.move(pieceAt: move.start, to: move.end) else { return nil }
+            if let promo = move.promotedPiece {
+                _ = trial.completePromotion(of: executed, to: promo.kind)
+            }
+            return (item: move, pieces: FenCodec.parsePieces(trial.position.fen))
+        }
+        guard candidates.count == matches.count else { return matches }
+
+        let destinations = matches.compactMap { ChessSquare.parse($0.end.notation) }
+        return scoreCandidatesByPieceColor(
+            candidates: candidates,
+            destinationSquares: destinations,
+            observedClasses: observedClasses
+        )
+    }
+
+    private static func disambiguateSequencesByPieceColor(
+        _ sequences: [[Move]],
+        board: Board,
+        observedClasses: [ChessSquare: PieceClass]
+    ) -> [[Move]] {
+        guard sequences.count > 1 else { return sequences }
+
+        let candidates: [(item: [Move], pieces: [ChessSquare: PieceClass])] = sequences.compactMap { seq in
+            var trial = board
+            for move in seq {
+                guard let executed = trial.move(pieceAt: move.start, to: move.end) else { return nil }
+                if let promo = move.promotedPiece {
+                    _ = trial.completePromotion(of: executed, to: promo.kind)
+                }
+            }
+            return (item: seq, pieces: FenCodec.parsePieces(trial.position.fen))
+        }
+        guard candidates.count == sequences.count else { return sequences }
+
+        let destinations = sequences.compactMap { $0.last }.compactMap { ChessSquare.parse($0.end.notation) }
+        return scoreCandidatesByPieceColor(
+            candidates: candidates,
+            destinationSquares: destinations,
+            observedClasses: observedClasses
+        )
+    }
+
+    private static func scoreCandidatesByPieceColor<T>(
+        candidates: [(item: T, pieces: [ChessSquare: PieceClass])],
+        destinationSquares: [ChessSquare],
+        observedClasses: [ChessSquare: PieceClass]
+    ) -> [T] {
+        guard candidates.count > 1 else { return candidates.map(\.item) }
+
+        var contestedSquares = Set<ChessSquare>()
+        for file in 0..<8 {
+            for rank in 0..<8 {
+                let sq = ChessSquare(file: file, rank: rank)
+                let colors = candidates.map { $0.pieces[sq]?.pieceColor }
+                if Set(colors).count > 1 {
+                    contestedSquares.insert(sq)
+                }
+            }
+        }
+        for dest in destinationSquares {
+            contestedSquares.insert(dest)
+        }
+
+        let observedColors = contestedSquares.compactMap { sq -> (ChessSquare, Piece.Color)? in
+            guard let color = observedClasses[sq]?.pieceColor else { return nil }
+            return (sq, color)
+        }
+        guard !observedColors.isEmpty else { return candidates.map(\.item) }
+
+        var scores: [(item: T, matches: Int, contradictions: Int)] = []
+        for candidate in candidates {
+            var matchCount = 0
+            var contradictionCount = 0
+            for (sq, observedColor) in observedColors {
+                let expectedColor = candidate.pieces[sq]?.pieceColor
+                if expectedColor == observedColor {
+                    matchCount += 1
+                } else if expectedColor != nil {
+                    contradictionCount += 1
+                }
+            }
+            scores.append((
+                item: candidate.item,
+                matches: matchCount,
+                contradictions: contradictionCount
+            ))
+        }
+
+        let nonContradicted = scores.filter { $0.contradictions == 0 && $0.matches > 0 }
+        if nonContradicted.count == 1 {
+            return [nonContradicted[0].item]
+        }
+        if !nonContradicted.isEmpty && nonContradicted.count < candidates.count {
+            return nonContradicted.map(\.item)
+        }
+
+        return candidates.map(\.item)
     }
 }

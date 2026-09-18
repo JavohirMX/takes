@@ -47,6 +47,15 @@ enum PieceDetection {
         }
     }
 
+    struct BaseDot: Equatable, Sendable, Identifiable {
+        var id: Int
+        var uv: CGPoint
+        var piece: PieceClass
+
+        var x: CGFloat { uv.x }
+        var y: CGFloat { uv.y }
+    }
+
     /// Vision bounding box is normalized with origin at the bottom-left.
     /// Use the box bottom-center as the piece base on the square.
     static func imagePoint(
@@ -207,8 +216,11 @@ enum PieceDetection {
         from boxes: [Box],
         paddedImageSize: CGFloat,
         margin: CGFloat
-    ) -> [CGPoint] {
-        boxes.compactMap { tightUV(of: $0, paddedImageSize: paddedImageSize, margin: margin) }
+    ) -> [BaseDot] {
+        boxes.enumerated().compactMap { index, box in
+            guard let uv = tightUV(of: box, paddedImageSize: paddedImageSize, margin: margin) else { return nil }
+            return BaseDot(id: index, uv: uv, piece: box.piece)
+        }
     }
 
     /// Algebraic square for a detection on a (possibly padded) warped board.

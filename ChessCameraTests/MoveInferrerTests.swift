@@ -242,6 +242,71 @@ import Testing
     #expect(MoveInferrer.debugSans(for: result).hasPrefix("amb "))
 }
 
+@Test func twoCapturesResolvedToQxf7ByPieceColor() throws {
+    let engine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 2 3")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("h5")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 1)
+    let f7 = ChessSquare.parse("f7")!
+    let e5 = ChessSquare.parse("e5")!
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [
+                f7: .whiteQueen,
+                e5: .blackPawn
+            ]
+        ),
+        board: engine.board
+    )
+    let expected = canonicalSAN("Qxf7+", on: engine.board) ?? canonicalSAN("Qxf7", on: engine.board)
+    #expect(result.san == expected)
+}
+
+@Test func twoCapturesResolvedToQxe5ByPieceColor() throws {
+    let engine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 2 3")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("h5")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 1)
+    let f7 = ChessSquare.parse("f7")!
+    let e5 = ChessSquare.parse("e5")!
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [
+                f7: .blackPawn,
+                e5: .whiteQueen
+            ]
+        ),
+        board: engine.board
+    )
+    let expected = canonicalSAN("Qxe5+", on: engine.board) ?? canonicalSAN("Qxe5", on: engine.board)
+    #expect(result.san == expected)
+}
+
+@Test func twoCapturesResolvedWhenOnlyCapturedSquareColorObserved() throws {
+    let engine = try GameEngine(fen: "r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 2 3")
+    let before = engine.occupancy()
+    var after = before
+    after.set(ChessSquare.parse("h5")!, occupied: false)
+    #expect(before.hammingDistance(to: after) == 1)
+    let f7 = ChessSquare.parse("f7")!
+    let result = MoveInferrer.infer(
+        delta: VisualDelta(
+            previous: before,
+            current: after,
+            observedClasses: [f7: .whiteQueen]
+        ),
+        board: engine.board
+    )
+    let expected = canonicalSAN("Qxf7+", on: engine.board) ?? canonicalSAN("Qxf7", on: engine.board)
+    #expect(result.san == expected)
+}
+
 @Test func infersE4AndE5AsTwoPlyFromStart() throws {
     let engine = GameEngine()
     let before = engine.occupancy()

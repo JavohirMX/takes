@@ -149,6 +149,7 @@ import Testing
     if let uv = observation?.yoloBases.first {
         #expect(abs(uv.x - 288.0 / 512.0) < 0.002)
         #expect(abs(uv.y - 480.0 / 512.0) < 0.002)
+        #expect(uv.piece == .whiteKing)
     }
     #expect(observation?.yoloBoxes.count == 1)
     if let box = observation?.yoloBoxes.first {

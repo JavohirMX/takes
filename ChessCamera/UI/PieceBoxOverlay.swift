@@ -1,4 +1,33 @@
+import ChessKit
 import SwiftUI
+
+enum PieceBoxStyle {
+    static func colors(for color: Piece.Color?) -> (stroke: Color, outline: Color, badgeBg: Color, badgeFg: Color) {
+        switch color {
+        case .white:
+            return (
+                stroke: .white,
+                outline: Color.black.opacity(0.65),
+                badgeBg: .white,
+                badgeFg: Color(white: 0.08)
+            )
+        case .black:
+            return (
+                stroke: Color(white: 0.12),
+                outline: Color.white.opacity(0.9),
+                badgeBg: Color(white: 0.12),
+                badgeFg: .white
+            )
+        case nil:
+            return (
+                stroke: Theme.accent,
+                outline: Color.black.opacity(0.5),
+                badgeBg: Theme.accent,
+                badgeFg: Theme.onAccent
+            )
+        }
+    }
+}
 
 struct PieceBoxOverlay: View {
     var boxes: [PieceDetection.Box]
@@ -12,21 +41,30 @@ struct PieceBoxOverlay: View {
                     viewSize: proxy.size,
                     bufferSize: bufferSize
                 )
+                let style = PieceBoxStyle.colors(for: box.piece.pieceColor)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(box.overlayLabel)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.onAccent)
+                        .foregroundStyle(style.badgeFg)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Theme.accent)
+                        .background(style.badgeBg)
+                        .overlay(
+                            Rectangle()
+                                .stroke(style.outline, lineWidth: 1)
+                        )
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Spacer(minLength: 0)
                 }
                 .frame(width: max(rect.width, 1), height: max(rect.height, 1), alignment: .topLeading)
                 .overlay {
-                    Rectangle()
-                        .stroke(Theme.accent, lineWidth: 2)
+                    ZStack {
+                        Rectangle()
+                            .stroke(style.outline, lineWidth: 3)
+                        Rectangle()
+                            .stroke(style.stroke, lineWidth: 1.5)
+                    }
                 }
                 .position(x: rect.midX, y: rect.midY)
                 .accessibilityLabel(box.overlayLabel)
@@ -54,18 +92,25 @@ struct YOLOBoxOverlay: View {
                     path.addLine(to: corners[2])
                     path.addLine(to: corners[3])
                     path.closeSubpath()
-                    context.stroke(path, with: .color(Theme.accent), lineWidth: 2)
+                    let style = PieceBoxStyle.colors(for: box.piece.pieceColor)
+                    context.stroke(path, with: .color(style.outline), lineWidth: 3)
+                    context.stroke(path, with: .color(style.stroke), lineWidth: 1.5)
                 }
             }
             ForEach(boxes) { box in
                 let corners = mappedCorners(of: box.uvRect, viewSize: proxy.size)
                 let labelPoint = labelOrigin(for: corners)
+                let style = PieceBoxStyle.colors(for: box.piece.pieceColor)
                 Text(box.overlayLabel)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.onAccent)
+                    .foregroundStyle(style.badgeFg)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Theme.accent)
+                    .background(style.badgeBg)
+                    .overlay(
+                        Rectangle()
+                            .stroke(style.outline, lineWidth: 1)
+                    )
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .fixedSize()

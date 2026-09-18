@@ -45,7 +45,7 @@ final class RecordingSessionViewModel: Identifiable {
     var lastCommittedOccupancy = Occupancy.standardStart()
     var liveOccupancy = Occupancy.standardStart()
     /// YOLO piece bases in tight playing-surface UV (0…1), for debug dots.
-    var yoloPieceBases: [CGPoint] = []
+    var yoloPieceBases: [PieceDetection.BaseDot] = []
     /// YOLO boxes in tight playing-surface UV, for live debug overlay.
     var yoloPieceBoxes: [PieceDetection.OverlayBox] = []
     var ambiguousMoves: [Move] = []

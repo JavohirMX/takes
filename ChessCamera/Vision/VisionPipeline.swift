@@ -10,7 +10,7 @@ struct BoardObservation: Sendable {
     /// Fingerprint change-detector count this frame (0 without a snapshot / heuristic fallback).
     var changedSquareCount: Int
     /// YOLO piece bases in tight playing-surface UV (0…1). Empty without a detector.
-    var yoloBases: [CGPoint] = []
+    var yoloBases: [PieceDetection.BaseDot] = []
     /// YOLO boxes in tight playing-surface UV. Empty without a detector.
     var yoloBoxes: [PieceDetection.OverlayBox] = []
     nonisolated(unsafe) var warpedImage: CGImage?
