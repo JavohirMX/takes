@@ -94,7 +94,7 @@ flowchart TD
 ## Core Features
 
 ### 📷 Smart Board Detection & Homography
-- **Dual-Engine Auto Detection**: Uses Apple Vision (`VNDetectRectanglesRequest`) with grid-likeness & quadrature scoring, alongside an optional Core ML U-Net++ heatmap model (`ChessboardUNet.mlpackage`) detecting corners (TL, TR, BR, BL) from peak distributions.
+- **Dual-Engine Auto Detection**: Uses Apple Vision (`VNDetectRectanglesRequest`) with grid-likeness & quadrature scoring, alongside an optional Core ML U-Net++ heatmap model (`ChessboardUNet.mlpackage`, adapted from [chessdetect-tfjs](https://github.com/Elucidation/chessdetect-tfjs)) detecting corners (TL, TR, BR, BL) from peak distributions.
 - **OpenCV Grid Refinement**: Bridges OpenCV C++ imgproc (`findChessboardCorners`) to find inner 7×7 intersection lattices and extrapolate the true 9×9 grid, eliminating lens distortion and padded border drift.
 - **Tactile 4-Corner Calibration Fallback**: If automatic detection struggles under difficult lighting, drag four corner handles with immediate warped board preview.
 - **Orientation Invariant**: Place your iPhone on any side of the board (White near, Black near, or either flank). Inferred automatically from White's back rank at confirmation, with one-tap 90° manual rotation.
@@ -280,7 +280,7 @@ Takes includes Python scripts for retraining and converting models:
   ```bash
   uv run python scripts/convert_chessboard_unet.py
   ```
-  Converts TF.js U-Net++ weights into `ChessboardUNet.mlpackage`.
+  Converts TF.js U-Net++ weights from [chessdetect-tfjs](https://github.com/Elucidation/chessdetect-tfjs) into `ChessboardUNet.mlpackage`.
 - **YOLO11 Piece Detector**:
   ```bash
   uv run python scripts/export_piece_detector.py --weights best.pt
@@ -306,6 +306,7 @@ Comprehensive design specifications and technical documentation are available in
 ## License & Acknowledgements
 
 - **Takes**: Released under the [MIT License](LICENSE).
+- **Board Detection Model**: U-Net++ chessboard segmentation and 4-corner heatmap detection architecture based on [chessdetect-tfjs](https://github.com/Elucidation/chessdetect-tfjs) by [Sam Kelly (Elucidation)](https://github.com/Elucidation).
 - **Stockfish 17**: Licensed under the [GNU General Public License v3 (GPLv3)](https://www.gnu.org/licenses/gpl-3.0.en.html). See [COPYING-STOCKFISH.txt](ChessCamera/Resources/COPYING-STOCKFISH.txt) for license details.
 - **ChessKit & ChessKitEngine**: MIT License © [ChessKit](https://github.com/chesskit-app).
 - **OpenCV SPM**: Apache 2.0 License © [yeatse/opencv-spm](https://github.com/yeatse/opencv-spm).
