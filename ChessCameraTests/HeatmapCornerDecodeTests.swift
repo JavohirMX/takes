@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func centerCropSquareWiderFrame() {
     let crop = HeatmapCornerDecode.centerCropSquare(srcSize: CGSize(width: 1920, height: 1080))

@@ -1,5 +1,5 @@
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func sanSpeechPawnToE4() {
     #expect(SANSpeech.speak("e4") == "pawn to e4")

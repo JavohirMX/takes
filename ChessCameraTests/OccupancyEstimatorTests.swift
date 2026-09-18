@@ -2,7 +2,7 @@ import ChessKit
 import CoreGraphics
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func uniformSquareIsEmptyWithoutBaseline() throws {
     let image = try makeGrayImage(size: 64, value: 128)

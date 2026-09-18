@@ -1,4 +1,4 @@
-name: ChessCamera
+name: Takes
 options:
   bundleIdPrefix: app.chesscamera
   deploymentTarget:
@@ -23,7 +23,7 @@ packages:
     url: https://github.com/yeatse/opencv-spm.git
     from: 5.0.0
 targets:
-  ChessCamera:
+  Takes:
     type: application
     platform: iOS
     sources:
@@ -45,9 +45,9 @@ targets:
         CLANG_CXX_LIBRARY: libc++
         SWIFT_OBJC_BRIDGING_HEADER: ChessCamera/ChessCamera-Bridging-Header.h
         HEADER_SEARCH_PATHS: $(SRCROOT)/ChessCamera $(SRCROOT)/ChessCamera/Vision/OpenCV
-        PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.ChessCamera
-        PRODUCT_NAME: ChessCamera
-        PRODUCT_MODULE_NAME: ChessCamera
+        PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.Takes
+        PRODUCT_NAME: Takes
+        PRODUCT_MODULE_NAME: Takes
         INFOPLIST_KEY_CFBundleDisplayName: Takes
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
@@ -62,18 +62,18 @@ targets:
         DEVELOPMENT_TEAM: ""
     scheme:
       testTargets:
-        - ChessCameraTests
-  ChessCameraTests:
+        - TakesTests
+  TakesTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: ChessCameraTests
     dependencies:
-      - target: ChessCamera
+      - target: Takes
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.ChessCameraTests
+        PRODUCT_BUNDLE_IDENTIFIER: app.chesscamera.TakesTests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGNING_ALLOWED: NO
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ChessCamera.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ChessCamera"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Takes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Takes"
         BUNDLE_LOADER: "$(TEST_HOST)"

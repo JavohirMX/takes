@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func a1IsBottomLeftWhenWhiteAtBottom() {
     let r = GridSampler.rect(

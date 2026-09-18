@@ -1,5 +1,5 @@
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func remapClockwiseSendsA1ToH1() {
     let a1 = ChessSquare.parse("a1")!

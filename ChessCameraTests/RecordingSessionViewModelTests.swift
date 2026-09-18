@@ -1,6 +1,6 @@
 import ChessKit
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Suite("RecordingSessionViewModel tests")
 struct RecordingSessionViewModelTests {

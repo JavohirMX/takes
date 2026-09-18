@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func expandedQuadMovesCornersOutward() {
     let quad = Quadrilateral(

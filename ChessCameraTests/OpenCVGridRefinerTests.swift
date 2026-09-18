@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func evenGridMapsA1CenterWhenWhiteAtBottom() {
     let grid = RefinedBoardGrid.even(imageSize: 512)

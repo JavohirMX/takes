@@ -2,7 +2,7 @@ import CoreGraphics
 import CoreVideo
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func checkerboardScoresHigherThanFlat() throws {
     let board = try makeCheckerboard(size: 128, phase: 0)

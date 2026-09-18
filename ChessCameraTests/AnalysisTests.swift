@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Suite("Move quality classifier")
 struct MoveQualityClassifierTests {

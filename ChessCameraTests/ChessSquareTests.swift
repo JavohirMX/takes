@@ -1,5 +1,5 @@
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func algebraicA1() {
     #expect(ChessSquare(file: 0, rank: 0).algebraic == "a1")

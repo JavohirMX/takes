@@ -2,7 +2,7 @@ import CoreGraphics
 import CoreVideo
 import Foundation
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func paddedRefinerReturnsNilOnFlatGray() throws {
     let buffer = try makeGrayPixelBuffer(width: 320, height: 240, gray: 180)

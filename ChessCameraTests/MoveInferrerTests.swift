@@ -1,6 +1,6 @@
 import ChessKit
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func infersE4FromStart() {
     let engine = GameEngine()

@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func viewToBufferMapsVideoCenterOfLetterboxed16By9() {
     let view = CGSize(width: 900, height: 1600)   // 9:16

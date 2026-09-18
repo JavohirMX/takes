@@ -1,5 +1,5 @@
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func occupancyBitA1() {
     var occ = Occupancy()

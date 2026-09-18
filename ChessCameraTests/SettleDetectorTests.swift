@@ -1,5 +1,5 @@
 import Testing
-@testable import ChessCamera
+@testable import Takes
 
 @Test func becomesDisturbedOnOccupancyChange() {
     var d = SettleDetector(config: .init(stableDuration: .milliseconds(600)))

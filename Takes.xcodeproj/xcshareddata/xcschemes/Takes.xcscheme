@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F21275A360A34ABF5D23435E"
-               BuildableName = "ChessCamera.app"
-               BlueprintName = "ChessCamera"
-               ReferencedContainer = "container:ChessCamera.xcodeproj">
+               BlueprintIdentifier = "98E7B1490B3D7687D4FF3349"
+               BuildableName = "Takes.app"
+               BlueprintName = "Takes"
+               ReferencedContainer = "container:Takes.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F21275A360A34ABF5D23435E"
-            BuildableName = "ChessCamera.app"
-            BlueprintName = "ChessCamera"
-            ReferencedContainer = "container:ChessCamera.xcodeproj">
+            BlueprintIdentifier = "98E7B1490B3D7687D4FF3349"
+            BuildableName = "Takes.app"
+            BlueprintName = "Takes"
+            ReferencedContainer = "container:Takes.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -44,10 +44,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4D22B789DCCA1BAF9A818966"
-               BuildableName = "ChessCameraTests.xctest"
-               BlueprintName = "ChessCameraTests"
-               ReferencedContainer = "container:ChessCamera.xcodeproj">
+               BlueprintIdentifier = "52B66C5B649346C3914C6454"
+               BuildableName = "TakesTests.xctest"
+               BlueprintName = "TakesTests"
+               ReferencedContainer = "container:Takes.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -68,10 +68,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F21275A360A34ABF5D23435E"
-            BuildableName = "ChessCamera.app"
-            BlueprintName = "ChessCamera"
-            ReferencedContainer = "container:ChessCamera.xcodeproj">
+            BlueprintIdentifier = "98E7B1490B3D7687D4FF3349"
+            BuildableName = "Takes.app"
+            BlueprintName = "Takes"
+            ReferencedContainer = "container:Takes.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -87,10 +87,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F21275A360A34ABF5D23435E"
-            BuildableName = "ChessCamera.app"
-            BlueprintName = "ChessCamera"
-            ReferencedContainer = "container:ChessCamera.xcodeproj">
+            BlueprintIdentifier = "98E7B1490B3D7687D4FF3349"
+            BuildableName = "Takes.app"
+            BlueprintName = "Takes"
+            ReferencedContainer = "container:Takes.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
