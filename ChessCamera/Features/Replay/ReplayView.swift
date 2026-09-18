@@ -16,6 +16,9 @@ struct ReplayView: View {
     @State private var plyIndex = 0
     @State private var sans: [String] = []
     @State private var fens: [String] = []
+    @State private var isFlipped = false
+    @State private var isPlaying = false
+    @State private var playbackTimer: Task<Void, Never>?
     @State private var showShare = false
     @State private var shareItems: [Any] = []
     @State private var analysisResult: GameAnalysisResult?
@@ -47,18 +50,28 @@ struct ReplayView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     boardRow
+                    plyControls
                     if postGameEnabled {
                         analysisControls
                     }
-                    if AnalysisSettings.effectivePostShowAccuracy, let result = analysisResult {
-                        accuracyRow(result)
-                    }
                     if AnalysisSettings.effectivePostShowPV, let pv = currentPVCaption {
-                        Text(pv)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(Theme.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.accent)
+                            Text(pv)
+                                .font(.caption.monospaced().weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Theme.border, lineWidth: 1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
                     }
                     if isAnalyzing, let progress = analysisProgress {
                         Text("Analyzing \(progress.completed)/\(progress.total)…")
@@ -72,17 +85,30 @@ struct ReplayView: View {
                     }
                     if AnalysisSettings.effectivePostShowGraph, let result = analysisResult, result.evalSeries.count > 1 {
                         EvalGraphView(series: result.evalSeries, selectedIndex: plyIndex) { index in
+                            stopPlayback()
                             plyIndex = index
                         }
                         .padding(.horizontal, 16)
                     }
-                    plyControls
+                    if let result = analysisResult, !result.plies.isEmpty {
+                        MoveQualitySummaryView(
+                            result: result,
+                            whitePlayerName: resolveGameRecord()?.whitePlayer ?? "White",
+                            blackPlayerName: resolveGameRecord()?.blackPlayer ?? "Black",
+                            onSelectPly: { ply in
+                                stopPlayback()
+                                plyIndex = ply
+                            }
+                        )
+                        .padding(.horizontal, 16)
+                    }
                     MoveListView(
                         sans: sans,
                         selectedPly: plyIndex == 0 ? nil : plyIndex - 1,
                         qualities: qualityMap,
                         showsQualityLabels: AnalysisSettings.effectivePostShowLabels
                     ) { index in
+                        stopPlayback()
                         plyIndex = index + 1
                     }
                     .padding(.horizontal, 16)
@@ -97,7 +123,16 @@ struct ReplayView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 8) {
                     Menu {
-                        Button("Share PGN") { sharePGN() }
+                        Button {
+                            shareRecapCard()
+                        } label: {
+                            Label("Share Recap Card", systemImage: "photo")
+                        }
+                        Button {
+                            sharePGN()
+                        } label: {
+                            Label("Share PGN", systemImage: "square.and.arrow.up")
+                        }
                         Button("Copy PGN") { UIPasteboard.general.string = pgn }
                         Button("Copy FEN") { UIPasteboard.general.string = finalFEN }
                         Button("Copy current position FEN") { UIPasteboard.general.string = currentFEN }
@@ -129,6 +164,7 @@ struct ReplayView: View {
             loadCachedAnalysis()
         }
         .onDisappear {
+            stopPlayback()
             analysisTask?.cancel()
             analysisTask = nil
             let engine = analysisEngine
@@ -179,41 +215,134 @@ struct ReplayView: View {
             if AnalysisSettings.effectivePostShowEvalBar {
                 EvalBarView(score: currentEval, height: 220)
             }
-            DigitalBoardView(
-                fen: currentFEN,
-                lastMove: lastMoveHighlight,
-                bestMove: currentBestArrow
-            )
+            ZStack(alignment: .topTrailing) {
+                DigitalBoardView(
+                    fen: currentFEN,
+                    orientation: isFlipped ? .whiteAtTop : .whiteAtBottom,
+                    lastMove: lastMoveHighlight,
+                    bestMove: currentBestArrow
+                )
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isFlipped.toggle()
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(8)
+                        .background(Theme.surface.opacity(0.85), in: Circle())
+                        .overlay { Circle().stroke(Theme.border, lineWidth: 1) }
+                }
+                .padding(8)
+                .accessibilityLabel(isFlipped ? "Flip board to White" : "Flip board to Black")
+            }
         }
         .padding(.horizontal, 16)
     }
 
     private var plyControls: some View {
-        HStack(spacing: 16) {
-            Button {
-                plyIndex = max(plyIndex - 1, 0)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .frame(width: 44, height: 44)
-            }
-            .disabled(plyIndex == 0)
-            .accessibilityLabel("Previous move")
-
+        VStack(spacing: 8) {
             Text(plyCaption)
-                .font(.body.monospaced())
+                .font(.body.monospaced().weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
-                .frame(maxWidth: .infinity)
 
-            Button {
-                plyIndex = min(plyIndex + 1, sans.count)
-            } label: {
-                Image(systemName: "chevron.right")
-                    .frame(width: 44, height: 44)
+            HStack(spacing: 16) {
+                Button {
+                    stopPlayback()
+                    plyIndex = 0
+                } label: {
+                    Image(systemName: "backward.end.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(plyIndex == 0)
+                .accessibilityLabel("First move")
+
+                Button {
+                    stopPlayback()
+                    plyIndex = max(plyIndex - 1, 0)
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(plyIndex == 0)
+                .accessibilityLabel("Previous move")
+
+                Button {
+                    togglePlayback()
+                } label: {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Theme.background)
+                        .frame(width: 48, height: 48)
+                        .background(Theme.accent, in: Circle())
+                }
+                .disabled(sans.isEmpty)
+                .accessibilityLabel(isPlaying ? "Pause playback" : "Play game")
+
+                Button {
+                    stopPlayback()
+                    plyIndex = min(plyIndex + 1, sans.count)
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(plyIndex >= sans.count)
+                .accessibilityLabel("Next move")
+
+                Button {
+                    stopPlayback()
+                    plyIndex = sans.count
+                } label: {
+                    Image(systemName: "forward.end.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(plyIndex >= sans.count)
+                .accessibilityLabel("Last move")
             }
-            .disabled(plyIndex >= sans.count)
-            .accessibilityLabel("Next move")
+            .foregroundStyle(Theme.textPrimary)
         }
         .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 16)
+    }
+
+    private func togglePlayback() {
+        if isPlaying {
+            stopPlayback()
+        } else {
+            startPlayback()
+        }
+    }
+
+    private func startPlayback() {
+        if plyIndex >= sans.count {
+            plyIndex = 0
+        }
+        isPlaying = true
+        playbackTimer?.cancel()
+        playbackTimer = Task { @MainActor in
+            while !Task.isCancelled && isPlaying && plyIndex < sans.count {
+                try? await Task.sleep(for: .milliseconds(900))
+                if Task.isCancelled || !isPlaying { break }
+                plyIndex += 1
+                ChessAudioFeedback.playMove()
+            }
+            isPlaying = false
+        }
+    }
+
+    private func stopPlayback() {
+        isPlaying = false
+        playbackTimer?.cancel()
+        playbackTimer = nil
     }
 
     private func accuracyRow(_ result: GameAnalysisResult) -> some View {
@@ -280,9 +409,9 @@ struct ReplayView: View {
     private var currentPVCaption: String? {
         guard plyIndex < sans.count, let result = analysisResult,
               let ply = result.plies.first(where: { $0.plyIndex == plyIndex }) else { return nil }
-        let uci = ply.best.pvUCI.prefix(6).joined(separator: " ")
-        guard !uci.isEmpty else { return nil }
-        return "PV \(uci)"
+        let formatted = PVFormatter.format(fen: currentFEN, uciMoves: ply.best.pvUCI)
+        guard !formatted.isEmpty else { return nil }
+        return formatted
     }
 
     private var qualityMap: [Int: MoveQuality] {
@@ -439,6 +568,29 @@ struct ReplayView: View {
             showShare = true
         } catch {
             UIPasteboard.general.string = pgn
+        }
+    }
+
+    @MainActor
+    private func shareRecapCard() {
+        let record = resolveGameRecord()
+        let card = GameRecapCardView(
+            title: title,
+            whitePlayer: record?.whitePlayer,
+            blackPlayer: record?.blackPlayer,
+            opening: record?.openingName ?? OpeningDetector.detect(sans: sans),
+            result: record?.displayResult ?? (try? GameEngine(fen: finalFEN))?.resultToken ?? "*",
+            finalFen: finalFEN,
+            plies: sans.count,
+            whiteAccuracy: analysisResult?.whiteAccuracy,
+            blackAccuracy: analysisResult?.blackAccuracy,
+            date: record?.createdAt ?? .now
+        )
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 3.0
+        if let image = renderer.uiImage {
+            shareItems = [image]
+            showShare = true
         }
     }
 }

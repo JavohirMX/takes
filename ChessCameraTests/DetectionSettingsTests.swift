@@ -19,7 +19,7 @@ struct DetectionSettingsTests {
     func overlayDefaultsWhenKeysAreMissing() {
         withRestoredDeveloperDefaults {
             #expect(DebugOverlaySettings.showYoloDots)
-            #expect(DebugOverlaySettings.showCaptureDiagnostics)
+            #expect(!DebugOverlaySettings.showCaptureDiagnostics)
             #expect(DebugOverlaySettings.showBoardGrid)
             #expect(DebugOverlaySettings.showOccupancyOverlay)
             #expect(!DebugOverlaySettings.showPieceBoxes)
@@ -53,7 +53,7 @@ struct DetectionSettingsTests {
             DetectionSettings.yoloConfidenceValue = 0.55
             DetectionSettings.classifierConfidenceValue = 0.60
             DebugOverlaySettings.showYoloDots = false
-            DebugOverlaySettings.showCaptureDiagnostics = false
+            DebugOverlaySettings.showCaptureDiagnostics = true
             DebugOverlaySettings.showBoardGrid = false
             DebugOverlaySettings.showOccupancyOverlay = false
             DebugOverlaySettings.showPieceBoxes = true
@@ -64,7 +64,7 @@ struct DetectionSettingsTests {
             #expect(DetectionSettings.yoloConfidenceValue == DetectionSettings.yoloConfidenceDefault)
             #expect(DetectionSettings.classifierConfidenceValue == DetectionSettings.classifierConfidenceDefault)
             #expect(DebugOverlaySettings.showYoloDots)
-            #expect(DebugOverlaySettings.showCaptureDiagnostics)
+            #expect(!DebugOverlaySettings.showCaptureDiagnostics)
             #expect(DebugOverlaySettings.showBoardGrid)
             #expect(DebugOverlaySettings.showOccupancyOverlay)
             #expect(!DebugOverlaySettings.showPieceBoxes)

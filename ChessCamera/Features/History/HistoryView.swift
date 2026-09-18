@@ -12,11 +12,14 @@ struct HistoryView: View {
     @State private var pendingVideo: PhotosPickerItem?
     @State private var replay: ReplayRoute?
     @State private var pendingDelete: GameRecord?
+    @State private var editingGame: GameRecord?
     @State private var startAfterPrimer = false
     @State private var pendingPieceStudio = false
     @State private var shareItems: [Any] = []
     @State private var showShare = false
     @State private var showSettings = false
+    @State private var searchText = ""
+    @State private var selectedFilter = "All"
 
     var body: some View {
         NavigationStack {
@@ -30,6 +33,7 @@ struct HistoryView: View {
             }
             .navigationTitle("Takes")
             .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $searchText, prompt: "Search opponent, event, opening…")
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -50,19 +54,6 @@ struct HistoryView: View {
                     }
                     .accessibilityLabel("New Game")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        PhotosPicker(selection: $pendingVideo, matching: .videos) {
-                            Label("Process a video…", systemImage: "film")
-                        }
-                        Button("Test piece detector", action: beginPieceStudio)
-                        Button("Setup tips") { showPrimer = true }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .accessibilityLabel("Debug")
-                }
             }
             .navigationDestination(isPresented: $showSettings) {
                 SettingsView()
@@ -73,6 +64,9 @@ struct HistoryView: View {
                     title: route.title,
                     gamePersistentID: route.gamePersistentID
                 )
+            }
+            .sheet(item: $editingGame) { game in
+                EditGameDetailsSheet(game: game)
             }
         }
         .preferredColorScheme(.dark)
@@ -187,60 +181,114 @@ struct HistoryView: View {
     }
 
     private var populated: some View {
-        List {
-            ForEach(historySections) { section in
-                Section {
-                    ForEach(section.games) { game in
-                        Button {
-                            replay = ReplayRoute(
-                                pgn: game.pgn,
-                                title: game.title,
-                                gamePersistentID: game.persistentModelID
-                            )
-                        } label: {
-                            HistoryRow(game: game)
-                        }
-                        .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button("Delete", role: .destructive) {
-                                pendingDelete = game
-                            }
-                        }
-                        .contextMenu {
-                            Button("Replay", systemImage: "play") {
+        VStack(spacing: 0) {
+            filterBar
+            List {
+                ForEach(historySections) { section in
+                    Section {
+                        ForEach(section.games) { game in
+                            Button {
                                 replay = ReplayRoute(
                                     pgn: game.pgn,
                                     title: game.title,
                                     gamePersistentID: game.persistentModelID
                                 )
+                            } label: {
+                                HistoryRow(game: game)
                             }
-                            Button("Share PGN", systemImage: "square.and.arrow.up") {
-                                share(game)
+                            .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button("Delete", role: .destructive) {
+                                    pendingDelete = game
+                                }
                             }
-                            Button("Delete", systemImage: "trash", role: .destructive) {
-                                pendingDelete = game
+                            .contextMenu {
+                                Button("Replay", systemImage: "play") {
+                                    replay = ReplayRoute(
+                                        pgn: game.pgn,
+                                        title: game.title,
+                                        gamePersistentID: game.persistentModelID
+                                    )
+                                }
+                                Button("Edit Details", systemImage: "pencil") {
+                                    editingGame = game
+                                }
+                                Button("Share PGN", systemImage: "square.and.arrow.up") {
+                                    share(game)
+                                }
+                                Button("Delete", systemImage: "trash", role: .destructive) {
+                                    pendingDelete = game
+                                }
                             }
                         }
+                    } header: {
+                        Text(section.title)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .textCase(nil)
                     }
-                } header: {
-                    Text(section.title)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(Theme.textSecondary)
-                        .textCase(nil)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .listSectionSpacing(8)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .listSectionSpacing(8)
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(["All", "1-0", "0-1", "½-½", "*"], id: \.self) { filter in
+                    Button {
+                        selectedFilter = filter
+                    } label: {
+                        Text(filter == "*" ? "Ongoing (*)" : filter)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(
+                                selectedFilter == filter ? Theme.accent : Theme.surface,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(
+                                selectedFilter == filter ? Theme.background : Theme.textSecondary
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private var filteredGames: [GameRecord] {
+        games.filter { game in
+            let matchesFilter: Bool = {
+                if selectedFilter == "All" { return true }
+                return game.displayResult == selectedFilter
+            }()
+            guard matchesFilter else { return false }
+
+            if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                return true
+            }
+            let query = searchText.lowercased()
+            let titleMatch = game.title.lowercased().contains(query)
+            let whiteMatch = game.whitePlayer?.lowercased().contains(query) ?? false
+            let blackMatch = game.blackPlayer?.lowercased().contains(query) ?? false
+            let eventMatch = game.event?.lowercased().contains(query) ?? false
+            let openingMatch = (game.openingName ?? OpeningDetector.detect(sans: PGNMoveList.sans(from: game.pgn)))?.lowercased().contains(query) ?? false
+            return titleMatch || whiteMatch || blackMatch || eventMatch || openingMatch
+        }
     }
 
     private var historySections: [HistorySection] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: games) { calendar.startOfDay(for: $0.createdAt) }
+        let grouped = Dictionary(grouping: filteredGames) { calendar.startOfDay(for: $0.createdAt) }
         return grouped.keys.sorted(by: >).map { day in
             HistorySection(
                 id: day,
@@ -340,7 +388,7 @@ private struct HistoryRow: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(game.title)
+                    Text(displayTitle)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
@@ -371,6 +419,13 @@ private struct HistoryRow: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    private var displayTitle: String {
+        if let white = game.whitePlayer, let black = game.blackPlayer, !white.isEmpty, !black.isEmpty {
+            return "\(white) vs \(black)"
+        }
+        return game.title
+    }
+
     private var preview: String {
         PGNMoveList.preview(game.pgn, maxPlies: 6)
     }
@@ -380,7 +435,7 @@ private struct HistoryRow: View {
     }
 
     private var resultToken: String {
-        (try? GameEngine(fen: game.finalFen))?.resultToken ?? "*"
+        game.displayResult
     }
 
     private var resultChip: some View {
@@ -423,12 +478,16 @@ private struct HistoryRow: View {
         }
         let time = game.createdAt.formatted(date: .omitted, time: .shortened)
         let moves = plies == 1 ? "1 move" : "\(plies) moves"
-        return "\(day) · \(time) · \(moves)"
+        var parts = ["\(day) · \(time) · \(moves)"]
+        if let opening = game.openingName ?? OpeningDetector.detect(sans: PGNMoveList.sans(from: game.pgn)) {
+            parts.append(opening)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var accessibilitySummary: String {
         let date = game.createdAt.formatted(date: .abbreviated, time: .shortened)
-        return "\(game.title), \(resultSpoken), \(plies) moves, \(date)"
+        return "\(displayTitle), \(resultSpoken), \(plies) moves, \(date)"
     }
 }
 

@@ -4,6 +4,8 @@ struct ConfirmStartView: View {
     @Bindable var model: RecordingSessionViewModel
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
+    @State private var selectedSquare: ChessSquare?
+
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
@@ -27,15 +29,30 @@ struct ConfirmStartView: View {
         .sheet(isPresented: $model.showShareSheet) {
             ShareSheet(items: model.shareItems)
         }
+        .sheet(item: $selectedSquare) { square in
+            PiecePickerPopover(
+                square: square,
+                currentPiece: model.classifiedClasses[square] ?? .empty,
+                onSelect: { piece in
+                    model.setPiece(piece, at: square)
+                },
+                onDismiss: {
+                    selectedSquare = nil
+                }
+            )
+        }
     }
 
     private var portrait: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 20) {
                 warpedBoard
                     .frame(maxHeight: 180)
                 digitalBoard
                     .frame(maxHeight: 320)
+                Text("Tap any square to correct its piece")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
                 rotateRow
                 statusBlock
             }
@@ -66,7 +83,6 @@ struct ConfirmStartView: View {
                 }
             }
             startButton
-            exportCropsButton
         }
         .padding(16)
     }
@@ -74,7 +90,6 @@ struct ConfirmStartView: View {
     private var portraitCTA: some View {
         VStack(spacing: 8) {
             startButton
-            exportCropsButton
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -88,7 +103,7 @@ struct ConfirmStartView: View {
             fen: model.proposedFEN,
             orientation: .whiteAtBottom,
             interactive: true,
-            onTap: { model.cyclePiece(at: $0) }
+            onTap: { selectedSquare = $0 }
         )
     }
 
@@ -155,8 +170,17 @@ struct ConfirmStartView: View {
                         .font(.body)
                         .foregroundStyle(Theme.caution)
                     if model.classifierAvailable {
-                        SecondaryButton(title: "Recapture") {
-                            Task { await model.recapture() }
+                        HStack(spacing: 10) {
+                            SecondaryButton(title: "Recapture") {
+                                Task { await model.recapture() }
+                            }
+                            SecondaryButton(title: "Reset to standard") {
+                                model.useStandardStartingPosition()
+                            }
+                        }
+                    } else {
+                        SecondaryButton(title: "Reset to standard") {
+                            model.useStandardStartingPosition()
                         }
                     }
                     if model.isLegalProposedFEN {
@@ -187,15 +211,5 @@ struct ConfirmStartView: View {
                 model.startRecording()
             }
         }
-    }
-
-    private var exportCropsButton: some View {
-        Button("Export 64 crops") {
-            model.exportCrops()
-        }
-        .font(.callout)
-        .foregroundStyle(Theme.textSecondary)
-        .frame(minHeight: 44)
-        .accessibilityLabel("Export 64 crops")
     }
 }

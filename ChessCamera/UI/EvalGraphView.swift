@@ -6,12 +6,15 @@ struct EvalGraphView: View {
     var selectedIndex: Int
     var onSelect: ((Int) -> Void)?
 
+    @State private var isDragging = false
+    @State private var dragX: CGFloat = 0
+
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
             let count = max(series.count, 2)
             let midY = size.height / 2
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 // Midline
                 Path { path in
                     path.move(to: CGPoint(x: 0, y: midY))
@@ -34,7 +37,7 @@ struct EvalGraphView: View {
                 }
                 .stroke(Theme.accent, lineWidth: 1.5)
 
-                // Selection
+                // Selection line
                 if series.indices.contains(selectedIndex) {
                     let x = size.width * CGFloat(selectedIndex) / CGFloat(count - 1)
                     Path { path in
@@ -42,6 +45,32 @@ struct EvalGraphView: View {
                         path.addLine(to: CGPoint(x: x, y: size.height))
                     }
                     .stroke(Theme.textSecondary.opacity(0.7), lineWidth: 1)
+
+                    Circle()
+                        .fill(Theme.accent)
+                        .frame(width: 6, height: 6)
+                        .position(x: x, y: yPosition(for: series[selectedIndex], height: size.height))
+                }
+
+                // Floating tooltip
+                if isDragging, series.indices.contains(selectedIndex) {
+                    let score = series[selectedIndex]
+                    let moveText = selectedIndex == 0 ? "Start" : "Move \(selectedIndex)"
+                    let text = "\(moveText): \(score.display)"
+                    let x = size.width * CGFloat(selectedIndex) / CGFloat(count - 1)
+                    let clampedX = max(44, min(size.width - 44, x))
+
+                    Text(text)
+                        .font(.caption2.monospaced().weight(.bold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Theme.surface, in: Capsule())
+                        .overlay {
+                            Capsule().stroke(Theme.border, lineWidth: 1)
+                        }
+                        .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                        .position(x: clampedX, y: 14)
                 }
             }
             .contentShape(Rectangle())
@@ -49,9 +78,19 @@ struct EvalGraphView: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         guard series.count > 1, let onSelect else { return }
+                        isDragging = true
+                        dragX = value.location.x
                         let fraction = max(0, min(1, value.location.x / max(size.width, 1)))
                         let index = Int((fraction * CGFloat(series.count - 1)).rounded())
+                        if index != selectedIndex {
+                            UISelectionFeedbackGenerator().selectionChanged()
+                        }
                         onSelect(index)
+                    }
+                    .onEnded { _ in
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            isDragging = false
+                        }
                     }
             )
         }

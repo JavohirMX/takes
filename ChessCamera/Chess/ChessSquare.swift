@@ -21,7 +21,9 @@ struct ChessSquare: Hashable, Sendable, Codable {
     }
 }
 
-extension ChessSquare {
+extension ChessSquare: Identifiable {
+    public var id: String { algebraic }
+
     init(bitIndex: Int) {
         self.init(file: bitIndex % 8, rank: bitIndex / 8)
     }

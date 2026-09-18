@@ -80,6 +80,32 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         )
     }
 
+    private var currentDevice: AVCaptureDevice?
+
+    func focusAndExpose(at normalizedPoint: CGPoint) {
+        sessionQueue.async {
+            guard let device = self.currentDevice else { return }
+            do {
+                try device.lockForConfiguration()
+                let clamped = CGPoint(
+                    x: min(max(normalizedPoint.x, 0), 1),
+                    y: min(max(normalizedPoint.y, 0), 1)
+                )
+                if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(.autoFocus) {
+                    device.focusPointOfInterest = clamped
+                    device.focusMode = .autoFocus
+                }
+                if device.isExposurePointOfInterestSupported && device.isExposureModeSupported(.autoExpose) {
+                    device.exposurePointOfInterest = clamped
+                    device.exposureMode = .autoExpose
+                }
+                device.unlockForConfiguration()
+            } catch {
+                // Ignore configuration error
+            }
+        }
+    }
+
     private func configureIfNeeded() throws {
         guard !configured else { return }
         captureSession.beginConfiguration()
@@ -88,6 +114,7 @@ final class LiveCameraSource: NSObject, FrameSource, AVCaptureVideoDataOutputSam
         guard let device = Self.preferredBackCamera() else {
             throw CaptureError.cameraUnavailable
         }
+        self.currentDevice = device
 
         // Prefer 720p; some multi-cam configs reject the preset — fall back to inputPriority.
         if captureSession.canSetSessionPreset(.hd1280x720) {

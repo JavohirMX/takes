@@ -48,6 +48,27 @@ enum SpeechSettings {
     }
 }
 
+enum SoundSettings {
+    static let key = "playMoveSounds"
+
+    static var playSounds: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: key) == nil { return true }
+            return UserDefaults.standard.bool(forKey: key)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
+enum MatchModeSettings {
+    static let key = "matchModeAutoDim"
+
+    static var autoDim: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
 enum FastReplySettings {
     static let key = "detectFastReplies"
 
@@ -110,13 +131,13 @@ enum DetectionSettings {
         }
     }
 
+    static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
     static func resetToDefaults() {
         yoloConfidenceValue = yoloConfidenceDefault
         classifierConfidenceValue = classifierConfidenceDefault
-    }
-
-    static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
-        min(max(value, range.lowerBound), range.upperBound)
     }
 
     private static func storedDouble(
@@ -124,7 +145,7 @@ enum DetectionSettings {
         default defaultValue: Double,
         range: ClosedRange<Double>
     ) -> Double {
-        guard UserDefaults.standard.object(forKey: key) != nil else { return defaultValue }
+        if UserDefaults.standard.object(forKey: key) == nil { return defaultValue }
         return clamp(UserDefaults.standard.double(forKey: key), to: range)
     }
 }
@@ -142,7 +163,7 @@ enum DebugOverlaySettings {
     }
 
     static var showCaptureDiagnostics: Bool {
-        get { storedBool(for: showCaptureDiagnosticsKey, default: true) }
+        get { storedBool(for: showCaptureDiagnosticsKey, default: false) }
         set { UserDefaults.standard.set(newValue, forKey: showCaptureDiagnosticsKey) }
     }
 
@@ -163,7 +184,7 @@ enum DebugOverlaySettings {
 
     static func resetToDefaults() {
         showYoloDots = true
-        showCaptureDiagnostics = true
+        showCaptureDiagnostics = false
         showBoardGrid = true
         showOccupancyOverlay = true
         showPieceBoxes = false

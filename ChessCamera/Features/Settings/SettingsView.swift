@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage(FastReplySettings.key) private var detectFastReplies = true
     @AppStorage(AutoResumeSettings.key) private var autoResume = false
+    @AppStorage(SoundSettings.key) private var soundEffects = true
+    @AppStorage(MatchModeSettings.key) private var matchModeAutoDim = false
     @AppStorage(SpeechSettings.key) private var speakMoves = false
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
     @AppStorage(DetectionSettings.yoloConfidenceKey) private var yoloConfidenceRaw =
@@ -94,12 +96,21 @@ struct SettingsView: View {
                 }
 
                 settingsSection(title: "Playback") {
-                    toggleRow(
-                        title: "Speak moves",
-                        subtitle: "Announce each committed move out loud.",
-                        systemImage: "speaker.wave.2",
-                        isOn: $speakMoves
-                    )
+                    VStack(spacing: 0) {
+                        toggleRow(
+                            title: "Move sound effects",
+                            subtitle: "Play acoustic wood piece tap, capture, and check tones.",
+                            systemImage: "speaker.wave.3",
+                            isOn: $soundEffects
+                        )
+                        divider
+                        toggleRow(
+                            title: "Speak moves",
+                            subtitle: "Announce each committed move out loud.",
+                            systemImage: "speaker.wave.2",
+                            isOn: $speakMoves
+                        )
+                    }
                 }
 
                 settingsSection(title: "Analysis") {
@@ -252,29 +263,38 @@ struct SettingsView: View {
                 }
 
                 settingsSection(title: "Recording") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            settingIcon("timer")
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Settle wait")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(Theme.textPrimary)
-                                Text("How long the board must stay still before a move is committed.")
-                                    .font(.callout)
-                                    .foregroundStyle(Theme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                    VStack(spacing: 0) {
+                        toggleRow(
+                            title: "Match Mode auto-dim",
+                            subtitle: "Dim the screen during long games to conserve battery while keeping recording active.",
+                            systemImage: "moon.stars",
+                            isOn: $matchModeAutoDim
+                        )
+                        divider
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                settingIcon("timer")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Settle wait")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("How long the board must stay still before a move is committed.")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
+                            Picker("Settle wait", selection: settleMilliseconds) {
+                                Text("300 ms").tag(300)
+                                Text("600 ms").tag(600)
+                                Text("900 ms").tag(900)
+                                Text("1.5 s").tag(1500)
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityLabel("Settle wait")
                         }
-                        Picker("Settle wait", selection: settleMilliseconds) {
-                            Text("300 ms").tag(300)
-                            Text("600 ms").tag(600)
-                            Text("900 ms").tag(900)
-                            Text("1.5 s").tag(1500)
-                        }
-                        .pickerStyle(.segmented)
-                        .accessibilityLabel("Settle wait")
+                        .padding(16)
                     }
-                    .padding(16)
                 }
 
                 settingsSection(title: "Developer") {

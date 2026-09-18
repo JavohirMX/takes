@@ -61,11 +61,29 @@ struct StatusBanner: View {
     var showResume: Bool = false
     var onResume: (() -> Void)?
 
+    @State private var settleProgress: CGFloat = 0.0
+
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: kind.icon)
-                .foregroundStyle(kind.color)
-                .frame(width: 28, height: 28)
+            ZStack {
+                if case .disturbed = kind {
+                    Circle()
+                        .stroke(Theme.caution.opacity(0.25), lineWidth: 2.5)
+                        .frame(width: 32, height: 32)
+                    Circle()
+                        .trim(from: 0, to: settleProgress)
+                        .stroke(Theme.caution, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 32, height: 32)
+                }
+                Image(systemName: kind.icon)
+                    .foregroundStyle(kind.color)
+                    .frame(width: 28, height: 28)
+            }
+            .frame(width: 32, height: 32)
+            .onAppear { updateSettleAnimation() }
+            .onChange(of: kind) { _, _ in updateSettleAnimation() }
+
             Text(kind.copy)
                 .font(.title3.weight(.semibold).monospaced())
                 .foregroundStyle(Theme.textPrimary)
@@ -102,5 +120,17 @@ struct StatusBanner: View {
 
     private var hudBackground: Color {
         UIAccessibility.isReduceTransparencyEnabled ? Theme.surface : Theme.surface.opacity(0.95)
+    }
+
+    private func updateSettleAnimation() {
+        if case .disturbed = kind {
+            settleProgress = 0.0
+            let duration = Double(SettleSettings.milliseconds) / 1000.0
+            withAnimation(.linear(duration: duration)) {
+                settleProgress = 1.0
+            }
+        } else {
+            settleProgress = 0.0
+        }
     }
 }

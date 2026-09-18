@@ -105,7 +105,7 @@ struct BoardStudioView: View {
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(statusCopy)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
@@ -114,9 +114,6 @@ struct BoardStudioView: View {
                 .font(.callout)
                 .foregroundStyle(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if model.isHeatmapLocalizerAvailable || model.mlQuad != nil || model.visionQuad != nil {
-                localizerPicker
-            }
             if model.quad != nil {
                 PrimaryButton(title: "Looks good") {
                     Task { await model.confirmQuad() }
@@ -140,38 +137,6 @@ struct BoardStudioView: View {
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
         }
-    }
-
-    private var localizerPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Picker("Localizer", selection: Binding(
-                get: { model.activeLocalizer },
-                set: { model.setActiveLocalizer($0) }
-            )) {
-                Text(BoardLocalizerSource.vision.title)
-                    .tag(BoardLocalizerSource.vision)
-                    .disabled(model.visionQuad == nil)
-                Text(BoardLocalizerSource.ml.title)
-                    .tag(BoardLocalizerSource.ml)
-                    .disabled(model.mlQuad == nil)
-            }
-            .pickerStyle(.segmented)
-            .disabled(model.visionQuad == nil && model.mlQuad == nil)
-            Text(compareStatusCopy)
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-        }
-    }
-
-    private var compareStatusCopy: String {
-        let visionMark = model.visionQuad != nil ? "✓" : "—"
-        let mlMark: String
-        if !model.isHeatmapLocalizerAvailable {
-            mlMark = "n/a"
-        } else {
-            mlMark = model.mlQuad != nil ? "✓" : "—"
-        }
-        return "Vision \(visionMark)  ML \(mlMark) — active: \(model.activeLocalizer.title)"
     }
 
     private var statusCopy: String {
@@ -209,24 +174,32 @@ struct BoardStudioView: View {
                 VideoMapping.bufferToView(point: quad.bottomRight, viewSize: size, bufferSize: model.bufferSize),
                 VideoMapping.bufferToView(point: quad.bottomLeft, viewSize: size, bufferSize: model.bufferSize)
             ]
+            let labels = ["1 (TL)", "2 (TR)", "3 (BR)", "4 (BL)"]
             ForEach(0..<4, id: \.self) { index in
-                CornerHandle(label: "\(index + 1)", point: points[index], onDrag: { location in
-                    model.beginCornerDrag()
-                    let clamped = VideoMapping.clampToVideo(
-                        point: location,
-                        viewSize: size,
-                        bufferSize: model.bufferSize
-                    )
-                    if let bufferPoint = VideoMapping.viewToBuffer(
-                        point: clamped,
-                        viewSize: size,
-                        bufferSize: model.bufferSize
-                    ) {
-                        model.setCorner(index, bufferPoint: bufferPoint)
+                CornerHandle(
+                    label: labels[index],
+                    point: points[index],
+                    image: model.previewImage,
+                    viewSize: size,
+                    onDrag: { location in
+                        model.beginCornerDrag()
+                        let clamped = VideoMapping.clampToVideo(
+                            point: location,
+                            viewSize: size,
+                            bufferSize: model.bufferSize
+                        )
+                        if let bufferPoint = VideoMapping.viewToBuffer(
+                            point: clamped,
+                            viewSize: size,
+                            bufferSize: model.bufferSize
+                        ) {
+                            model.setCorner(index, bufferPoint: bufferPoint)
+                        }
+                    },
+                    onEnded: {
+                        model.finishCornerDrag()
                     }
-                }, onEnded: {
-                    model.finishCornerDrag()
-                })
+                )
             }
         }
     }

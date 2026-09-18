@@ -9,10 +9,12 @@ struct SetupPrimerView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 20) {
                         Text("Set up once")
                             .font(.largeTitle.weight(.bold))
                             .foregroundStyle(Theme.textPrimary)
+
+                        SetupPrimerDiagram()
 
                         primerRow(
                             symbol: "checkerboard.rectangle",

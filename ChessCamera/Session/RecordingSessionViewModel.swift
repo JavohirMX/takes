@@ -483,6 +483,11 @@ final class RecordingSessionViewModel: Identifiable {
         proposedFEN = FenCodec.fen(from: classifiedClasses)
     }
 
+    func setPiece(_ piece: PieceClass, at square: ChessSquare) {
+        classifiedClasses[square] = piece
+        proposedFEN = FenCodec.fen(from: classifiedClasses)
+    }
+
     func useStandardStartingPosition() {
         useStandardPositionClasses()
     }
@@ -533,7 +538,23 @@ final class RecordingSessionViewModel: Identifiable {
         finishGame()
     }
 
-    func finishGame() {
+    var pendingResultOverride: String?
+    var pendingWhitePlayer: String?
+    var pendingBlackPlayer: String?
+
+    func focusCamera(at normalizedPoint: CGPoint) {
+        liveCamera?.focusAndExpose(at: normalizedPoint)
+    }
+
+    func finishGame(resultOverride: String? = nil, whitePlayer: String? = nil, blackPlayer: String? = nil) {
+        if let resultOverride { pendingResultOverride = resultOverride }
+        if let whitePlayer { pendingWhitePlayer = whitePlayer }
+        if let blackPlayer { pendingBlackPlayer = blackPlayer }
+        if let existing = savedRecord {
+            if let resultOverride { existing.resultOverride = resultOverride }
+            if let whitePlayer { existing.whitePlayer = whitePlayer }
+            if let blackPlayer { existing.blackPlayer = blackPlayer }
+        }
         cancelAutoResume()
         phase = .gameOver
         setKeepsScreenAwake(false)
@@ -756,13 +777,19 @@ final class RecordingSessionViewModel: Identifiable {
         if let existing = savedRecord {
             existing.pgn = engine.pgn
             existing.finalFen = engine.fen
+            if let pendingResultOverride { existing.resultOverride = pendingResultOverride }
+            if let pendingWhitePlayer { existing.whitePlayer = pendingWhitePlayer }
+            if let pendingBlackPlayer { existing.blackPlayer = pendingBlackPlayer }
             return existing
         }
         let record = GameRecord(
             createdAt: .now,
             pgn: engine.pgn,
             finalFen: engine.fen,
-            title: GameRecord.defaultTitle(for: .now)
+            title: GameRecord.defaultTitle(for: .now),
+            whitePlayer: pendingWhitePlayer,
+            blackPlayer: pendingBlackPlayer,
+            resultOverride: pendingResultOverride
         )
         savedRecord = record
         return record
@@ -1253,6 +1280,17 @@ final class RecordingSessionViewModel: Identifiable {
     private func announceCommit(sans: [String]? = nil) {
         let spoken = sans ?? engine.appliedSANs.last.map { [$0] } ?? []
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if let lastMove = spoken.last {
+            if lastMove.contains("#") || lastMove.contains("+") {
+                ChessAudioFeedback.playCheck()
+            } else if lastMove.contains("x") {
+                ChessAudioFeedback.playCapture()
+            } else {
+                ChessAudioFeedback.playMove()
+            }
+        } else {
+            ChessAudioFeedback.playMove()
+        }
         if !spoken.isEmpty {
             UIAccessibility.post(notification: .announcement, argument: spoken.joined(separator: " "))
         }

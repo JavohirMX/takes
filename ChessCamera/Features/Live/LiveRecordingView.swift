@@ -18,6 +18,12 @@ struct LiveRecordingView: View {
     @AppStorage(AnalysisSettings.liveShowEvalKey) private var liveShowEval = true
     @AppStorage(AnalysisSettings.liveShowArrowKey) private var liveShowArrow = true
 
+    @State private var showEndResolution = false
+    @State private var showScoreSheet = false
+    @State private var matchModeActive = false
+    @State private var focusPoint: CGPoint?
+    @State private var showFocusReticle = false
+
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     private var liveBestArrow: BoardArrow? {
@@ -30,13 +36,19 @@ struct LiveRecordingView: View {
         let layout = isLandscape
             ? AnyLayout(HStackLayout(spacing: 0))
             : AnyLayout(VStackLayout(spacing: 0))
-        layout {
-            cameraBlock
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .layoutPriority(isLandscape ? 0 : 1)
-            accessory
+        ZStack {
+            layout {
+                cameraBlock
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(isLandscape ? 0 : 1)
+                accessory
+            }
+            .background(Theme.background.ignoresSafeArea())
+
+            if matchModeActive {
+                matchModeOverlay
+            }
         }
-        .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .animation(nil, value: verticalSizeClass)
         .onAppear {
@@ -57,13 +69,27 @@ struct LiveRecordingView: View {
                 hud
             }
         }
-        .confirmationDialog(
-            "End game and save PGN?",
-            isPresented: $model.confirmEndGame,
-            titleVisibility: .visible
-        ) {
-            Button("End", role: .destructive, action: model.confirmEndAndSave)
-            Button("Keep playing", role: .cancel) { model.confirmEndGame = false }
+        .sheet(isPresented: $showEndResolution) {
+            EndGameResolutionSheet(
+                onConfirm: { outcome, white, black in
+                    showEndResolution = false
+                    model.finishGame(
+                        resultOverride: outcome.resultToken,
+                        whitePlayer: white,
+                        blackPlayer: black
+                    )
+                },
+                onCancel: {
+                    showEndResolution = false
+                }
+            )
+        }
+        .sheet(isPresented: $showScoreSheet) {
+            MoveSheetDrawer(
+                sans: model.committedSANs,
+                fen: model.engine.fen,
+                onDismiss: { showScoreSheet = false }
+            )
         }
         .sheet(isPresented: $model.showEditSheet, onDismiss: {
             if model.phase == .awaitingEdit {
@@ -113,10 +139,25 @@ struct LiveRecordingView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .frame(maxHeight: .infinity)
-                RecentPlyStrip(sans: model.committedSANs)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .id(model.committedPlyCount)
+
+                // Tappable score sheet drawer handle in portrait
+                Button {
+                    showScoreSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        RecentPlyStrip(sans: model.committedSANs)
+                        Image(systemName: "list.bullet.clipboard")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .id(model.committedPlyCount)
             }
             .frame(maxHeight: .infinity)
         }
@@ -158,29 +199,55 @@ struct LiveRecordingView: View {
     }
 
     private var cameraBlock: some View {
-        ZStack {
-            cameraFeed(showOverlays: !warpIsPrimary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if warpIsPrimary {
-                warpFeed
-                    .matchedGeometryEffect(id: "warp", in: previewSwap)
+        GeometryReader { proxy in
+            ZStack {
+                cameraFeed(showOverlays: !warpIsPrimary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Theme.background)
-            }
 
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture(perform: togglePreview)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel(warpIsPrimary ? "Show camera" : "Show board preview")
-
-            VStack {
-                HStack {
-                    Spacer()
-                    cornerPIP
+                if warpIsPrimary {
+                    warpFeed
+                        .matchedGeometryEffect(id: "warp", in: previewSwap)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.background)
                 }
-                Spacer()
+
+                if showFocusReticle, let focusPoint {
+                    FocusReticleView()
+                        .position(focusPoint)
+                        .transition(.scale(scale: 1.4).combined(with: .opacity))
+                }
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { location in
+                        guard !warpIsPrimary else { return }
+                        let normalized = CGPoint(
+                            x: max(0, min(1, location.x / max(1, proxy.size.width))),
+                            y: max(0, min(1, location.y / max(1, proxy.size.height)))
+                        )
+                        focusPoint = location
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                            showFocusReticle = true
+                        }
+                        model.focusCamera(at: normalized)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(1200))
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                showFocusReticle = false
+                            }
+                        }
+                    }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Tap to focus camera")
+
+                VStack {
+                    HStack {
+                        Spacer()
+                        cornerPIP
+                    }
+                    Spacer()
+                }
             }
         }
     }
@@ -332,25 +399,55 @@ struct LiveRecordingView: View {
     private var hudControls: some View {
         HStack(spacing: 12) {
             Button {
-                model.requestEndGame()
+                showEndResolution = true
             } label: {
-                Text("End")
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                HStack(spacing: 6) {
+                    Image(systemName: "flag.fill")
+                        .font(.callout.weight(.bold))
+                    Text("End")
+                        .font(.body.weight(.semibold))
+                }
+                .foregroundStyle(Theme.statusRed)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(Theme.statusRed.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Theme.statusRed.opacity(0.3), lineWidth: 1)
+                }
             }
             .accessibilityLabel("End game")
 
             Button {
                 model.undoLast()
             } label: {
-                Text("Undo")
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.callout.weight(.bold))
+                    Text("Undo")
+                        .font(.body.weight(.semibold))
+                }
+                .foregroundStyle(model.canUndo ? Theme.textPrimary : Theme.textTertiary)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Theme.border, lineWidth: 1)
+                }
             }
             .disabled(!model.canUndo)
             .accessibilityLabel("Undo last move")
 
             Menu {
+                Button {
+                    withAnimation {
+                        matchModeActive.toggle()
+                    }
+                } label: {
+                    Label(
+                        matchModeActive ? "Exit Match Mode" : "Match Mode (Dim Screen)",
+                        systemImage: "moon.fill"
+                    )
+                }
                 Button {
                     speakMoves.toggle()
                 } label: {
@@ -363,14 +460,71 @@ struct LiveRecordingView: View {
                 Button("Fix last move") { model.beginEdit(replacingLast: true) }
                     .disabled(model.committedPlyCount == 0)
                 Button("Copy FEN") { model.copyFEN() }
-                Button("Export 64 crops") { model.exportCrops() }
             } label: {
                 Image(systemName: "ellipsis")
-                    .frame(width: 44, height: 44)
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(width: 48, height: 48)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Theme.border, lineWidth: 1)
+                    }
             }
             .accessibilityLabel("More actions")
         }
-        .foregroundStyle(Theme.textPrimary)
+    }
+
+    private var matchModeOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.94)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Image(systemName: "moon.stars.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Theme.accent)
+
+                Text("Match Mode Active")
+                    .font(.headline)
+                    .foregroundStyle(Theme.textPrimary)
+
+                Text("Recording in background. Screen dimmed to preserve battery.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                if let lastSAN = model.lastSAN {
+                    Text("Last: \(lastSAN)")
+                        .font(.callout.monospaced().weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+                        .background(Theme.surface, in: Capsule())
+                }
+
+                Button {
+                    withAnimation {
+                        matchModeActive = false
+                    }
+                } label: {
+                    Text("Tap to Wake")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.background)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(Theme.accent, in: Capsule())
+                }
+                .padding(.top, 12)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation {
+                matchModeActive = false
+            }
+        }
     }
 
     private var statusKind: StatusKind {
@@ -391,6 +545,20 @@ struct LiveRecordingView: View {
         default:
             return .recording(model.lastSAN ?? "Recording")
         }
+    }
+}
+
+private struct FocusReticleView: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(Color.yellow, lineWidth: 1.5)
+                .frame(width: 56, height: 56)
+            Circle()
+                .fill(Color.yellow)
+                .frame(width: 4, height: 4)
+        }
+        .allowsHitTesting(false)
     }
 }
 
