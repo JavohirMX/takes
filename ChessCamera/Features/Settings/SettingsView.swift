@@ -97,7 +97,7 @@ struct SettingsView: View {
                             isOn: $autoResume
                         )
                         divider
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 settingIcon("gauge.with.dots.needle.50percent")
                                 VStack(alignment: .leading, spacing: 4) {
@@ -109,12 +109,42 @@ struct SettingsView: View {
                                         .foregroundStyle(Theme.textSecondary)
                                 }
                             }
-                            Picker("Rate limit", selection: $moveRateLimitRaw) {
+
+                            VStack(spacing: 6) {
                                 ForEach(MoveRateLimit.allCases) { limit in
-                                    Text(limit.title).tag(limit.rawValue)
+                                    Button {
+                                        moveRateLimitRaw = limit.rawValue
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    } label: {
+                                        HStack {
+                                            Text(limit.title)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(moveRateLimitRaw == limit.rawValue ? Theme.textPrimary : Theme.textSecondary)
+                                            Spacer()
+                                            if moveRateLimitRaw == limit.rawValue {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.body.weight(.bold))
+                                                    .foregroundStyle(Theme.accent)
+                                            } else {
+                                                Circle()
+                                                    .strokeBorder(Theme.border.opacity(0.6), lineWidth: 1.5)
+                                                    .frame(width: 18, height: 18)
+                                            }
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            moveRateLimitRaw == limit.rawValue ? Theme.surfaceMuted : Theme.surface.opacity(0.4),
+                                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        )
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(moveRateLimitRaw == limit.rawValue ? Theme.accent.opacity(0.45) : Theme.border.opacity(0.25), lineWidth: 1)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .pickerStyle(.segmented)
                         }
                         .padding(16)
                     }
@@ -136,7 +166,7 @@ struct SettingsView: View {
                             isOn: $speakMoves
                         )
                         divider
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 settingIcon("character.bubble")
                                 VStack(alignment: .leading, spacing: 4) {
@@ -148,12 +178,55 @@ struct SettingsView: View {
                                         .foregroundStyle(Theme.textSecondary)
                                 }
                             }
-                            Picker("Piece notation", selection: $pieceNotationRaw) {
+
+                            VStack(spacing: 8) {
                                 ForEach(PieceNotationStyle.allCases) { style in
-                                    Text(style.title).tag(style.rawValue)
+                                    Button {
+                                        pieceNotationRaw = style.rawValue
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            ZStack {
+                                                Circle()
+                                                    .fill(pieceNotationRaw == style.rawValue ? Theme.accent.opacity(0.18) : Theme.surfaceMuted)
+                                                    .frame(width: 36, height: 36)
+                                                Text(style == .figurines ? "♞" : "N")
+                                                    .font(.title3.weight(.bold))
+                                                    .foregroundStyle(pieceNotationRaw == style.rawValue ? Theme.accent : Theme.textSecondary)
+                                            }
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(style == .figurines ? "Figurine Icons" : "Standard Letters")
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(Theme.textPrimary)
+                                                Text(style == .figurines ? "♞f3, ♝c4, ♛d8" : "Nf3, Bc4, Qd8")
+                                                    .font(.caption.monospaced())
+                                                    .foregroundStyle(Theme.textSecondary)
+                                            }
+                                            Spacer()
+                                            if pieceNotationRaw == style.rawValue {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.body.weight(.bold))
+                                                    .foregroundStyle(Theme.accent)
+                                            } else {
+                                                Circle()
+                                                    .strokeBorder(Theme.border.opacity(0.6), lineWidth: 1.5)
+                                                    .frame(width: 18, height: 18)
+                                            }
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            pieceNotationRaw == style.rawValue ? Theme.surfaceMuted : Theme.surface.opacity(0.4),
+                                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        )
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(pieceNotationRaw == style.rawValue ? Theme.accent.opacity(0.45) : Theme.border.opacity(0.25), lineWidth: 1)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .pickerStyle(.segmented)
                         }
                         .padding(16)
                     }

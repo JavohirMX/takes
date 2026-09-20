@@ -31,8 +31,8 @@ struct HistoryView: View {
                     populated
                 }
             }
-            .navigationTitle("Takes")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search opponent, event, opening…")
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -43,14 +43,26 @@ struct HistoryView: View {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
-                            .frame(minWidth: 44, minHeight: 44)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.surface, in: Circle())
+                            .overlay {
+                                Circle().stroke(Theme.border, lineWidth: 1)
+                            }
                     }
                     .accessibilityLabel("Settings")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: beginNewGame) {
                         Image(systemName: "plus")
-                            .frame(minWidth: 44, minHeight: 44)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.surface, in: Circle())
+                            .overlay {
+                                Circle().stroke(Theme.border, lineWidth: 1)
+                            }
                     }
                     .accessibilityLabel("New Game")
                 }
@@ -206,10 +218,13 @@ struct HistoryView: View {
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Delete", role: .destructive) {
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
                                     pendingDelete = game
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
                                 }
+                                .tint(Theme.danger)
                             }
                             .swipeActions(edge: .leading) {
                                 if game.displayResult == "*" {
@@ -417,58 +432,44 @@ private struct HistoryRow: View {
     var onContinue: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 14) {
             DigitalBoardView(
                 fen: game.finalFen,
                 showsCoordinates: false
             )
-            .frame(width: 72, height: 72)
+            .frame(width: 68, height: 68)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Theme.border.opacity(0.6), lineWidth: 1)
+            }
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .center, spacing: 8) {
                     Text(displayTitle)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Spacer(minLength: 8)
-                    if game.displayResult == "*" {
-                        Button {
-                            onContinue?()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "camera.viewfinder")
-                                Text("Continue")
-                            }
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(Theme.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Theme.accent.opacity(0.16), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
                     resultChip
                 }
                 Text(subtitle)
                     .font(.callout)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
-                if !preview.isEmpty {
-                    Text(preview)
-                        .font(.body.monospaced())
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineLimit(1)
-                }
             }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textSecondary)
-                .padding(.top, 4)
+                .foregroundStyle(Theme.textTertiary)
                 .accessibilityHidden(true)
         }
-        .padding(16)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(14)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Theme.border.opacity(0.35), lineWidth: 1)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
         .accessibilityAddTraits(.isButton)
@@ -481,10 +482,6 @@ private struct HistoryRow: View {
         return game.title
     }
 
-    private var preview: String {
-        PGNMoveList.preview(game.pgn, maxPlies: 6)
-    }
-
     private var plies: Int {
         PGNMoveList.sans(from: game.pgn).count
     }
@@ -494,13 +491,20 @@ private struct HistoryRow: View {
     }
 
     private var resultChip: some View {
-        Text(resultToken)
-            .font(.caption.monospaced().weight(.semibold))
-            .foregroundStyle(resultForeground)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(resultForeground.opacity(0.16), in: Capsule())
-            .accessibilityHidden(true)
+        HStack(spacing: 4) {
+            if resultToken == "*" {
+                Circle()
+                    .fill(Theme.caution)
+                    .frame(width: 6, height: 6)
+            }
+            Text(resultToken == "*" ? "Ongoing" : resultToken)
+                .font(.caption.monospaced().weight(.semibold))
+        }
+        .foregroundStyle(resultForeground)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(resultForeground.opacity(0.14), in: Capsule())
+        .accessibilityHidden(true)
     }
 
     private var resultForeground: Color {

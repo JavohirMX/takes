@@ -60,6 +60,20 @@ struct MoveQualityClassifierTests {
         #expect(acc != nil)
         #expect(acc! > 95)
     }
+
+    @Test func estimatedEloIsCalibratedAndReasonable() {
+        // Short game guard
+        #expect(MoveQualityClassifier.estimatedElo(accuracy: 95, plyCount: 2) == 1100)
+        // 75% accuracy in a solid game should be club-level (~1350)
+        let clubElo = MoveQualityClassifier.estimatedElo(accuracy: 75, plyCount: 30)
+        #expect(clubElo >= 1300 && clubElo <= 1450)
+        // 80% accuracy should be ~1500-1650
+        let advElo = MoveQualityClassifier.estimatedElo(accuracy: 80, plyCount: 30)
+        #expect(advElo >= 1450 && advElo <= 1650)
+        // 98% accuracy should be master-level (~2400-2650), not absurdly over 2800
+        let masterElo = MoveQualityClassifier.estimatedElo(accuracy: 98, plyCount: 40)
+        #expect(masterElo >= 2350 && masterElo <= 2650)
+    }
 }
 
 @Suite("UCI move parsing")

@@ -26,6 +26,7 @@ struct ReplayView: View {
     @State private var showShare = false
     @State private var shareItems: [Any] = []
     @State private var showEditSheet = false
+    @State private var showRecapSheet = false
 
     // Analysis state
     @State private var analysisResult: GameAnalysisResult?
@@ -79,7 +80,7 @@ struct ReplayView: View {
                 HStack(spacing: 8) {
                     Menu {
                         Button {
-                            shareRecapCard()
+                            showRecapSheet = true
                         } label: {
                             Label("Share Recap Card", systemImage: "photo")
                         }
@@ -88,9 +89,10 @@ struct ReplayView: View {
                         } label: {
                             Label("Share PGN", systemImage: "square.and.arrow.up")
                         }
-                        Button("Copy PGN") { UIPasteboard.general.string = pgn }
-                        Button("Copy FEN") { UIPasteboard.general.string = finalFEN }
-                        Button("Copy Current Position FEN") { UIPasteboard.general.string = currentDisplayFEN }
+                        Button("Copy FEN") {
+                            UIPasteboard.general.string = currentDisplayFEN
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
                         if let record = resolveGameRecord() {
                             Button {
                                 showEditSheet = true
@@ -133,6 +135,26 @@ struct ReplayView: View {
                 EditGameDetailsSheet(game: game)
             }
         }
+        .sheet(isPresented: $showRecapSheet) {
+            let record = resolveGameRecord()
+            let whiteElo = analysisResult?.whiteElo ?? (analysisResult?.whiteAccuracy.flatMap { MoveQualityClassifier.estimatedElo(accuracy: $0, plyCount: sans.count) })
+            let blackElo = analysisResult?.blackElo ?? (analysisResult?.blackAccuracy.flatMap { MoveQualityClassifier.estimatedElo(accuracy: $0, plyCount: sans.count) })
+            ShareRecapSheet(
+                title: title,
+                whitePlayer: record?.whitePlayer,
+                blackPlayer: record?.blackPlayer,
+                opening: detectedOpening,
+                result: record?.displayResult ?? (try? GameEngine(fen: finalFEN))?.resultToken ?? "*",
+                finalFen: finalFEN,
+                currentFen: currentDisplayFEN,
+                plies: sans.count,
+                whiteAccuracy: analysisResult?.whiteAccuracy,
+                blackAccuracy: analysisResult?.blackAccuracy,
+                whiteElo: whiteElo,
+                blackElo: blackElo,
+                date: record?.createdAt ?? .now
+            )
+        }
         .onAppear {
             rebuild()
             loadCachedAnalysis()
@@ -150,11 +172,26 @@ struct ReplayView: View {
 
     // MARK: - Layouts
 
+    private var detectedOpening: String? {
+        resolveGameRecord()?.openingName ?? OpeningDetector.detect(sans: sans)
+    }
+
     private var portraitBody: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if let record = resolveGameRecord(), (record.displayResult == "*" || record.displayResult.isEmpty) {
-                    continueGameBanner(record)
+                if let opening = detectedOpening, !opening.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "book.closed.fill")
+                            .font(.caption.weight(.bold))
+                        Text(opening)
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Theme.accent.opacity(0.12), in: Capsule())
+                    .overlay { Capsule().stroke(Theme.accent.opacity(0.25), lineWidth: 1) }
+                    .padding(.top, 4)
                 }
 
                 boardRow
@@ -227,6 +264,20 @@ struct ReplayView: View {
     private var landscapeBody: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(spacing: 12) {
+                if let opening = detectedOpening, !opening.isEmpty {
+                    HStack(spacing: 5) {
+                        Image(systemName: "book.closed.fill")
+                            .font(.caption2.weight(.bold))
+                        Text(opening)
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Theme.accent.opacity(0.12), in: Capsule())
+                    .lineLimit(1)
+                }
+
                 boardRow
                     .frame(maxHeight: 280)
                 if variationEngine != nil {
@@ -238,10 +289,6 @@ struct ReplayView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
-                    if let record = resolveGameRecord(), (record.displayResult == "*" || record.displayResult.isEmpty) {
-                        continueGameBanner(record)
-                    }
-
                     if postGameEnabled {
                         analysisControls
                     }
@@ -313,7 +360,7 @@ struct ReplayView: View {
                 onTap: { square in handleSquareTap(square) }
             )
 
-            if AnalysisSettings.effectivePostShowEvalBar {
+            if AnalysisSettings.effectivePostShowEvalBar && (isAnalyzing || hasCachedResult || variationEngine != nil) {
                 EvalBarView(
                     score: currentDisplayEval,
                     isFlipped: isFlipped,
@@ -430,7 +477,7 @@ struct ReplayView: View {
                 .accessibilityLabel("First move")
 
                 CircularButton(
-                    icon: "backward.fill",
+                    icon: "chevron.backward",
                     title: "Prev",
                     size: 40,
                     isDisabled: plyIndex == 0 || variationEngine != nil
@@ -452,7 +499,7 @@ struct ReplayView: View {
                 .accessibilityLabel(isPlaying ? "Pause playback" : "Play game")
 
                 CircularButton(
-                    icon: "forward.fill",
+                    icon: "chevron.forward",
                     title: "Next",
                     size: 40,
                     isDisabled: plyIndex >= sans.count || variationEngine != nil
@@ -482,34 +529,6 @@ struct ReplayView: View {
         .padding(.horizontal, isLandscape ? 0 : 16)
     }
 
-    // MARK: - Continue Game Banner
-
-    private func continueGameBanner(_ record: GameRecord) -> some View {
-        Button {
-            onContinueGame?(record)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "camera.viewfinder")
-                    .font(.body.weight(.bold))
-                Text("Match in progress — Continue recording")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Theme.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Theme.accent.opacity(0.35), lineWidth: 1)
-            }
-            .foregroundStyle(Theme.accent)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, isLandscape ? 0 : 16)
-    }
-
     private func pvCaptionView(_ pv: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "sparkles")
@@ -533,14 +552,6 @@ struct ReplayView: View {
     @ViewBuilder
     private var analysisControls: some View {
         VStack(spacing: 8) {
-            if let cachedSpeedRaw,
-               let speed = AnalysisSpeed(rawValue: cachedSpeedRaw),
-               hasCachedResult, !isAnalyzing {
-                Text(cachedSpeedCaption(speed))
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-            }
-
             if !hasCachedResult, !isAnalyzing {
                 Button {
                     startAnalysis()
@@ -556,14 +567,6 @@ struct ReplayView: View {
                 .accessibilityLabel("Analyze")
             }
         }
-    }
-
-    private func cachedSpeedCaption(_ speed: AnalysisSpeed) -> String {
-        let current = AnalysisSettings.speed
-        if speed == current {
-            return "Analyzed · \(speed.title)"
-        }
-        return "Analyzed · \(speed.title) (current setting: \(current.title))"
     }
 
     // MARK: - Interactive Move Handling & Branching
@@ -639,6 +642,7 @@ struct ReplayView: View {
             variationBasePly = plyIndex
             variationEngine = trialEngine
             variationSANs = [moveSan]
+            variationEval = currentEval
             ChessAudioFeedback.playMove()
             analyzeVariation(fen: trialEngine.fen)
         } else if let engine = variationEngine {
@@ -681,7 +685,7 @@ struct ReplayView: View {
 
     private func analyzeVariation(fen: String) {
         variationTask?.cancel()
-        variationEval = nil
+        // Retain previous variationEval so the eval bar doesn't bounce to 0.0 default while engine thinks
         variationBestArrow = nil
         variationPVCaption = nil
 
@@ -690,7 +694,9 @@ struct ReplayView: View {
             guard let eval = await engine.analyze(.replay(fen: fen)) else { return }
             if Task.isCancelled { return }
             await MainActor.run {
-                self.variationEval = eval.score
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    self.variationEval = eval.score
+                }
                 self.variationBestArrow = eval.bestArrow
                 if !eval.pvUCI.isEmpty {
                     self.variationPVCaption = PVFormatter.format(fen: fen, uciMoves: eval.pvUCI)
@@ -772,7 +778,7 @@ struct ReplayView: View {
 
     private var currentDisplayEval: EvaluationScore? {
         if variationEngine != nil {
-            return variationEval
+            return variationEval ?? currentEval
         }
         return currentEval
     }
@@ -975,44 +981,6 @@ struct ReplayView: View {
             showShare = true
         } catch {
             UIPasteboard.general.string = pgn
-        }
-    }
-
-    @MainActor
-    private func shareRecapCard() {
-        let record = resolveGameRecord()
-        let whiteElo = analysisResult?.whiteElo ?? (analysisResult?.whiteAccuracy.flatMap { MoveQualityClassifier.estimatedElo(accuracy: $0, plyCount: sans.count) })
-        let blackElo = analysisResult?.blackElo ?? (analysisResult?.blackAccuracy.flatMap { MoveQualityClassifier.estimatedElo(accuracy: $0, plyCount: sans.count) })
-        let card = GameRecapCardView(
-            title: title,
-            whitePlayer: record?.whitePlayer,
-            blackPlayer: record?.blackPlayer,
-            opening: record?.openingName ?? OpeningDetector.detect(sans: sans),
-            result: record?.displayResult ?? (try? GameEngine(fen: finalFEN))?.resultToken ?? "*",
-            finalFen: finalFEN,
-            plies: sans.count,
-            whiteAccuracy: analysisResult?.whiteAccuracy,
-            blackAccuracy: analysisResult?.blackAccuracy,
-            whiteElo: whiteElo,
-            blackElo: blackElo,
-            date: record?.createdAt ?? .now
-        )
-        let renderer = ImageRenderer(content: card)
-        renderer.scale = 3.0
-        renderer.proposedSize = ProposedViewSize(width: 320, height: 480)
-        if let image = renderer.uiImage {
-            shareItems = [image]
-            showShare = true
-        } else {
-            let hosting = UIHostingController(rootView: card)
-            hosting.view.bounds = CGRect(x: 0, y: 0, width: 320, height: 480)
-            hosting.view.backgroundColor = .clear
-            let render = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 480))
-            let img = render.image { _ in
-                hosting.view.drawHierarchy(in: hosting.view.bounds, afterScreenUpdates: true)
-            }
-            shareItems = [img]
-            showShare = true
         }
     }
 }

@@ -106,100 +106,165 @@ struct LiveRecordingView: View {
         }
     }
 
+    private var liveBestSAN: String? {
+        guard let uci = model.liveAnalysis?.bestMoveUCI else { return nil }
+        let formatted = PVFormatter.format(fen: model.engine.fen, uciMoves: [uci])
+        return formatted.isEmpty ? uci : formatted
+    }
+
     @ViewBuilder
     private var accessory: some View {
         if isLandscape {
             landscapeSidebar
         } else {
-            VStack(spacing: 6) {
-                if liveHints {
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            isEvalDrawerExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: (!spoilerShield || isEvalDrawerExpanded) ? "eye.fill" : "eye.slash.fill")
-                                .font(.caption2.weight(.bold))
-                            Text((!spoilerShield || isEvalDrawerExpanded) ? "Engine Analysis" : "Engine Analysis (Hidden)")
-                                .font(.caption2.weight(.semibold))
-                            Spacer()
-                            if (!spoilerShield || isEvalDrawerExpanded), let analysis = model.liveAnalysis {
-                                Text(analysis.evalDisplay)
-                                    .font(.caption2.monospaced().weight(.bold))
-                                    .foregroundStyle(Theme.accent)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    if liveHints {
+                        Button {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                isEvalDrawerExpanded.toggle()
                             }
-                            Image(systemName: (!spoilerShield || isEvalDrawerExpanded) ? "chevron.up" : "chevron.down")
-                                .font(.caption2)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: (!spoilerShield || isEvalDrawerExpanded) ? "eye.fill" : "eye.slash.fill")
+                                    .font(.caption2.weight(.medium))
+                                Text((!spoilerShield || isEvalDrawerExpanded) ? "Engine Analysis" : "Engine Analysis (Hidden)")
+                                    .font(.caption2.weight(.medium))
+                                Spacer()
+                                if (!spoilerShield || isEvalDrawerExpanded), let analysis = model.liveAnalysis {
+                                    Text(analysis.evalDisplay)
+                                        .font(.caption2.monospaced().weight(.semibold))
+                                        .foregroundStyle(Theme.accent)
+                                }
+                                Image(systemName: (!spoilerShield || isEvalDrawerExpanded) ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(Theme.surfaceMuted, in: Capsule())
+                            .overlay { Capsule().stroke(Theme.border.opacity(0.35), lineWidth: 1) }
                         }
-                        .foregroundStyle(Theme.textPrimary)
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                    }
+
+                    if liveHints, (!spoilerShield || isEvalDrawerExpanded), let bestMove = liveBestSAN {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Theme.accent)
+                            Text("Best Move:")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.textSecondary)
+                            Text(bestMove)
+                                .font(.subheadline.monospaced().weight(.bold))
+                                .foregroundStyle(Theme.accent)
+                            if let uci = model.liveAnalysis?.bestMoveUCI, uci.count >= 4 {
+                                let from = String(uci.prefix(2))
+                                let to = String(uci.dropFirst(2).prefix(2))
+                                Text("(\(from)→\(to))")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(Theme.textTertiary)
+                            }
+                            Spacer()
+                            if let eval = model.liveAnalysis?.evalDisplay {
+                                Text(eval)
+                                    .font(.caption2.monospaced().weight(.bold))
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Theme.surfaceMuted, in: Capsule())
+                            }
+                        }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Theme.surface, in: Capsule())
-                        .overlay { Capsule().stroke(Theme.border, lineWidth: 1) }
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Theme.accent.opacity(0.3), lineWidth: 1)
+                        }
+                        .padding(.horizontal, 16)
+                    }
+
+                    HStack(alignment: .top, spacing: 8) {
+                        if liveHints, liveShowEval, (!spoilerShield || isEvalDrawerExpanded) {
+                            VStack(spacing: 4) {
+                                if let analysis = model.liveAnalysis {
+                                    Text(analysis.evalDisplay)
+                                        .font(.caption.monospaced().weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .accessibilityLabel("Evaluation \(analysis.evalDisplay)")
+                                } else if let message = model.liveAnalysisMessage {
+                                    Text("—")
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .accessibilityLabel(message)
+                                } else {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                        .tint(Theme.textSecondary)
+                                }
+                            }
+                            .frame(width: 44)
+                        }
+                        DigitalBoardView(
+                            fen: model.engine.fen,
+                            lastMove: model.engine.lastMoveSquares,
+                            bestMove: liveBestArrow
+                        )
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 2)
+                    .frame(minHeight: 160)
+
+                    // Tappable score sheet drawer handle in portrait
+                    Button {
+                        showScoreSheet = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            RecentPlyStrip(sans: model.committedSANs)
+                            Image(systemName: "list.bullet.clipboard")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 16)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
+                    .padding(.bottom, 6)
+                    .id(model.committedPlyCount)
                 }
-
-                HStack(alignment: .top, spacing: 8) {
-                    if liveHints, liveShowEval, (!spoilerShield || isEvalDrawerExpanded) {
-                        VStack(spacing: 4) {
-                            if let analysis = model.liveAnalysis {
-                                Text(analysis.evalDisplay)
-                                    .font(.caption.monospaced().weight(.semibold))
-                                    .foregroundStyle(Theme.textPrimary)
-                                    .accessibilityLabel("Evaluation \(analysis.evalDisplay)")
-                            } else if let message = model.liveAnalysisMessage {
-                                Text("—")
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(Theme.textSecondary)
-                                    .accessibilityLabel(message)
-                            } else {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                    .tint(Theme.textSecondary)
-                            }
-                        }
-                        .frame(width: 44)
-                    }
-                    DigitalBoardView(
-                        fen: model.engine.fen,
-                        lastMove: model.engine.lastMoveSquares,
-                        bestMove: liveBestArrow
-                    )
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
-                .frame(maxHeight: .infinity)
-
-                // Tappable score sheet drawer handle in portrait
-                Button {
-                    showScoreSheet = true
-                } label: {
-                    HStack(spacing: 8) {
-                        RecentPlyStrip(sans: model.committedSANs)
-                        Image(systemName: "list.bullet.clipboard")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(Theme.accent)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
-                .id(model.committedPlyCount)
             }
-            .frame(maxHeight: .infinity)
         }
     }
 
     private var landscapeSidebar: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             statusBanner
+            if liveHints, (!spoilerShield || isEvalDrawerExpanded), let bestMove = liveBestSAN {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.accent)
+                    Text("Best: \(bestMove)")
+                        .font(.subheadline.monospaced().weight(.bold))
+                        .foregroundStyle(Theme.accent)
+                    if let eval = model.liveAnalysis?.evalDisplay {
+                        Text(eval)
+                            .font(.caption.monospaced().weight(.semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Theme.surface, in: Capsule())
+                .overlay { Capsule().stroke(Theme.border.opacity(0.4), lineWidth: 1) }
+            }
             DigitalBoardView(
                 fen: model.engine.fen,
                 lastMove: model.engine.lastMoveSquares,
@@ -212,7 +277,7 @@ struct LiveRecordingView: View {
                     Text(analysis.evalDisplay)
                         .font(.caption.monospaced().weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
-                } else if let message = model.liveAnalysisMessage {
+                } else if model.liveAnalysisMessage != nil {
                     Text("—")
                         .font(.caption.monospaced())
                         .foregroundStyle(Theme.textSecondary)
@@ -446,7 +511,7 @@ struct LiveRecordingView: View {
     private var hudControls: some View {
         HStack(spacing: 16) {
             CircularButton(
-                icon: "flag.fill",
+                icon: "stop.circle.fill",
                 title: "End",
                 role: .destructive,
                 size: 48

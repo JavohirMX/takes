@@ -19,11 +19,11 @@ struct BoardArrowOverlay: View {
             let isKnight = (dFile == 1 && dRank == 2) || (dFile == 2 && dRank == 1)
 
             let arrowColor = isBestMove
-                ? Color(red: 0.15, green: 0.82, blue: 0.82) // Cyan / Teal for best move
+                ? Color(red: 0.10, green: 0.85, blue: 0.85) // Bright Cyan / Teal for best move
                 : Color(red: 0.98, green: 0.76, blue: 0.22) // Amber for played move
-            let opacity: Double = isBestMove ? 0.88 : 0.80
-            let lineWidth = max(3.5, squareSize * 0.11)
-            let headLength = max(11, squareSize * 0.32)
+            let opacity: Double = isBestMove ? 0.95 : 0.85
+            let lineWidth = max(5.0, squareSize * 0.17)
+            let headLength = max(14, squareSize * 0.38)
 
             var points: [CGPoint] = [start]
             var finalAngle: CGFloat = 0
@@ -47,8 +47,8 @@ struct BoardArrowOverlay: View {
 
             // The shaft stops at the base of the arrowhead to avoid poking past the tip
             let shaftEnd = CGPoint(
-                x: end.x - (headLength * 0.85) * cos(finalAngle),
-                y: end.y - (headLength * 0.85) * sin(finalAngle)
+                x: end.x - (headLength * 0.82) * cos(finalAngle),
+                y: end.y - (headLength * 0.82) * sin(finalAngle)
             )
 
             // Draw shaft
@@ -65,6 +65,13 @@ struct BoardArrowOverlay: View {
             } else {
                 shaftPath.addLine(to: shaftEnd)
             }
+
+            // High-contrast dark backing outline
+            context.stroke(
+                shaftPath,
+                with: .color(Color.black.opacity(0.4)),
+                style: StrokeStyle(lineWidth: lineWidth + 2.5, lineCap: .round, lineJoin: .round)
+            )
 
             context.stroke(
                 shaftPath,
@@ -93,6 +100,13 @@ struct BoardArrowOverlay: View {
             headPath.addLine(to: notch)
             headPath.addLine(to: wing2)
             headPath.closeSubpath()
+
+            // Backing outline for arrowhead
+            context.stroke(
+                headPath,
+                with: .color(Color.black.opacity(0.4)),
+                style: StrokeStyle(lineWidth: 2.0, lineJoin: .round)
+            )
 
             context.fill(headPath, with: .color(arrowColor.opacity(opacity)))
         }

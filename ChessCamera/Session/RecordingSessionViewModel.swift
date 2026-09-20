@@ -464,6 +464,12 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func continueGame(record: GameRecord) {
+        Task { await continueGameAsync(record: record) }
+    }
+
+    func continueGameAsync(record: GameRecord) async {
+        await teardown()
+        isVideoImport = false
         savedRecord = record
         engine.resetToStart()
         let sans = PGNMoveList.sans(from: record.pgn)
@@ -475,14 +481,23 @@ final class RecordingSessionViewModel: Identifiable {
         lastCommittedOccupancy = engine.occupancy()
         resetOccupancyTracking(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
-        phase = .boardStudio
+
+        let camera = LiveCameraSource()
+        liveCamera = camera
+        frameSource = camera
+        self.phase = .boardStudio
         detectStartedAt = ContinuousClock().now
         detectTimedOut = false
-        Task {
-            classifierAvailable = await pipeline.hasClassifier
-            pieceDetectorAvailable = await pipeline.hasDetector
-            await startCaptureIfNeeded()
-        }
+        needsTemplateCapture = true
+        cornerTracker.reset()
+        quadConsensus.reset()
+        weakTrackFrames = 0
+        studioFrameIndex = 0
+        startConsuming()
+        await Task.yield()
+        await startCaptureIfNeeded()
+        classifierAvailable = await pipeline.hasClassifier
+        pieceDetectorAvailable = await pipeline.hasDetector
     }
 
     func useTheseCorners() async {

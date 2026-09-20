@@ -93,25 +93,28 @@ enum MoveQualityClassifier {
 
     /// Calibrated estimated performance rating based on move accuracy and ply count.
     static func estimatedElo(accuracy: Double, plyCount: Int) -> Int {
-        guard plyCount >= 4 else { return 1200 }
+        guard plyCount >= 4 else { return 1100 }
         let a = max(0, min(100, accuracy))
         let raw: Double
         if a < 25 {
-            raw = 400 + a * 16
+            raw = 400 + (a / 25.0) * 300
         } else if a < 50 {
-            raw = 800 + (a - 25) * 16
-        } else if a < 70 {
-            raw = 1200 + (a - 50) * 25
-        } else if a < 85 {
-            raw = 1700 + (a - 70) * 35
-        } else if a < 95 {
-            raw = 2225 + (a - 85) * 45
+            raw = 700 + ((a - 25) / 25.0) * 450
+        } else if a < 75 {
+            raw = 1150 + ((a - 50) / 25.0) * 225
+        } else if a < 80 {
+            raw = 1375 + ((a - 75) / 5.0) * 150
+        } else if a < 90 {
+            raw = 1525 + ((a - 80) / 10.0) * 325
+        } else if a < 98 {
+            raw = 1850 + ((a - 90) / 8.0) * 550
         } else {
-            raw = 2675 + (a - 95) * 45
+            raw = 2400 + ((a - 98) / 2.0) * 250
         }
-        let sampleAdjustment = min(1.0, Double(plyCount) / 16.0)
-        let elo = 1000 * (1 - sampleAdjustment) + raw * sampleAdjustment
-        return max(400, min(2900, Int((elo / 25.0).rounded() * 25)))
+        let sampleAdjustment = min(1.0, max(0.2, Double(plyCount) / 24.0))
+        let baseline = 1150.0
+        let elo = baseline * (1.0 - sampleAdjustment) + raw * sampleAdjustment
+        return max(400, min(2750, Int((elo / 25.0).rounded() * 25)))
     }
 
     static func gameAccuracies(plies: [PlyAnalysis]) -> (white: Double?, black: Double?, whiteElo: Int?, blackElo: Int?) {
