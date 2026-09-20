@@ -51,4 +51,75 @@ struct NewFeaturesTests {
         #expect(pgnWithHeaders.contains("[Result \"1-0\"]"))
         #expect(pgnWithHeaders.contains("[Event \"Speed Chess\"]"))
     }
+
+    @Test func testFigurineNotationFormatter() {
+        let sanKnight = "Nf3"
+        let figurineKnight = PieceNotationFormatter.format(san: sanKnight, style: .figurines)
+        #expect(figurineKnight == "♞f3")
+
+        let sanBishopTakes = "Bxf7+"
+        let figurineBishop = PieceNotationFormatter.format(san: sanBishopTakes, style: .figurines)
+        #expect(figurineBishop == "♝xf7+")
+
+        let sanQueen = "Qxd4"
+        let figurineQueen = PieceNotationFormatter.format(san: sanQueen, style: .figurines)
+        #expect(figurineQueen == "♛xd4")
+
+        let lettersKnight = PieceNotationFormatter.format(san: sanKnight, style: .letters)
+        #expect(lettersKnight == "Nf3")
+    }
+
+    @Test func testMoveRateLimitConfiguration() {
+        let limit = MoveRateLimit.twoPerTwoSeconds
+        #expect(limit.maxMoves == 2)
+        #expect(limit.windowDurationSeconds == 2.0)
+
+        let off = MoveRateLimit.off
+        #expect(off.maxMoves == 999)
+    }
+
+    @Test func testEstimatedEloCalibration() {
+        let grandmasterElo = MoveQualityClassifier.estimatedElo(accuracy: 98.0, plyCount: 40)
+        #expect(grandmasterElo >= 2300)
+
+        let intermediateElo = MoveQualityClassifier.estimatedElo(accuracy: 50.0, plyCount: 40)
+        #expect(intermediateElo >= 1100 && intermediateElo <= 1300)
+
+        let beginnerElo = MoveQualityClassifier.estimatedElo(accuracy: 25.0, plyCount: 40)
+        #expect(beginnerElo <= 1000)
+
+        let shortGamePenalty = MoveQualityClassifier.estimatedElo(accuracy: 99.0, plyCount: 4)
+        #expect(shortGamePenalty < grandmasterElo)
+    }
+
+    @Test func testBookMoveDetection() {
+        let moves = ["e4", "e5", "Nf3", "Nc6", "Bb5"]
+        #expect(OpeningDetector.isBookMove(sans: moves, at: 0))
+        #expect(OpeningDetector.isBookMove(sans: moves, at: 2))
+        #expect(OpeningDetector.isBookMove(sans: moves, at: 4))
+
+        let nonBookMoves = ["h4", "h5", "a4"]
+        #expect(!OpeningDetector.isBookMove(sans: nonBookMoves, at: 2))
+    }
+
+    @Test func testExpandedMoveQuality() {
+        let (bookQuality, _) = MoveQualityClassifier.classify(
+            winPercentBefore: 50,
+            winPercentAfter: 50,
+            playedByWhite: true,
+            isBook: true
+        )
+        #expect(bookQuality == .book)
+        #expect(bookQuality.title == "Book")
+        #expect(bookQuality.glyph == "📖")
+
+        let (missedWinQuality, _) = MoveQualityClassifier.classify(
+            winPercentBefore: 95,
+            winPercentAfter: 50,
+            playedByWhite: true
+        )
+        #expect(missedWinQuality == .missedWin)
+        #expect(missedWinQuality.title == "Missed Win")
+        #expect(missedWinQuality.glyph == "✕")
+    }
 }

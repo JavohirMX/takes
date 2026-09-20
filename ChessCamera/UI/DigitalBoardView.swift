@@ -7,7 +7,11 @@ struct DigitalBoardView: View {
     var lastMove: (from: ChessSquare, to: ChessSquare)?
     /// Optional engine best-move arrow (from, to).
     var bestMove: BoardArrow?
+    /// Optional played move arrow.
+    var playedMoveArrow: BoardArrow?
     var selected: ChessSquare?
+    var legalDestinations: [ChessSquare] = []
+    var qualityBadge: MoveQuality?
     var interactive = false
     var showsCoordinates = true
     var styleOverride: BoardStyle?
@@ -27,7 +31,7 @@ struct DigitalBoardView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let side = min(proxy.size.width, proxy.size.height)
+            let side = max(40, min(proxy.size.width, proxy.size.height))
             let squareSize = side / 8
             ZStack {
                 VStack(spacing: 0) {
@@ -37,14 +41,24 @@ struct DigitalBoardView: View {
                                 let square = mappedSquare(file: displayFile, rankFromTop: displayRank)
                                 let isLight = (square.file + square.rank).isMultiple(of: 2) == false
                                 let piece = pieces[square]
+                                let hasPiece = piece != nil && piece != .empty
+                                let isDest = legalDestinations.contains(square)
+
                                 ZStack {
+                                    // Square base
                                     (isLight ? style.light : style.dark)
+
+                                    // Last move highlight
                                     if isHighlighted(square) {
                                         style.lastMove
                                     }
+
+                                    // Selected square highlight
                                     if selected == square {
-                                        Theme.accent.opacity(0.35)
+                                        Theme.accent.opacity(0.38)
                                     }
+
+                                    // Coordinates
                                     if showsCoordinates {
                                         coordinates(
                                             square: square,
@@ -54,10 +68,30 @@ struct DigitalBoardView: View {
                                             squareSize: squareSize
                                         )
                                     }
+
+                                    // Piece
                                     if let piece, piece != .empty {
                                         PieceView(piece: piece, size: squareSize * 0.88)
                                             .scaleEffect(arrivalScale(for: square))
                                             .opacity(arrivalOpacity(for: square))
+                                    }
+
+                                    // Legal move indicator
+                                    if isDest {
+                                        if hasPiece {
+                                            Circle()
+                                                .strokeBorder(Theme.accent.opacity(0.85), lineWidth: max(3, squareSize * 0.10))
+                                                .padding(squareSize * 0.08)
+                                        } else {
+                                            Circle()
+                                                .fill(Theme.accent.opacity(0.65))
+                                                .frame(width: squareSize * 0.28, height: squareSize * 0.28)
+                                        }
+                                    }
+
+                                    // Quality badge on the target square of the last move
+                                    if let badge = qualityBadge, square == lastMove?.to, !badge.glyph.isEmpty {
+                                        qualityBadgeView(badge: badge, squareSize: squareSize)
                                     }
                                 }
                                 .frame(width: squareSize, height: squareSize)
@@ -73,19 +107,33 @@ struct DigitalBoardView: View {
                     }
                 }
 
+                // Played move arrow
+                if let playedMoveArrow {
+                    BoardArrowOverlay(
+                        from: playedMoveArrow.from,
+                        to: playedMoveArrow.to,
+                        side: side,
+                        orientation: orientation,
+                        isBestMove: false
+                    )
+                    .frame(width: side, height: side)
+                }
+
+                // Engine best-move arrow
                 if let bestMove {
                     BoardArrowOverlay(
                         from: bestMove.from,
                         to: bestMove.to,
                         side: side,
-                        orientation: orientation
+                        orientation: orientation,
+                        isBestMove: true
                     )
                     .frame(width: side, height: side)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .strokeBorder(style.frame, lineWidth: 1)
             }
             .frame(width: side, height: side)
@@ -100,6 +148,26 @@ struct DigitalBoardView: View {
         .onAppear {
             pulseArrival()
         }
+    }
+
+    private func qualityBadgeView(badge: MoveQuality, squareSize: CGFloat) -> some View {
+        let badgeDiameter = max(18, squareSize * 0.38)
+        return ZStack {
+            Circle()
+                .fill(badge.badgeColor)
+                .frame(width: badgeDiameter, height: badgeDiameter)
+                .overlay {
+                    Circle().strokeBorder(Color.white, lineWidth: 1.5)
+                }
+
+            Text(badge.glyph)
+                .font(.system(size: max(8, badgeDiameter * 0.52), weight: .black, design: .rounded))
+                .foregroundStyle(badge.badgeForeground)
+        }
+        .shadow(color: .black.opacity(0.45), radius: 2, x: 1, y: 1)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .padding(2)
+        .allowsHitTesting(false)
     }
 
     private var arrivalKey: String {
@@ -170,47 +238,4 @@ struct DigitalBoardView: View {
             "\(square.algebraic), empty"
         }
     }
-}
-
-#Preview("Tournament") {
-    DigitalBoardView(fen: FenCodec.standard, styleOverride: .tournament)
-        .padding()
-        .background(Theme.background)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Walnut") {
-    DigitalBoardView(fen: FenCodec.standard, styleOverride: .walnut)
-        .padding()
-        .background(Theme.background)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Blue") {
-    DigitalBoardView(fen: FenCodec.standard, styleOverride: .blue)
-        .padding()
-        .background(Theme.background)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Slate") {
-    DigitalBoardView(fen: FenCodec.standard, styleOverride: .slate)
-        .padding()
-        .background(Theme.background)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Confirm interactive") {
-    DigitalBoardView(fen: FenCodec.standard, interactive: true, styleOverride: .tournament)
-        .padding()
-        .background(Theme.background)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("History thumbnail") {
-    DigitalBoardView(fen: FenCodec.standard, showsCoordinates: false, styleOverride: .tournament)
-        .frame(width: 72, height: 72)
-        .padding()
-        .background(Theme.background)
-        .preferredColorScheme(.dark)
 }

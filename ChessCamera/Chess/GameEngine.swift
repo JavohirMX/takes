@@ -160,6 +160,31 @@ final class GameEngine {
         return moves
     }
 
+    func legalDestinations(for square: ChessSquare) -> [ChessSquare] {
+        guard let start = Square.allCases.first(where: { $0.notation == square.algebraic }) else { return [] }
+        return board.legalMoves(forPieceAt: start).compactMap { ChessSquare.parse($0.notation) }
+    }
+
+    @discardableResult
+    func executeMove(from: ChessSquare, to: ChessSquare, promotionKind: Piece.Kind = .queen) throws -> String {
+        guard let start = Square.allCases.first(where: { $0.notation == from.algebraic }),
+              let end = Square.allCases.first(where: { $0.notation == to.algebraic }) else {
+            throw GameEngineError.illegalMove("\(from.algebraic)\(to.algebraic)")
+        }
+        var trial = board
+        guard let executed = trial.move(pieceAt: start, to: end) else {
+            throw GameEngineError.illegalMove("\(from.algebraic)\(to.algebraic)")
+        }
+        let finalMove: Move
+        if case .promotion = trial.state {
+            finalMove = trial.completePromotion(of: executed, to: promotionKind)
+        } else {
+            finalMove = executed
+        }
+        try apply(move: finalMove)
+        return finalMove.san
+    }
+
     func pieceMap() -> [ChessSquare: PieceClass] {
         FenCodec.parsePieces(fen)
     }

@@ -10,6 +10,8 @@ struct GameRecapCardView: View {
     let plies: Int
     let whiteAccuracy: Double?
     let blackAccuracy: Double?
+    var whiteElo: Int? = nil
+    var blackElo: Int? = nil
     let date: Date
 
     var body: some View {
@@ -40,6 +42,11 @@ struct GameRecapCardView: View {
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(Theme.textPrimary)
                         }
+                        if let elo = whiteElo {
+                            Text("Est. \(elo)")
+                                .font(.caption2.monospaced().weight(.bold))
+                                .foregroundStyle(Theme.accent)
+                        }
                         if let acc = whiteAccuracy {
                             Text(String(format: "%.1f%% acc", acc))
                                 .font(.caption.monospaced())
@@ -64,6 +71,11 @@ struct GameRecapCardView: View {
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(Theme.textPrimary)
                             Circle().fill(Color.gray).frame(width: 8, height: 8)
+                        }
+                        if let elo = blackElo {
+                            Text("Est. \(elo)")
+                                .font(.caption2.monospaced().weight(.bold))
+                                .foregroundStyle(Theme.accent)
                         }
                         if let acc = blackAccuracy {
                             Text(String(format: "%.1f%% acc", acc))

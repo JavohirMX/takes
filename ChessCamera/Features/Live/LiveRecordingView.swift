@@ -17,17 +17,20 @@ struct LiveRecordingView: View {
     @AppStorage(AnalysisSettings.liveHintsKey) private var liveHints = false
     @AppStorage(AnalysisSettings.liveShowEvalKey) private var liveShowEval = true
     @AppStorage(AnalysisSettings.liveShowArrowKey) private var liveShowArrow = true
+    @AppStorage(AnalysisSettings.liveSpoilerShieldKey) private var spoilerShield = true
 
     @State private var showEndResolution = false
     @State private var showScoreSheet = false
     @State private var matchModeActive = false
     @State private var focusPoint: CGPoint?
     @State private var showFocusReticle = false
+    @State private var isEvalDrawerExpanded = false
 
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     private var liveBestArrow: BoardArrow? {
         guard liveHints, liveShowArrow else { return nil }
+        guard !spoilerShield || isEvalDrawerExpanded else { return nil }
         guard model.phase == .recording || model.phase == .disturbed || model.phase == .awaitingEdit || model.phase == .gameOver else { return nil }
         return model.liveAnalysis?.bestArrow
     }
@@ -108,9 +111,40 @@ struct LiveRecordingView: View {
         if isLandscape {
             landscapeSidebar
         } else {
-            VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                if liveHints {
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            isEvalDrawerExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: (!spoilerShield || isEvalDrawerExpanded) ? "eye.fill" : "eye.slash.fill")
+                                .font(.caption2.weight(.bold))
+                            Text((!spoilerShield || isEvalDrawerExpanded) ? "Engine Analysis" : "Engine Analysis (Hidden)")
+                                .font(.caption2.weight(.semibold))
+                            Spacer()
+                            if (!spoilerShield || isEvalDrawerExpanded), let analysis = model.liveAnalysis {
+                                Text(analysis.evalDisplay)
+                                    .font(.caption2.monospaced().weight(.bold))
+                                    .foregroundStyle(Theme.accent)
+                            }
+                            Image(systemName: (!spoilerShield || isEvalDrawerExpanded) ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Theme.surface, in: Capsule())
+                        .overlay { Capsule().stroke(Theme.border, lineWidth: 1) }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                }
+
                 HStack(alignment: .top, spacing: 8) {
-                    if liveHints, liveShowEval {
+                    if liveHints, liveShowEval, (!spoilerShield || isEvalDrawerExpanded) {
                         VStack(spacing: 4) {
                             if let analysis = model.liveAnalysis {
                                 Text(analysis.evalDisplay)
@@ -137,7 +171,7 @@ struct LiveRecordingView: View {
                     )
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, 4)
                 .frame(maxHeight: .infinity)
 
                 // Tappable score sheet drawer handle in portrait
@@ -156,7 +190,7 @@ struct LiveRecordingView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, 4)
                 .id(model.committedPlyCount)
             }
             .frame(maxHeight: .infinity)
@@ -386,6 +420,19 @@ struct LiveRecordingView: View {
                 onResume: { model.resumeRecordingAfterReject() }
             )
             .id("\(model.committedPlyCount)-\(model.lastSAN ?? "")-\(model.phase)")
+
+            if let opening = OpeningDetector.detect(sans: model.committedSANs) {
+                HStack(spacing: 5) {
+                    Image(systemName: "book.closed.fill")
+                    Text(opening)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Theme.accent.opacity(0.12), in: Capsule())
+            }
+
             if showCaptureDiagnostics, !model.liveDebugLine.isEmpty {
                 Text(model.liveDebugLine)
                     .font(.caption.monospaced())
@@ -397,45 +444,28 @@ struct LiveRecordingView: View {
     }
 
     private var hudControls: some View {
-        HStack(spacing: 12) {
-            Button {
+        HStack(spacing: 16) {
+            CircularButton(
+                icon: "flag.fill",
+                title: "End",
+                role: .destructive,
+                size: 48
+            ) {
                 showEndResolution = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "flag.fill")
-                        .font(.callout.weight(.bold))
-                    Text("End")
-                        .font(.body.weight(.semibold))
-                }
-                .foregroundStyle(Theme.statusRed)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(Theme.statusRed.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Theme.statusRed.opacity(0.3), lineWidth: 1)
-                }
             }
             .accessibilityLabel("End game")
 
-            Button {
+            CircularButton(
+                icon: "arrow.uturn.backward",
+                title: "Undo",
+                size: 48,
+                isDisabled: !model.canUndo
+            ) {
                 model.undoLast()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.callout.weight(.bold))
-                    Text("Undo")
-                        .font(.body.weight(.semibold))
-                }
-                .foregroundStyle(model.canUndo ? Theme.textPrimary : Theme.textTertiary)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Theme.border, lineWidth: 1)
-                }
             }
-            .disabled(!model.canUndo)
             .accessibilityLabel("Undo last move")
+
+            Spacer()
 
             Menu {
                 Button {
@@ -461,15 +491,11 @@ struct LiveRecordingView: View {
                     .disabled(model.committedPlyCount == 0)
                 Button("Copy FEN") { model.copyFEN() }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .frame(width: 48, height: 48)
-                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Theme.border, lineWidth: 1)
-                    }
+                CircularButton(
+                    icon: "ellipsis",
+                    title: "More",
+                    size: 48
+                )
             }
             .accessibilityLabel("More actions")
         }

@@ -40,12 +40,85 @@ enum AnalysisSpeed: String, CaseIterable, Sendable, Identifiable {
     }
 }
 
+enum PieceNotationStyle: String, CaseIterable, Sendable, Identifiable {
+    case figurines
+    case letters
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .figurines: "Figurine Icons (♞, ♝, ♜, ♛, ♚)"
+        case .letters: "Letters (N, B, R, Q, K)"
+        }
+    }
+}
+
+enum PieceNotationFormatter {
+    static func format(san: String, style: PieceNotationStyle) -> String {
+        guard style == .figurines else { return san }
+        var result = ""
+        for (index, char) in san.enumerated() {
+            if index == 0 || (index > 0 && san[san.index(san.startIndex, offsetBy: index - 1)] == "=") {
+                switch char {
+                case "K": result.append("♚")
+                case "Q": result.append("♛")
+                case "R": result.append("♜")
+                case "B": result.append("♝")
+                case "N": result.append("♞")
+                default: result.append(char)
+                }
+            } else {
+                result.append(char)
+            }
+        }
+        return result
+    }
+}
+
+enum MoveRateLimit: String, CaseIterable, Sendable, Identifiable {
+    case twoPerTwoSeconds
+    case onePerOnePointFive
+    case twoPerThreeSeconds
+    case off
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .twoPerTwoSeconds: "2 moves / 2 sec (Default)"
+        case .onePerOnePointFive: "1 move / 1.5 sec"
+        case .twoPerThreeSeconds: "2 moves / 3 sec"
+        case .off: "Off (No limit)"
+        }
+    }
+
+    var maxMoves: Int {
+        switch self {
+        case .twoPerTwoSeconds: 2
+        case .onePerOnePointFive: 1
+        case .twoPerThreeSeconds: 2
+        case .off: 999
+        }
+    }
+
+    var windowDurationSeconds: Double {
+        switch self {
+        case .twoPerTwoSeconds: 2.0
+        case .onePerOnePointFive: 1.5
+        case .twoPerThreeSeconds: 3.0
+        case .off: 0.05
+        }
+    }
+}
+
 enum AnalysisSettings {
     // MARK: Keys
 
     static let liveHintsKey = "analysisLiveHints"
     static let liveShowEvalKey = "analysisLiveShowEval"
     static let liveShowArrowKey = "analysisLiveShowArrow"
+    static let liveSpoilerShieldKey = "analysisLiveSpoilerShield"
 
     static let postGameKey = "analysisPostGame"
     static let postShowEvalBarKey = "analysisPostShowEvalBar"
@@ -57,6 +130,37 @@ enum AnalysisSettings {
 
     static let speedKey = "analysisSpeed"
     static let liveMovetimeMs = 200
+
+    static let pieceNotationKey = "pieceNotationStyle"
+    static let pieceNotationStyleKey = pieceNotationKey
+    static let moveRateLimitKey = "moveRateLimit"
+    static let showEstimatedEloKey = "showEstimatedElo"
+
+    static var pieceNotation: PieceNotationStyle {
+        get {
+            let raw = UserDefaults.standard.string(forKey: pieceNotationKey) ?? PieceNotationStyle.figurines.rawValue
+            return PieceNotationStyle(rawValue: raw) ?? .figurines
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: pieceNotationKey) }
+    }
+
+    static var moveRateLimit: MoveRateLimit {
+        get {
+            let raw = UserDefaults.standard.string(forKey: moveRateLimitKey) ?? MoveRateLimit.twoPerTwoSeconds.rawValue
+            return MoveRateLimit(rawValue: raw) ?? .twoPerTwoSeconds
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: moveRateLimitKey) }
+    }
+
+    static var liveSpoilerShield: Bool {
+        get { storedBool(for: liveSpoilerShieldKey, default: true) }
+        set { UserDefaults.standard.set(newValue, forKey: liveSpoilerShieldKey) }
+    }
+
+    static var showEstimatedElo: Bool {
+        get { storedBool(for: showEstimatedEloKey, default: true) }
+        set { UserDefaults.standard.set(newValue, forKey: showEstimatedEloKey) }
+    }
 
     // MARK: Live (default off)
 

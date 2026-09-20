@@ -42,6 +42,12 @@ struct MoveListView: View {
         }
     }
 
+    @AppStorage(AnalysisSettings.pieceNotationKey) private var pieceNotationRaw = PieceNotationStyle.figurines.rawValue
+
+    private var notationStyle: PieceNotationStyle {
+        PieceNotationStyle(rawValue: pieceNotationRaw) ?? .figurines
+    }
+
     private func plyButton(index: Int) -> some View {
         let san = sans[index]
         let selected = selectedPly == index
@@ -75,16 +81,12 @@ struct MoveListView: View {
     }
 
     private func qualityLabel(san: String, quality: MoveQuality?) -> String {
-        san
+        PieceNotationFormatter.format(san: san, style: notationStyle)
     }
 
     private func qualityColor(_ quality: MoveQuality?) -> Color {
-        switch quality {
-        case .best, .excellent: Theme.accent
-        case .good, .none: Theme.textPrimary
-        case .inaccuracy: Theme.caution
-        case .mistake, .blunder: Theme.danger
-        }
+        guard let quality else { return Theme.textPrimary }
+        return quality.badgeColor
     }
 
     private func spokenMove(index: Int, san: String, quality: MoveQuality? = nil) -> String {
@@ -101,14 +103,23 @@ struct RecentPlyStrip: View {
     var sans: [String]
     var maxPlies: Int = 6
 
+    @AppStorage(AnalysisSettings.pieceNotationKey) private var pieceNotationRaw = PieceNotationStyle.figurines.rawValue
+
+    private var notationStyle: PieceNotationStyle {
+        PieceNotationStyle(rawValue: pieceNotationRaw) ?? .figurines
+    }
+
     var body: some View {
-        Text(sans.isEmpty ? "No moves yet" : PGNMoveList.preview(sans: sans, maxPlies: maxPlies, trailing: true))
+        let previewText = sans.isEmpty
+            ? "No moves yet"
+            : PGNMoveList.preview(sans: sans.map { PieceNotationFormatter.format(san: $0, style: notationStyle) }, maxPlies: maxPlies, trailing: true)
+        Text(previewText)
             .font(.body.monospaced())
             .foregroundStyle(sans.isEmpty ? Theme.textSecondary : Theme.textPrimary)
             .lineLimit(2)
             .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel(sans.isEmpty ? "No moves yet" : PGNMoveList.preview(sans: sans, maxPlies: maxPlies, trailing: true))
+            .accessibilityLabel(previewText)
             .accessibilityAddTraits(.updatesFrequently)
     }
 }

@@ -73,33 +73,69 @@ enum EvaluationScore: Equatable, Sendable, Hashable, Codable {
     }
 }
 
+import SwiftUI
+
 enum MoveQuality: String, Sendable, Equatable, CaseIterable, Codable {
+    case brilliant
+    case great
     case best
     case excellent
     case good
+    case book
     case inaccuracy
     case mistake
     case blunder
+    case missedWin
 
     var title: String {
         switch self {
+        case .brilliant: "Brilliant"
+        case .great: "Great"
         case .best: "Best"
         case .excellent: "Excellent"
         case .good: "Good"
+        case .book: "Book"
         case .inaccuracy: "Inaccuracy"
         case .mistake: "Mistake"
         case .blunder: "Blunder"
+        case .missedWin: "Missed Win"
         }
     }
 
     var glyph: String {
         switch self {
-        case .best: "!!"
-        case .excellent: "!"
+        case .brilliant: "!!"
+        case .great: "!"
+        case .best: "★"
+        case .excellent: "✓"
         case .good: ""
+        case .book: "📖"
         case .inaccuracy: "?!"
         case .mistake: "?"
         case .blunder: "??"
+        case .missedWin: "✕"
+        }
+    }
+
+    var badgeColor: Color {
+        switch self {
+        case .brilliant: Color(red: 0.15, green: 0.75, blue: 0.75) // Cyan
+        case .great: Color(red: 0.35, green: 0.65, blue: 0.95) // Light Blue
+        case .best: Color(red: 0.28, green: 0.75, blue: 0.35) // Vibrant Green
+        case .excellent: Color(red: 0.38, green: 0.72, blue: 0.42) // Medium Green
+        case .good: Color.gray.opacity(0.8)
+        case .book: Color(red: 0.82, green: 0.60, blue: 0.35) // Warm amber / brown
+        case .inaccuracy: Color(red: 0.95, green: 0.75, blue: 0.20) // Yellow
+        case .mistake: Color(red: 0.95, green: 0.55, blue: 0.15) // Orange
+        case .blunder: Color(red: 0.92, green: 0.25, blue: 0.25) // Red
+        case .missedWin: Color(red: 0.88, green: 0.20, blue: 0.35) // Crimson
+        }
+    }
+
+    var badgeForeground: Color {
+        switch self {
+        case .good: .white
+        default: .white
         }
     }
 }
@@ -107,6 +143,7 @@ enum MoveQuality: String, Sendable, Equatable, CaseIterable, Codable {
 struct BoardArrow: Equatable, Sendable, Hashable, Codable {
     var from: ChessSquare
     var to: ChessSquare
+    var isBestMove: Bool = true
 }
 
 /// One engine snapshot for a FEN.
@@ -149,10 +186,19 @@ struct GameAnalysisResult: Equatable, Sendable, Codable {
     var plies: [PlyAnalysis]
     var whiteAccuracy: Double?
     var blackAccuracy: Double?
+    var whiteElo: Int?
+    var blackElo: Int?
     /// Eval after each ply (index 0 = start), White POV, for the graph.
     var evalSeries: [EvaluationScore]
 
-    static let empty = GameAnalysisResult(plies: [], whiteAccuracy: nil, blackAccuracy: nil, evalSeries: [.centipawns(0)])
+    static let empty = GameAnalysisResult(
+        plies: [],
+        whiteAccuracy: nil,
+        blackAccuracy: nil,
+        whiteElo: nil,
+        blackElo: nil,
+        evalSeries: [.centipawns(0)]
+    )
 }
 
 /// Versioned blob stored on `GameRecord.analysisJSON`.

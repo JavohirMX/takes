@@ -114,6 +114,16 @@ struct BoardStudioView: View {
                 .font(.callout)
                 .foregroundStyle(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            Picker("Localizer", selection: Binding(
+                get: { model.activeLocalizer },
+                set: { model.selectLocalizer($0) }
+            )) {
+                ForEach(BoardLocalizerSource.allCases) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            .pickerStyle(.segmented)
+
             if model.quad != nil {
                 PrimaryButton(title: "Looks good") {
                     Task { await model.confirmQuad() }

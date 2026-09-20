@@ -62,7 +62,11 @@ struct HistoryView: View {
                 ReplayView(
                     pgn: route.pgn,
                     title: route.title,
-                    gamePersistentID: route.gamePersistentID
+                    gamePersistentID: route.gamePersistentID,
+                    onContinueGame: { game in
+                        self.replay = nil
+                        self.continueGame(game)
+                    }
                 )
             }
             .sheet(item: $editingGame) { game in
@@ -194,7 +198,9 @@ struct HistoryView: View {
                                     gamePersistentID: game.persistentModelID
                                 )
                             } label: {
-                                HistoryRow(game: game)
+                                HistoryRow(game: game, onContinue: {
+                                    continueGame(game)
+                                })
                             }
                             .buttonStyle(.plain)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -205,7 +211,28 @@ struct HistoryView: View {
                                     pendingDelete = game
                                 }
                             }
+                            .swipeActions(edge: .leading) {
+                                if game.displayResult == "*" {
+                                    Button {
+                                        continueGame(game)
+                                    } label: {
+                                        Label("Continue", systemImage: "camera.viewfinder")
+                                    }
+                                    .tint(Theme.accent)
+                                }
+                                Button {
+                                    editingGame = game
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(.blue)
+                            }
                             .contextMenu {
+                                if game.displayResult == "*" {
+                                    Button("Continue Game", systemImage: "camera.viewfinder") {
+                                        continueGame(game)
+                                    }
+                                }
                                 Button("Replay", systemImage: "play") {
                                     replay = ReplayRoute(
                                         pgn: game.pgn,
@@ -341,6 +368,17 @@ struct HistoryView: View {
         Task { await model.newGame() }
     }
 
+    private func continueGame(_ game: GameRecord) {
+        switch LiveCameraSource.authorizationStatus() {
+        case .authorized:
+            let model = RecordingSessionViewModel()
+            session = model
+            model.continueGame(record: game)
+        default:
+            showPermission = true
+        }
+    }
+
     private func startPieceStudio() {
         let model = RecordingSessionViewModel()
         session = model
@@ -376,6 +414,7 @@ private struct HistorySection: Identifiable {
 
 private struct HistoryRow: View {
     let game: GameRecord
+    var onContinue: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -393,6 +432,22 @@ private struct HistoryRow: View {
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Spacer(minLength: 8)
+                    if game.displayResult == "*" {
+                        Button {
+                            onContinue?()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "camera.viewfinder")
+                                Text("Continue")
+                            }
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Theme.accent.opacity(0.16), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     resultChip
                 }
                 Text(subtitle)
@@ -467,20 +522,18 @@ private struct HistoryRow: View {
     }
 
     private var subtitle: String {
-        let calendar = Calendar.current
-        let day: String
-        if calendar.isDateInToday(game.createdAt) {
-            day = "Today"
-        } else if calendar.isDateInYesterday(game.createdAt) {
-            day = "Yesterday"
-        } else {
-            day = game.createdAt.formatted(date: .abbreviated, time: .omitted)
-        }
         let time = game.createdAt.formatted(date: .omitted, time: .shortened)
         let moves = plies == 1 ? "1 move" : "\(plies) moves"
-        var parts = ["\(day) · \(time) · \(moves)"]
-        if let opening = game.openingName ?? OpeningDetector.detect(sans: PGNMoveList.sans(from: game.pgn)) {
+        var parts = ["\(time) · \(moves)"]
+        if let opening = game.openingName ?? OpeningDetector.detect(sans: PGNMoveList.sans(from: game.pgn)), !opening.isEmpty {
             parts.append(opening)
+        }
+        if let analysis = game.loadPersistedAnalysis()?.result {
+            if let wElo = analysis.whiteElo, let bElo = analysis.blackElo {
+                parts.append("Est. \(wElo) vs \(bElo)")
+            } else if let wAcc = analysis.whiteAccuracy, let bAcc = analysis.blackAccuracy {
+                parts.append(String(format: "%.0f%% vs %.0f%% acc", wAcc, bAcc))
+            }
         }
         return parts.joined(separator: " · ")
     }

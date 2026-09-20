@@ -36,6 +36,9 @@ final class RecordingSessionViewModel: Identifiable {
     var isClassifying = false
     var classifierAvailable = false
     var pieceDetectorAvailable = false
+    var pieceDetectionAvailable: Bool { classifierAvailable || pieceDetectorAvailable }
+    private(set) var isManuallyEdited: Bool = false
+    private var recentCommitTimestamps: [ContinuousClock.Instant] = []
     var pieceBoxes: [PieceDetection.Box] = []
     var confirmEndGame = false
     var showEditSheet = false
@@ -191,6 +194,7 @@ final class RecordingSessionViewModel: Identifiable {
             phase = .boardStudio
             detectStartedAt = ContinuousClock().now
             classifierAvailable = await pipeline.hasClassifier
+            pieceDetectorAvailable = await pipeline.hasDetector
             startConsuming()
         } catch {
             alertMessage = (error as? CaptureError)?.errorDescription ?? error.localizedDescription
@@ -205,8 +209,8 @@ final class RecordingSessionViewModel: Identifiable {
         await pipeline.setOrientation(orientation)
         isClassifying = true
         phase = .confirmingStart
-        if classifierAvailable, let warpedThumbnail {
-            let classes = await pipeline.classifySquares(from: warpedThumbnail)
+        if pieceDetectionAvailable, let warpedThumbnail {
+            let classes = await pipeline.detectPieces(from: warpedThumbnail)
             if !classes.isEmpty {
                 let classifiedAs = orientation
                 let inferred = FenCodec.inferOrientation(from: classes, classifiedAs: classifiedAs)
@@ -354,6 +358,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func beginCornerDrag() {
         isDraggingCorner = true
+        isManuallyEdited = true
         clearOpenCVSnap()
     }
 
@@ -374,6 +379,7 @@ final class RecordingSessionViewModel: Identifiable {
         refinedGrid = nil
         gridSnapFailed = false
         trackingWeak = false
+        isManuallyEdited = false
         needsTemplateCapture = true
         weakTrackFrames = 0
         weakTrackStartedAt = nil
@@ -425,6 +431,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func setCorner(_ index: Int, bufferPoint: CGPoint) {
         guard var quad else { return }
+        isManuallyEdited = true
         let clamped = CGPoint(
             x: min(max(bufferPoint.x, 0), max(bufferSize.width, 1)),
             y: min(max(bufferPoint.y, 0), max(bufferSize.height, 1))
@@ -446,6 +453,38 @@ final class RecordingSessionViewModel: Identifiable {
         }
     }
 
+    func selectLocalizer(_ source: BoardLocalizerSource) {
+        activeLocalizer = source
+        switch source {
+        case .vision:
+            if let visionQuad { quad = visionQuad }
+        case .ml:
+            if let mlQuad { quad = mlQuad }
+        }
+    }
+
+    func continueGame(record: GameRecord) {
+        savedRecord = record
+        engine.resetToStart()
+        let sans = PGNMoveList.sans(from: record.pgn)
+        for san in sans {
+            try? engine.apply(san: san)
+        }
+        committedSANs = Array(engine.appliedSANs)
+        lastSAN = engine.formattedLastSAN
+        lastCommittedOccupancy = engine.occupancy()
+        resetOccupancyTracking(seeding: lastCommittedOccupancy)
+        occupancyPrior = makeOccupancyPrior()
+        phase = .boardStudio
+        detectStartedAt = ContinuousClock().now
+        detectTimedOut = false
+        Task {
+            classifierAvailable = await pipeline.hasClassifier
+            pieceDetectorAvailable = await pipeline.hasDetector
+            await startCaptureIfNeeded()
+        }
+    }
+
     func useTheseCorners() async {
         await confirmQuad()
     }
@@ -460,7 +499,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func recapture() async {
-        guard classifierAvailable, warpedThumbnail != nil else { return }
+        guard pieceDetectionAvailable, warpedThumbnail != nil else { return }
         if refinedGrid == nil {
             await refineGridSnappingQuad()
         } else if let current = warpedThumbnail, let grid = OpenCVGridRefiner.refine(current), grid.isMonotonic {
@@ -469,7 +508,7 @@ final class RecordingSessionViewModel: Identifiable {
         }
         guard let current = warpedThumbnail else { return }
         isClassifying = true
-        let classes = await pipeline.classifySquares(from: current)
+        let classes = await pipeline.detectPieces(from: current)
         if !classes.isEmpty {
             classifiedClasses = classes
             proposedFEN = FenCodec.fen(from: classes)
@@ -485,7 +524,29 @@ final class RecordingSessionViewModel: Identifiable {
 
     func setPiece(_ piece: PieceClass, at square: ChessSquare) {
         classifiedClasses[square] = piece
-        proposedFEN = FenCodec.fen(from: classifiedClasses)
+        let parts = proposedFEN.components(separatedBy: " ")
+        let activeTurn = (parts.count >= 2) ? parts[1] : "w"
+        let placement = FenCodec.placement(from: classifiedClasses)
+        proposedFEN = "\(placement) \(activeTurn) KQkq - 0 1"
+    }
+
+    var sideToMove: Piece.Color {
+        let parts = proposedFEN.components(separatedBy: " ")
+        if parts.count >= 2 && parts[1] == "b" { return .black }
+        return .white
+    }
+
+    func setSideToMove(_ color: Piece.Color) {
+        let parts = proposedFEN.components(separatedBy: " ")
+        guard !parts.isEmpty else { return }
+        var mutableParts = parts
+        if mutableParts.count < 6 {
+            let placement = FenCodec.placement(from: classifiedClasses)
+            proposedFEN = "\(placement) \(color == .white ? "w" : "b") KQkq - 0 1"
+        } else {
+            mutableParts[1] = color == .white ? "w" : "b"
+            proposedFEN = mutableParts.joined(separator: " ")
+        }
     }
 
     func useStandardStartingPosition() {
@@ -640,6 +701,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func commit(move: Move) throws {
         try engine.apply(move: move)
+        recentCommitTimestamps.append(ContinuousClock().now)
         consecutiveAutoResumes = 0
         lastCommittedOccupancy = engine.occupancy()
         resetOccupancyTracking(seeding: lastCommittedOccupancy)
@@ -649,6 +711,15 @@ final class RecordingSessionViewModel: Identifiable {
         lastIgnoredOccupancy = nil
         lastIgnoredAt = nil
         scheduleLiveAnalysis()
+    }
+
+    private func isRateLimited(at now: ContinuousClock.Instant = ContinuousClock().now) -> Bool {
+        let limit = AnalysisSettings.moveRateLimit
+        guard limit != .off else { return false }
+        let window = limit.windowDurationSeconds
+        let maxMoves = limit.maxMoves
+        recentCommitTimestamps.removeAll { now - $0 > .seconds(window) }
+        return recentCommitTimestamps.count >= maxMoves
     }
 
     private func syncCommittedNotation() {
@@ -882,14 +953,12 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func handleBoardStudio(_ frame: CapturedFrame) async {
-        if isVideoImport {
-            previewImage = image(from: frame.buffer)
-        }
+        previewImage = image(from: frame.buffer)
 
         studioFrameIndex += 1
         if studioFrameIndex % 2 == 0, let heatmapLocalizer {
             mlQuad = await heatmapLocalizer.detect(in: frame.buffer)
-            if activeLocalizer == .ml, !isDraggingCorner, let mlQuad {
+            if activeLocalizer == .ml, !isDraggingCorner, !isManuallyEdited, let mlQuad {
                 if let snap = lastOpenCVSnap, snap.isSimilar(to: mlQuad, imageSize: bufferSize) {
                     quad = snap
                 } else {
@@ -903,7 +972,7 @@ final class RecordingSessionViewModel: Identifiable {
             if let detected = await pipeline.detectQuad(in: frame) {
                 if let consensus = quadConsensus.ingest(detected, imageSize: bufferSize) {
                     visionQuad = consensus
-                    if activeLocalizer == .vision {
+                    if activeLocalizer == .vision, !isManuallyEdited {
                         quad = consensus
                         needsTemplateCapture = true
                     }
@@ -915,7 +984,7 @@ final class RecordingSessionViewModel: Identifiable {
                ContinuousClock().now - detectStartedAt >= .seconds(2) {
                 detectTimedOut = true
             }
-        } else if !isDraggingCorner, activeLocalizer == .vision, let gray = GrayFrame.from(frame.buffer), let current = visionQuad {
+        } else if !isDraggingCorner, !isManuallyEdited, activeLocalizer == .vision, let gray = GrayFrame.from(frame.buffer), let current = visionQuad {
             if needsTemplateCapture || !cornerTracker.hasTemplates {
                 cornerTracker.capture(from: gray, quad: current)
                 needsTemplateCapture = false
@@ -1139,6 +1208,10 @@ final class RecordingSessionViewModel: Identifiable {
         let next = SessionReducer.next(phase: phase, motion: motion, inference: inference)
         switch (next, inference) {
         case (.recording, .unique(let moves)):
+            if isRateLimited() {
+                liveDebugLine = "rate limited"
+                break
+            }
             do {
                 for move in moves {
                     try commit(move: move)

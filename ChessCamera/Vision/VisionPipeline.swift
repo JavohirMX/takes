@@ -105,6 +105,16 @@ actor VisionPipeline {
         return classes
     }
 
+    func detectPieces(from warped: CGImage) async -> [ChessSquare: PieceClass] {
+        if classifier != nil {
+            return await classifySquares(from: warped)
+        }
+        if let detector {
+            return await detector.detect(in: warped, orientation: orientation)
+        }
+        return [:]
+    }
+
     func observation(
         from frame: CapturedFrame,
         classify: Bool,

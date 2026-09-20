@@ -27,6 +27,7 @@
 		1C498D9D7857A6132305D9DB /* MoveSheetDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D278404E4D82957997399491 /* MoveSheetDrawer.swift */; };
 		1D23632D7EF480A6F9ED2E5E /* RecordingSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F350C5E01332C02975B03E /* RecordingSessionViewModel.swift */; };
 		1DFA2C5E1627947115B6AC59 /* BoardLocalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5546C20C0862DE27B11419F /* BoardLocalizer.swift */; };
+		CB0100000000000000000002 /* CircularButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0100000000000000000001 /* CircularButton.swift */; };
 		1F84569570BCCE930D491ACB /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E1E473AFEE6A9A81BCBC6C /* PrimaryButton.swift */; };
 		1F9FFC76F0F8153D8606B8D1 /* CornerTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1847A40354B6EA8F0495CADA /* CornerTrackerTests.swift */; };
 		27AF01440E85D2B67E55FE31 /* ChessSquareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA919B28E892024B6207ACD /* ChessSquareTests.swift */; };
@@ -221,6 +222,7 @@
 		93E208CFF4067E1A2F457D37 /* YOLOBaseOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YOLOBaseOverlay.swift; sourceTree = "<group>"; };
 		9424E37598AC154DF70936FC /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		956D5D47B65628C587725D8D /* CornerHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerHandle.swift; sourceTree = "<group>"; };
+		CB0100000000000000000001 /* CircularButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircularButton.swift; sourceTree = "<group>"; };
 		96E1E473AFEE6A9A81BCBC6C /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
 		97748D00F2697B5C2EBF46EB /* NOTICE */ = {isa = PBXFileReference; lastKnownFileType = text; path = NOTICE; sourceTree = "<group>"; };
 		981B7758ADFA4CBF0C08A0FB /* FenCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FenCodec.swift; sourceTree = "<group>"; };
@@ -393,6 +395,7 @@
 				FDBC8AEFD0F988904F61F1C6 /* BoardQuadOverlay.swift */,
 				1267893B1B6CCB38C9177C6A /* CameraPreview.swift */,
 				E32070199F0C8A3BFC9027FF /* ChessAudioFeedback.swift */,
+				CB0100000000000000000001 /* CircularButton.swift */,
 				956D5D47B65628C587725D8D /* CornerHandle.swift */,
 				2EF23A2EAF1CFB6B801D1738 /* DigitalBoardView.swift */,
 				0D96F20178B5CBB934AE02FE /* EvalBarView.swift */,
@@ -773,6 +776,7 @@
 				E54B43C8A845D8FA335049D8 /* PiecePickerPopover.swift in Sources */,
 				0805A2C1D7A51F9B8FC98F72 /* PieceStudioView.swift in Sources */,
 				6F0F290D35D4FA4479B44633 /* PieceView.swift in Sources */,
+				CB0100000000000000000002 /* CircularButton.swift in Sources */,
 				1F84569570BCCE930D491ACB /* PrimaryButton.swift in Sources */,
 				2C8F1FD1B51470F88C51DC2D /* QuadConsensus.swift in Sources */,
 				9142C9F1E8027A4C50E2FBC5 /* Quadrilateral.swift in Sources */,

@@ -1,49 +1,106 @@
 import SwiftUI
 
-/// Thin accent arrow from `from` → `to` over an 8×8 board of size `side`.
+/// Premium chess arrow overlay (straight or L-shaped for knights) with clean geometry.
 struct BoardArrowOverlay: View {
     var from: ChessSquare
     var to: ChessSquare
     var side: CGFloat
     var orientation: BoardOrientation = .whiteAtBottom
+    var isBestMove: Bool = true
 
     var body: some View {
         let squareSize = side / 8
         let start = center(of: from, squareSize: squareSize)
         let end = center(of: to, squareSize: squareSize)
+
         Canvas { context, _ in
-            var path = Path()
-            path.move(to: start)
-            path.addLine(to: end)
-            context.stroke(
-                path,
-                with: .color(Theme.accent.opacity(0.85)),
-                style: StrokeStyle(lineWidth: max(3, squareSize * 0.12), lineCap: .round)
+            let dFile = abs(to.file - from.file)
+            let dRank = abs(to.rank - from.rank)
+            let isKnight = (dFile == 1 && dRank == 2) || (dFile == 2 && dRank == 1)
+
+            let arrowColor = isBestMove
+                ? Color(red: 0.15, green: 0.82, blue: 0.82) // Cyan / Teal for best move
+                : Color(red: 0.98, green: 0.76, blue: 0.22) // Amber for played move
+            let opacity: Double = isBestMove ? 0.88 : 0.80
+            let lineWidth = max(3.5, squareSize * 0.11)
+            let headLength = max(11, squareSize * 0.32)
+
+            var points: [CGPoint] = [start]
+            var finalAngle: CGFloat = 0
+
+            if isKnight {
+                // L-shape: 2 squares first, then 1 square turn
+                let midSquare: ChessSquare
+                if dRank == 2 {
+                    midSquare = ChessSquare(file: from.file, rank: to.rank)
+                } else {
+                    midSquare = ChessSquare(file: to.file, rank: from.rank)
+                }
+                let midPoint = center(of: midSquare, squareSize: squareSize)
+                points.append(midPoint)
+                points.append(end)
+                finalAngle = atan2(end.y - midPoint.y, end.x - midPoint.x)
+            } else {
+                points.append(end)
+                finalAngle = atan2(end.y - start.y, end.x - start.x)
+            }
+
+            // The shaft stops at the base of the arrowhead to avoid poking past the tip
+            let shaftEnd = CGPoint(
+                x: end.x - (headLength * 0.85) * cos(finalAngle),
+                y: end.y - (headLength * 0.85) * sin(finalAngle)
             )
 
-            // Arrowhead
-            let angle = atan2(end.y - start.y, end.x - start.x)
-            let head: CGFloat = max(8, squareSize * 0.28)
+            // Draw shaft
+            var shaftPath = Path()
+            shaftPath.move(to: points[0])
+            if points.count == 3 {
+                // Smooth rounded corner for knight turn
+                shaftPath.addArc(
+                    tangent1End: points[1],
+                    tangent2End: shaftEnd,
+                    radius: squareSize * 0.22
+                )
+                shaftPath.addLine(to: shaftEnd)
+            } else {
+                shaftPath.addLine(to: shaftEnd)
+            }
+
+            context.stroke(
+                shaftPath,
+                with: .color(arrowColor.opacity(opacity)),
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+            )
+
+            // Draw arrowhead chevron
+            let wingAngle: CGFloat = .pi / 6.5
+            let wing1 = CGPoint(
+                x: end.x - headLength * cos(finalAngle - wingAngle),
+                y: end.y - headLength * sin(finalAngle - wingAngle)
+            )
+            let wing2 = CGPoint(
+                x: end.x - headLength * cos(finalAngle + wingAngle),
+                y: end.y - headLength * sin(finalAngle + wingAngle)
+            )
+            let notch = CGPoint(
+                x: end.x - (headLength * 0.72) * cos(finalAngle),
+                y: end.y - (headLength * 0.72) * sin(finalAngle)
+            )
+
             var headPath = Path()
             headPath.move(to: end)
-            headPath.addLine(to: CGPoint(
-                x: end.x - head * cos(angle - .pi / 7),
-                y: end.y - head * sin(angle - .pi / 7)
-            ))
-            headPath.addLine(to: CGPoint(
-                x: end.x - head * cos(angle + .pi / 7),
-                y: end.y - head * sin(angle + .pi / 7)
-            ))
+            headPath.addLine(to: wing1)
+            headPath.addLine(to: notch)
+            headPath.addLine(to: wing2)
             headPath.closeSubpath()
-            context.fill(headPath, with: .color(Theme.accent.opacity(0.9)))
+
+            context.fill(headPath, with: .color(arrowColor.opacity(opacity)))
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
     private func center(of square: ChessSquare, squareSize: CGFloat) -> CGPoint {
-        // DigitalBoardView maps display file/rank with GridSampler + orientation.
-        // Invert: find display indices for this square.
         var displayFile = 0
         var displayRank = 0
         for f in 0..<8 {

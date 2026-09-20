@@ -28,6 +28,10 @@ struct SettingsView: View {
     @AppStorage(AnalysisSettings.postShowAccuracyKey) private var postShowAccuracy = true
     @AppStorage(AnalysisSettings.postShowGraphKey) private var postShowGraph = true
     @AppStorage(AnalysisSettings.speedKey) private var speedRaw = AnalysisSpeed.balanced.rawValue
+    @AppStorage(AnalysisSettings.pieceNotationStyleKey) private var pieceNotationRaw = PieceNotationStyle.figurines.rawValue
+    @AppStorage(AnalysisSettings.moveRateLimitKey) private var moveRateLimitRaw = MoveRateLimit.twoPerTwoSeconds.rawValue
+    @AppStorage(AnalysisSettings.liveSpoilerShieldKey) private var liveSpoilerShield = true
+    @AppStorage(AnalysisSettings.showEstimatedEloKey) private var showEstimatedElo = true
 
     @State private var showAppearance = false
     @State private var showStockfishLicense = false
@@ -92,6 +96,27 @@ struct SettingsView: View {
                             systemImage: "arrow.clockwise",
                             isOn: $autoResume
                         )
+                        divider
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 12) {
+                                settingIcon("gauge.with.dots.needle.50percent")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Move rate limit")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Throttle rapid successive commits to avoid accidental double-moves.")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                            Picker("Rate limit", selection: $moveRateLimitRaw) {
+                                ForEach(MoveRateLimit.allCases) { limit in
+                                    Text(limit.title).tag(limit.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .padding(16)
                     }
                 }
 
@@ -110,6 +135,27 @@ struct SettingsView: View {
                             systemImage: "speaker.wave.2",
                             isOn: $speakMoves
                         )
+                        divider
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 12) {
+                                settingIcon("character.bubble")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Piece notation")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Choose figurine icons (♞, ♝) or standard letters (N, B).")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                            Picker("Piece notation", selection: $pieceNotationRaw) {
+                                ForEach(PieceNotationStyle.allCases) { style in
+                                    Text(style.title).tag(style.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .padding(16)
                     }
                 }
 
@@ -122,6 +168,13 @@ struct SettingsView: View {
                             isOn: $liveHints
                         )
                         if liveHints {
+                            divider
+                            toggleRow(
+                                title: "Spoiler shield",
+                                subtitle: "Fold live eval and best move arrow into a collapsible drawer (hidden by default).",
+                                systemImage: "eye.slash",
+                                isOn: $liveSpoilerShield
+                            )
                             divider
                             toggleRow(
                                 title: "Show eval",
@@ -145,6 +198,13 @@ struct SettingsView: View {
                             isOn: $postGame
                         )
                         if postGame {
+                            divider
+                            toggleRow(
+                                title: "Estimated Elo",
+                                subtitle: "Show estimated player performance rating based on this match.",
+                                systemImage: "rosette",
+                                isOn: $showEstimatedElo
+                            )
                             divider
                             toggleRow(
                                 title: "Eval bar",

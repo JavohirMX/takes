@@ -1,3 +1,4 @@
+import ChessKit
 import SwiftUI
 
 struct ConfirmStartView: View {
@@ -50,9 +51,13 @@ struct ConfirmStartView: View {
                     .frame(maxHeight: 180)
                 digitalBoard
                     .frame(maxHeight: 320)
-                Text("Tap any square to correct its piece")
+                inlinePalette
+                Text(selectedSquare == nil ? "Tap any square to correct its piece" : "Select a piece from the palette above")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
+                if !model.isStandardStart {
+                    sideToMoveRow
+                }
                 rotateRow
                 statusBlock
             }
@@ -62,11 +67,14 @@ struct ConfirmStartView: View {
 
     private var landscape: some View {
         HStack(spacing: 0) {
-            digitalBoard
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 12) {
+                digitalBoard
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                inlinePalette
+            }
+            .padding(16)
             landscapeSidebar
-                .frame(width: 300)
+                .frame(width: 320)
                 .background(Theme.background)
         }
     }
@@ -78,6 +86,9 @@ struct ConfirmStartView: View {
                     warpedBoard
                         .frame(maxWidth: 140, maxHeight: 140)
                         .frame(maxWidth: .infinity)
+                    if !model.isStandardStart {
+                        sideToMoveRow
+                    }
                     rotateRow
                     statusBlock
                 }
@@ -102,8 +113,15 @@ struct ConfirmStartView: View {
         DigitalBoardView(
             fen: model.proposedFEN,
             orientation: .whiteAtBottom,
+            selected: selectedSquare,
             interactive: true,
-            onTap: { selectedSquare = $0 }
+            onTap: { square in
+                if selectedSquare == square {
+                    selectedSquare = nil
+                } else {
+                    selectedSquare = square
+                }
+            }
         )
     }
 
@@ -169,7 +187,7 @@ struct ConfirmStartView: View {
                     Label("This doesn’t look like the start.", systemImage: "exclamationmark.triangle")
                         .font(.body)
                         .foregroundStyle(Theme.caution)
-                    if model.classifierAvailable {
+                    if model.pieceDetectionAvailable {
                         HStack(spacing: 10) {
                             SecondaryButton(title: "Recapture") {
                                 Task { await model.recapture() }
@@ -184,11 +202,11 @@ struct ConfirmStartView: View {
                         }
                     }
                     if model.isLegalProposedFEN {
-                        Button("Continue anyway") {
+                        Button("Start Game from Here") {
                             model.startRecording()
                         }
-                        .font(.callout)
-                        .foregroundStyle(Theme.textSecondary)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
                         .frame(minHeight: 44)
                     }
                 }
@@ -196,16 +214,114 @@ struct ConfirmStartView: View {
         }
     }
 
+    private var sideToMoveRow: some View {
+        HStack(spacing: 12) {
+            Text("Side to move")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+            Spacer()
+            Picker("Side to move", selection: Binding(
+                get: { model.sideToMove },
+                set: { model.setSideToMove($0) }
+            )) {
+                Text("White").tag(Piece.Color.white)
+                Text("Black").tag(Piece.Color.black)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 160)
+        }
+        .padding(12)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var inlinePalette: some View {
+        if let square = selectedSquare {
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Selected: \(square.algebraic.uppercased())")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.accent)
+                    Spacer()
+                    Button("Done") {
+                        selectedSquare = nil
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                }
+
+                // White pieces
+                HStack(spacing: 6) {
+                    paletteButton(symbol: "♔", piece: .whiteKing, square: square)
+                    paletteButton(symbol: "♕", piece: .whiteQueen, square: square)
+                    paletteButton(symbol: "♖", piece: .whiteRook, square: square)
+                    paletteButton(symbol: "♗", piece: .whiteBishop, square: square)
+                    paletteButton(symbol: "♘", piece: .whiteKnight, square: square)
+                    paletteButton(symbol: "♙", piece: .whitePawn, square: square)
+                }
+
+                // Black pieces & Clear
+                HStack(spacing: 6) {
+                    paletteButton(symbol: "♚", piece: .blackKing, square: square)
+                    paletteButton(symbol: "♛", piece: .blackQueen, square: square)
+                    paletteButton(symbol: "♜", piece: .blackRook, square: square)
+                    paletteButton(symbol: "♝", piece: .blackBishop, square: square)
+                    paletteButton(symbol: "♞", piece: .blackKnight, square: square)
+                    paletteButton(symbol: "♟", piece: .blackPawn, square: square)
+                    Button {
+                        model.setPiece(.empty, at: square)
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.statusRed)
+                            .frame(width: 36, height: 36)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(Theme.statusRed.opacity(0.4), lineWidth: 1)
+                            }
+                    }
+                }
+            }
+            .padding(12)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Theme.accent.opacity(0.4), lineWidth: 1)
+            }
+        }
+    }
+
+    private func paletteButton(symbol: String, piece: PieceClass, square: ChessSquare) -> some View {
+        let isSelected = model.classifiedClasses[square] == piece
+        return Button {
+            model.setPiece(piece, at: square)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            Text(symbol)
+                .font(.system(size: 20))
+                .foregroundStyle(isSelected ? Theme.accent : Theme.textPrimary)
+                .frame(width: 36, height: 36)
+                .background(isSelected ? Theme.accent.opacity(0.18) : Theme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isSelected ? Theme.accent : Theme.border, lineWidth: 1)
+                }
+        }
+    }
+
     @ViewBuilder
     private var startButton: some View {
-        if !model.classifierAvailable {
+        if !model.pieceDetectionAvailable {
             PrimaryButton(title: "Use standard starting position") {
                 model.useStandardStartingPosition()
                 model.startRecording()
             }
         } else {
+            let title = model.isStandardStart ? "Start recording" : "Start Game from Here"
             PrimaryButton(
-                title: "Start recording",
+                title: title,
                 isDisabled: !model.isLegalProposedFEN || model.isClassifying
             ) {
                 model.startRecording()

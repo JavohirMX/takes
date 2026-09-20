@@ -55,10 +55,14 @@ actor GameAnalyzer {
 
             let wpBefore = MoveQualityClassifier.winPercent(score: best.score)
             let wpAfter = MoveQualityClassifier.winPercent(score: afterWhite)
+            let isBook = OpeningDetector.isBookMove(sans: sans, at: index)
             let classified = MoveQualityClassifier.classify(
                 winPercentBefore: wpBefore,
                 winPercentAfter: wpAfter,
-                playedByWhite: playedByWhite
+                playedByWhite: playedByWhite,
+                isBook: isBook,
+                fenBefore: fenBefore,
+                fenAfter: fenAfter
             )
 
             let ply = PlyAnalysis(
@@ -82,6 +86,8 @@ actor GameAnalyzer {
             plies: plies,
             whiteAccuracy: accuracies.white,
             blackAccuracy: accuracies.black,
+            whiteElo: accuracies.whiteElo,
+            blackElo: accuracies.blackElo,
             evalSeries: evalSeries
         )
     }
