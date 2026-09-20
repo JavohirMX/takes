@@ -13,7 +13,8 @@ struct CornerCalibrationView: View {
                     CameraPreview(
                         session: model.liveCaptureSession,
                         stillImage: model.previewImage,
-                        videoRotationAngle: model.previewRotationAngle
+                        videoRotationAngle: model.previewRotationAngle,
+                        customPreviewView: model.persistentPreviewView
                     )
                     BoardQuadOverlay(
                         quad: model.quad,

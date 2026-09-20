@@ -23,6 +23,8 @@ final class RecordingSessionViewModel: Identifiable {
     var bufferSize: CGSize = .zero
     var warpedThumbnail: CGImage?
     var refinedGrid: RefinedBoardGrid?
+    /// Persistent preview view reused across layout transitions to eliminate AVCaptureSession lag
+    let persistentPreviewView = CameraPreviewView()
     var orientation: BoardOrientation = .whiteAtBottom
     var proposedFEN = FenCodec.standard
     var classifiedClasses: [ChessSquare: PieceClass] = FenCodec.standardClasses()
@@ -57,6 +59,9 @@ final class RecordingSessionViewModel: Identifiable {
     var previewImage: CGImage?
     var isVideoImport = false
     var trackingWeak = false
+    /// Active while dragging / adjusting corners mid-game or in the corner adjustment overlay.
+    var isAdjustingCorners = false
+    private var preAdjustmentQuad: Quadrilateral?
     /// Set when confirm-time OpenCV snap fails; still allow lock on the coarse quad.
     var gridSnapFailed = false
     var isCaptureRunning = false
@@ -343,7 +348,83 @@ final class RecordingSessionViewModel: Identifiable {
         detectTimedOut = false
     }
 
+    func beginAdjustingCorners() {
+        preAdjustmentQuad = quad
+        if quad == nil {
+            let size = bufferSize == .zero ? CGSize(width: 1280, height: 720) : bufferSize
+            quad = Quadrilateral.insetRect(in: size)
+        }
+        isAdjustingCorners = true
+    }
+
+    func cancelCornerAdjustment() {
+        if let pre = preAdjustmentQuad {
+            quad = pre
+            Task {
+                await pipeline.setLockedQuad(pre)
+            }
+        }
+        isAdjustingCorners = false
+        preAdjustmentQuad = nil
+    }
+
+    func commitCornerAdjustment() async {
+        guard let current = quad else {
+            isAdjustingCorners = false
+            return
+        }
+        await refineGridSnappingQuad()
+        let finalQuad = self.quad ?? current
+        await pipeline.setLockedQuad(finalQuad)
+        cornerTracker.reset()
+        needsTemplateCapture = true
+        trackingLost = false
+        lastCommittedOccupancy = engine.occupancy()
+        resetOccupancyTracking(seeding: lastCommittedOccupancy)
+        occupancyPrior = makeOccupancyPrior()
+        settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
+        armFingerprintSnapshot(warmup: 3)
+        if let warpedThumbnail {
+            await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
+        }
+        isAdjustingCorners = false
+        preAdjustmentQuad = nil
+    }
+
+    func rotateQuadCornersClockwise() {
+        guard let current = quad else { return }
+        quad = Quadrilateral(
+            topLeft: current.bottomLeft,
+            topRight: current.topLeft,
+            bottomRight: current.topRight,
+            bottomLeft: current.bottomRight
+        )
+        clearOpenCVSnap()
+    }
+
+    func autoDetectCornersInAdjustment() async {
+        guard let buffer = lastSampleBuffer else { return }
+        let frame = CapturedFrame(buffer: buffer, timestamp: ContinuousClock.now)
+        await pipeline.setLockedQuad(nil)
+        if let detected = await pipeline.detectQuad(in: frame) {
+            quad = detected
+            await refineGridSnappingQuad()
+            let finalQuad = self.quad ?? detected
+            await pipeline.setLockedQuad(finalQuad)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } else {
+            if let current = quad {
+                await pipeline.setLockedQuad(current)
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
+    }
+
     func adjustCorners() {
+        if phase == .recording || phase == .disturbed || phase == .awaitingEdit {
+            beginAdjustingCorners()
+            return
+        }
         if quad == nil {
             quad = Quadrilateral.insetRect(in: bufferSize == .zero ? CGSize(width: 1280, height: 720) : bufferSize)
         }
@@ -351,6 +432,10 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func cancelCalibration() {
+        if isAdjustingCorners {
+            cancelCornerAdjustment()
+            return
+        }
         phase = .detectingBoard
         detectStartedAt = ContinuousClock().now
         detectTimedOut = false
@@ -432,9 +517,12 @@ final class RecordingSessionViewModel: Identifiable {
     func setCorner(_ index: Int, bufferPoint: CGPoint) {
         guard var quad else { return }
         isManuallyEdited = true
+        let bounds = (bufferSize.width > 0 && bufferSize.height > 0)
+            ? bufferSize
+            : CGSize(width: 1280, height: 720)
         let clamped = CGPoint(
-            x: min(max(bufferPoint.x, 0), max(bufferSize.width, 1)),
-            y: min(max(bufferPoint.y, 0), max(bufferSize.height, 1))
+            x: min(max(bufferPoint.x, 0), bounds.width),
+            y: min(max(bufferPoint.y, 0), bounds.height)
         )
         switch index {
         case 0: quad.topLeft = clamped
@@ -501,6 +589,10 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func useTheseCorners() async {
+        if isAdjustingCorners {
+            await commitCornerAdjustment()
+            return
+        }
         await confirmQuad()
     }
 
@@ -1110,6 +1202,13 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func handleLive(_ frame: CapturedFrame) async {
+        if isAdjustingCorners {
+            previewImage = image(from: frame.buffer)
+            if let quad, let warped = await pipeline.warp(frame, quad: quad) {
+                warpedThumbnail = warped.squareImage
+            }
+            return
+        }
         if pendingFingerprintSnapshot {
             if fingerprintWarmupFramesRemaining > 0 {
                 fingerprintWarmupFramesRemaining -= 1

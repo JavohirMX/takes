@@ -408,4 +408,84 @@ struct RecordingSessionViewModelTests {
         )
         #expect(line == "edit  stable  ham 2  Δ0  amb Nf3,Nc3")
     }
+
+    @Test @MainActor
+    func adjustCornersDuringRecordingPreservesGameAndSANs() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        #expect(model.committedSANs == ["e4"])
+        #expect(model.committedPlyCount == 1)
+
+        // Tapping "Adjust corners" mid-game must NOT reset phase to calibratingCorners or reset the match
+        model.adjustCorners()
+        #expect(model.isAdjustingCorners == true)
+        #expect(model.phase == .recording)
+        #expect(model.committedSANs == ["e4"])
+        #expect(model.committedPlyCount == 1)
+        #expect(model.lastSAN == "1. e4")
+    }
+
+    @Test @MainActor
+    func cancelCornerAdjustmentRestoresPreAdjustmentQuad() throws {
+        let model = RecordingSessionViewModel()
+        let initialQuad = Quadrilateral(
+            topLeft: CGPoint(x: 10, y: 10),
+            topRight: CGPoint(x: 100, y: 10),
+            bottomRight: CGPoint(x: 100, y: 100),
+            bottomLeft: CGPoint(x: 10, y: 100)
+        )
+        model.quad = initialQuad
+
+        model.beginAdjustingCorners()
+        #expect(model.isAdjustingCorners == true)
+
+        model.setCorner(0, bufferPoint: CGPoint(x: 50, y: 50))
+        #expect(model.quad?.topLeft == CGPoint(x: 50, y: 50))
+
+        model.cancelCornerAdjustment()
+        #expect(model.isAdjustingCorners == false)
+        #expect(model.quad?.topLeft == CGPoint(x: 10, y: 10))
+    }
+
+    @Test @MainActor
+    func commitCornerAdjustmentPreservesMatchHistory() async throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        let fenAfterE4 = model.engine.fen
+
+        model.beginAdjustingCorners()
+        let newPoint = CGPoint(x: 25, y: 25)
+        model.setCorner(0, bufferPoint: newPoint)
+
+        await model.commitCornerAdjustment()
+        #expect(model.isAdjustingCorners == false)
+        #expect(model.phase == .recording)
+        #expect(model.engine.fen == fenAfterE4)
+        #expect(model.committedSANs == ["e4"])
+        #expect(model.committedPlyCount == 1)
+    }
+
+    @Test @MainActor
+    func rotateQuadCornersClockwiseRotatesCorners() throws {
+        let model = RecordingSessionViewModel()
+        model.quad = Quadrilateral(
+            topLeft: CGPoint(x: 1, y: 1),
+            topRight: CGPoint(x: 2, y: 1),
+            bottomRight: CGPoint(x: 2, y: 2),
+            bottomLeft: CGPoint(x: 1, y: 2)
+        )
+
+        model.rotateQuadCornersClockwise()
+        let rotated = try #require(model.quad)
+        #expect(rotated.topLeft == CGPoint(x: 1, y: 2))
+        #expect(rotated.topRight == CGPoint(x: 1, y: 1))
+        #expect(rotated.bottomRight == CGPoint(x: 2, y: 1))
+        #expect(rotated.bottomLeft == CGPoint(x: 2, y: 2))
+    }
 }

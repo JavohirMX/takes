@@ -31,42 +31,13 @@ struct HistoryView: View {
                     populated
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                actionBar
+            }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search opponent, event, opening…")
-            .toolbarBackground(Theme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                            .frame(width: 40, height: 40)
-                            .background(Theme.surface, in: Circle())
-                            .overlay {
-                                Circle().stroke(Theme.border, lineWidth: 1)
-                            }
-                    }
-                    .accessibilityLabel("Settings")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: beginNewGame) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                            .frame(width: 40, height: 40)
-                            .background(Theme.surface, in: Circle())
-                            .overlay {
-                                Circle().stroke(Theme.border, lineWidth: 1)
-                            }
-                    }
-                    .accessibilityLabel("New Game")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showSettings) {
                 SettingsView()
             }
@@ -305,6 +276,30 @@ struct HistoryView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
+    }
+
+    private var actionBar: some View {
+        HStack {
+            GlassCircleButton(
+                icon: "gearshape",
+                title: "Settings",
+                diameter: 40
+            ) {
+                showSettings = true
+            }
+            Spacer()
+            GlassCircleButton(
+                icon: "plus",
+                title: "New Game",
+                diameter: 40
+            ) {
+                beginNewGame()
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .background(Theme.background)
     }
 
     private var filteredGames: [GameRecord] {

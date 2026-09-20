@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BoardAppearanceSheet: View {
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
+    @AppStorage(ArrowAppearance.colorKey) private var arrowColorRaw = ArrowAppearance.defaultColor.rawValue
     @Environment(\.dismiss) private var dismiss
 
     private var selected: BoardStyle {
@@ -52,6 +53,62 @@ struct BoardAppearanceSheet: View {
                         .accessibilityAddTraits(selected == style ? .isSelected : [])
                     }
                 }
+
+                Divider()
+                    .overlay(Theme.border)
+                    .padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Best Move Arrow Color")
+                        .font(.headline)
+                        .foregroundStyle(Theme.textPrimary)
+
+                    Text("Choose the accent color used for engine recommendation arrows.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+
+                    HStack(spacing: 12) {
+                        ForEach(BestMoveArrowColor.allCases) { option in
+                            Button {
+                                arrowColorRaw = option.rawValue
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Circle()
+                                        .fill(option.color)
+                                        .frame(width: 36, height: 36)
+                                        .overlay {
+                                            if arrowColorRaw == option.rawValue {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 14, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                                    .shadow(color: .black.opacity(0.4), radius: 2)
+                                            }
+                                        }
+                                        .overlay {
+                                            Circle()
+                                                .strokeBorder(
+                                                    arrowColorRaw == option.rawValue ? Color.white : Theme.border,
+                                                    lineWidth: arrowColorRaw == option.rawValue ? 2.5 : 1
+                                                )
+                                        }
+
+                                    Text(option.title)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(
+                                            arrowColorRaw == option.rawValue
+                                                ? Theme.textPrimary
+                                                : Theme.textSecondary
+                                        )
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(option.title)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
                 Spacer()
             }
             .padding(16)

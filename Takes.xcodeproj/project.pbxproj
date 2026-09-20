@@ -118,6 +118,7 @@
 		D6CDA201D7D87FCED2D7F830 /* GameAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DCC32D758644440563CAE74 /* GameAnalyzer.swift */; };
 		D789712A45BCB4DB5670C9B9 /* AnalysisSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE88958AF6DBC64D929F20C /* AnalysisSettings.swift */; };
 		D9FDA0555AD1558E54BB03D8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6A9732A54FFB9E53039B0B5E /* Assets.xcassets */; };
+		DB32712ECB5662AC38BD1FCC /* GlassCircleButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE75E1F65A4B223A1716E527 /* GlassCircleButton.swift */; };
 		DC69ED14855B9E804B848FD3 /* GameOverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E788A1FD71DCB2E6D16B065 /* GameOverView.swift */; };
 		DD1E143F09FFFDDCE3B52239 /* FrameSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9B1C25A5E6CF4790DCB2E7 /* FrameSource.swift */; };
 		DD278FC2E41517F21BB530DD /* VideoMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4D9886EAD95B1B9B2A7109 /* VideoMapping.swift */; };
@@ -271,6 +272,7 @@
 		ECCD0084AEBAD34A16AD23F7 /* HeatmapCornerDecode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCornerDecode.swift; sourceTree = "<group>"; };
 		ED7A16088EF180A46883D244 /* RefinedBoardGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinedBoardGrid.swift; sourceTree = "<group>"; };
 		EDE17DED9B52BAF489445E04 /* OccupancyEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OccupancyEstimatorTests.swift; sourceTree = "<group>"; };
+		EE75E1F65A4B223A1716E527 /* GlassCircleButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCircleButton.swift; sourceTree = "<group>"; };
 		F0D5477F5F0BC74230635BC0 /* VideoMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoMappingTests.swift; sourceTree = "<group>"; };
 		F5546C20C0862DE27B11419F /* BoardLocalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLocalizer.swift; sourceTree = "<group>"; };
 		F696321E6AC9C1D80492DFF0 /* MoveListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveListView.swift; sourceTree = "<group>"; };
@@ -331,6 +333,7 @@
 			children = (
 				696CD867175A6AE45BFE925D /* CameraPreview.swift */,
 				AA585868F4DEFEB3D179E814 /* CircularButton.swift */,
+				EE75E1F65A4B223A1716E527 /* GlassCircleButton.swift */,
 				AC6F202EDA1296A114C91CFE /* MagnificationLoupeView.swift */,
 				F696321E6AC9C1D80492DFF0 /* MoveListView.swift */,
 				984C6A2A0976BDD38928F927 /* MoveSheetDrawer.swift */,
@@ -799,6 +802,7 @@
 				DC69ED14855B9E804B848FD3 /* GameOverView.swift in Sources */,
 				9ABC8D560E9086B611388A9D /* GameRecapCardView.swift in Sources */,
 				A6538C828AF6671EF45A0BE5 /* GameRecord.swift in Sources */,
+				DB32712ECB5662AC38BD1FCC /* GlassCircleButton.swift in Sources */,
 				57B7E5E2E940289E4897B250 /* GridSampler.swift in Sources */,
 				531D01DB8381E1B83B45CEE3 /* HeatmapBoardLocalizer.swift in Sources */,
 				60F8BB1A79892E3664BEBB08 /* HeatmapCornerDecode.swift in Sources */,

@@ -95,6 +95,7 @@ struct DigitalBoardView: View {
                                     }
                                 }
                                 .frame(width: squareSize, height: squareSize)
+                                .allowsHitTesting(interactive)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     guard interactive else { return }

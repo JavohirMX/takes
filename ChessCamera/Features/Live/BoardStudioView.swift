@@ -62,7 +62,8 @@ struct BoardStudioView: View {
                 CameraPreview(
                     session: model.liveCaptureSession,
                     stillImage: model.isVideoImport ? model.previewImage : nil,
-                    videoRotationAngle: model.previewRotationAngle
+                    videoRotationAngle: model.previewRotationAngle,
+                    customPreviewView: model.persistentPreviewView
                 )
                 if model.cameraUnavailable {
                     Text("Camera unavailable")

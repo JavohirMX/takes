@@ -25,6 +25,7 @@ struct CornerHandle: View {
                         Text(label)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Theme.textPrimary)
+                            .fixedSize()
                             .offset(y: -24)
                             .shadow(color: .black.opacity(0.8), radius: 2)
                     }

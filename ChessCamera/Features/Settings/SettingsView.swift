@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(MatchModeSettings.key) private var matchModeAutoDim = false
     @AppStorage(SpeechSettings.key) private var speakMoves = false
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
+    @AppStorage(ArrowAppearance.colorKey) private var arrowColorRaw = ArrowAppearance.defaultColor.rawValue
     @AppStorage(DetectionSettings.yoloConfidenceKey) private var yoloConfidenceRaw =
         DetectionSettings.yoloConfidenceDefault
     @AppStorage(DetectionSettings.classifierConfidenceKey) private var classifierConfidenceRaw =
@@ -38,6 +39,10 @@ struct SettingsView: View {
 
     private var selectedStyle: BoardStyle {
         BoardStyle(rawValue: styleRaw) ?? BoardAppearance.defaultStyle
+    }
+
+    private var selectedArrowColor: BestMoveArrowColor {
+        BestMoveArrowColor(rawValue: arrowColorRaw) ?? ArrowAppearance.defaultColor
     }
 
     private var analysisSpeed: Binding<String> {
@@ -377,10 +382,10 @@ struct SettingsView: View {
                         HStack(spacing: 12) {
                             settingIcon("checkerboard.rectangle")
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Appearance")
+                                Text("Appearance & Colors")
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(Theme.textPrimary)
-                                Text(selectedStyle.title)
+                                Text("\(selectedStyle.title) · \(selectedArrowColor.title) Arrow")
                                     .font(.callout)
                                     .foregroundStyle(Theme.textSecondary)
                             }
@@ -392,7 +397,7 @@ struct SettingsView: View {
                         .padding(16)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Board appearance, \(selectedStyle.title)")
+                    .accessibilityLabel("Board appearance, \(selectedStyle.title), \(selectedArrowColor.title) arrow")
                 }
 
                 settingsSection(title: "Recording") {

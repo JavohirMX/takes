@@ -53,3 +53,38 @@ enum BoardAppearance {
     static let styleKey = "boardStyle"
     static let defaultStyle = BoardStyle.tournament
 }
+
+enum BestMoveArrowColor: String, CaseIterable, Identifiable, Sendable {
+    case cyan
+    case emerald
+    case amber
+    case coral
+    case purple
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .cyan: "Cyan"
+        case .emerald: "Emerald"
+        case .amber: "Amber"
+        case .coral: "Coral"
+        case .purple: "Purple"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .cyan: Color(red: 0.10, green: 0.85, blue: 0.88)
+        case .emerald: Color(red: 0.18, green: 0.82, blue: 0.44)
+        case .amber: Color(red: 0.98, green: 0.76, blue: 0.22)
+        case .coral: Color(red: 0.98, green: 0.38, blue: 0.35)
+        case .purple: Color(red: 0.72, green: 0.45, blue: 0.98)
+        }
+    }
+}
+
+enum ArrowAppearance {
+    static let colorKey = "bestMoveArrowColor"
+    static let defaultColor = BestMoveArrowColor.cyan
+}

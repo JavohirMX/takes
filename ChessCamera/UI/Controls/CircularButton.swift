@@ -66,14 +66,38 @@ struct CircularButton: View {
 
     private var content: some View {
         ZStack {
-            Circle()
-                .fill(backgroundColor)
-                .frame(width: diameter, height: diameter)
-
-            if hasBorder {
+            if style == .glass {
                 Circle()
-                    .strokeBorder(borderColor, lineWidth: 1)
+                    .fill(.ultraThinMaterial)
                     .frame(width: diameter, height: diameter)
+                Circle()
+                    .fill(Color.white.opacity(0.06))
+                    .frame(width: diameter, height: diameter)
+                Circle()
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(0.55), location: 0.0),
+                                .init(color: Color.white.opacity(0.20), location: 0.35),
+                                .init(color: Color.white.opacity(0.04), location: 0.70),
+                                .init(color: Color.white.opacity(0.18), location: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                    .frame(width: diameter, height: diameter)
+            } else {
+                Circle()
+                    .fill(backgroundColor)
+                    .frame(width: diameter, height: diameter)
+
+                if hasBorder {
+                    Circle()
+                        .strokeBorder(borderColor, lineWidth: 1)
+                        .frame(width: diameter, height: diameter)
+                }
             }
 
             Group {
@@ -87,6 +111,7 @@ struct CircularButton: View {
             }
             .foregroundStyle(foregroundColor)
         }
+        .shadow(color: Color.black.opacity(style == .glass ? 0.28 : 0.12), radius: style == .glass ? 8 : 4, x: 0, y: style == .glass ? 4 : 2)
         .scaleEffect(isPressed ? 0.92 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isPressed)
     }

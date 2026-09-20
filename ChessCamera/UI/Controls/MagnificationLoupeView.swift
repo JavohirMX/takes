@@ -17,15 +17,20 @@ struct MagnificationLoupeView: View {
             ZStack {
                 Theme.surfaceMuted
                 if let image, viewSize.width > 0, viewSize.height > 0 {
-                    // Position image so that `point` is centered in the loupe
-                    Image(uiImage: UIImage(cgImage: image))
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: viewSize.width * zoomScale, height: viewSize.height * zoomScale)
-                        .position(
-                            x: (loupeSize / 2) + (viewSize.width / 2 - point.x) * zoomScale,
-                            y: (loupeSize / 2) + (viewSize.height / 2 - point.y) * zoomScale
-                        )
+                    let videoRect = VideoMapping.aspectFitRect(
+                        contentSize: CGSize(width: image.width, height: image.height),
+                        in: viewSize
+                    )
+                    if videoRect.width > 0, videoRect.height > 0 {
+                        Image(uiImage: UIImage(cgImage: image))
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: videoRect.width * zoomScale, height: videoRect.height * zoomScale)
+                            .position(
+                                x: (loupeSize / 2) + (videoRect.midX - point.x) * zoomScale,
+                                y: (loupeSize / 2) + (videoRect.midY - point.y) * zoomScale
+                            )
+                    }
                 }
 
                 // Crosshairs

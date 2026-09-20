@@ -7,23 +7,30 @@ struct CameraPreview: UIViewRepresentable {
     var stillImage: CGImage?
     /// Matches `LiveCameraSource` data-output rotation so overlays and preview share letterbox space.
     var videoRotationAngle: CGFloat = 90
+    var customPreviewView: CameraPreviewView? = nil
 
     func makeUIView(context: Context) -> CameraPreviewView {
-        let view = CameraPreviewView()
-        view.session = session
-        view.stillImage = stillImage
+        let view = customPreviewView ?? CameraPreviewView()
+        if view.session !== session {
+            view.session = session
+        }
+        if view.stillImage !== stillImage {
+            view.stillImage = stillImage
+        }
         view.videoRotationAngle = videoRotationAngle
         return view
     }
 
     func updateUIView(_ uiView: CameraPreviewView, context: Context) {
-        uiView.session = session
-        uiView.stillImage = stillImage
-        uiView.videoRotationAngle = videoRotationAngle
-    }
-
-    static func dismantleUIView(_ uiView: CameraPreviewView, coordinator: ()) {
-        uiView.detachSession()
+        if uiView.session !== session {
+            uiView.session = session
+        }
+        if uiView.stillImage !== stillImage {
+            uiView.stillImage = stillImage
+        }
+        if abs(uiView.videoRotationAngle - videoRotationAngle) > 0.01 {
+            uiView.videoRotationAngle = videoRotationAngle
+        }
     }
 }
 
@@ -40,9 +47,8 @@ final class CameraPreviewView: UIView {
     var session: AVCaptureSession? {
         get { previewLayer.session }
         set {
-            if previewLayer.session !== newValue {
-                previewLayer.session = newValue
-            }
+            guard previewLayer.session !== newValue else { return }
+            previewLayer.session = newValue
             applyRotation()
             applyStillImage()
         }
@@ -50,11 +56,17 @@ final class CameraPreviewView: UIView {
 
     func detachSession() {
         guard previewLayer.session != nil else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         previewLayer.session = nil
+        CATransaction.commit()
     }
 
     var stillImage: CGImage? {
-        didSet { applyStillImage() }
+        didSet {
+            guard oldValue !== stillImage else { return }
+            applyStillImage()
+        }
     }
 
     var videoRotationAngle: CGFloat = 90 {
@@ -83,7 +95,6 @@ final class CameraPreviewView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         imageView.frame = bounds
-        applyRotation()
     }
 
     private func applyRotation() {
