@@ -142,6 +142,55 @@ enum PGNMoveList {
         return moves
     }
 
+    /// Elapsed-move-time seconds from `{[%emt H:MM:SS]}` comments, in ply order.
+    static func emtSeconds(from pgn: String) -> [TimeInterval] {
+        var times: [TimeInterval] = []
+        var search = pgn[...]
+        while let start = search.range(of: "[%emt ") {
+            let after = search[start.upperBound...]
+            guard let end = after.firstIndex(of: "]") else { break }
+            let body = String(after[..<end])
+            if let seconds = parseEMTBody(body) {
+                times.append(seconds)
+            }
+            search = after[end...]
+        }
+        return times
+    }
+
+    /// Movetext with `{[%emt H:MM:SS]}` after each ply that has a time.
+    static func annotatedMovetext(
+        sans: [String],
+        moveTimes: [TimeInterval],
+        result: String = "*"
+    ) -> String {
+        guard !sans.isEmpty else { return result }
+        var parts: [String] = []
+        for (index, san) in sans.enumerated() {
+            if index.isMultiple(of: 2) {
+                parts.append("\(index / 2 + 1).")
+            }
+            var token = san
+            if index < moveTimes.count {
+                let emt = MoveThinkTimer.formatEMT(moveTimes[index])
+                token += " {[%emt \(emt)]}"
+            }
+            parts.append(token)
+        }
+        parts.append(result)
+        return parts.joined(separator: " ")
+    }
+
+    private static func parseEMTBody(_ body: String) -> TimeInterval? {
+        let parts = body.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        let hours = parts[0]
+        let minutes = parts[1]
+        let seconds = parts[2]
+        guard hours >= 0, minutes >= 0, minutes < 60, seconds >= 0, seconds < 60 else { return nil }
+        return TimeInterval(hours * 3600 + minutes * 60 + seconds)
+    }
+
     static func preview(_ pgn: String, maxPlies: Int = 6) -> String {
         preview(sans: sans(from: pgn), maxPlies: maxPlies, trailing: false)
     }

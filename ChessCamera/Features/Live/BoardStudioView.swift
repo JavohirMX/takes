@@ -134,6 +134,18 @@ struct BoardStudioView: View {
                     model.placeManualCorners()
                 }
             }
+            if model.hasPersistedCalibration {
+                SecondaryButton(
+                    title: "Use last setup",
+                    isDisabled: model.bufferSize.width <= 0
+                ) {
+                    Task {
+                        if await model.restorePersistedCalibrationIfPossible() {
+                            await model.confirmQuad()
+                        }
+                    }
+                }
+            }
             HStack(spacing: 12) {
                 Button("Rescan") {
                     Task { await model.rescanBoard() }

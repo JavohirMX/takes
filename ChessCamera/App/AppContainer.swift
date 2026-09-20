@@ -91,6 +91,153 @@ enum AutoResumeSettings {
     }
 }
 
+enum BoardCalibrationSettings {
+    static let key = "rememberBoardSetup"
+
+    static var rememberSetup: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: key) == nil { return true }
+            return UserDefaults.standard.bool(forKey: key)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
+enum ClockPreset: String, CaseIterable, Identifiable, Sendable {
+    case off
+    case fivePlusThree = "5+3"
+    case tenPlusFive = "10+5"
+    case fifteenPlusTen = "15+10"
+    case custom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "Off"
+        case .fivePlusThree: "5+3"
+        case .tenPlusFive: "10+5"
+        case .fifteenPlusTen: "15+10"
+        case .custom: "Custom"
+        }
+    }
+
+    /// Base seconds for fixed presets. `nil` for Off / Custom.
+    var fixedBaseSeconds: TimeInterval? {
+        switch self {
+        case .off, .custom: nil
+        case .fivePlusThree: 5 * 60
+        case .tenPlusFive: 10 * 60
+        case .fifteenPlusTen: 15 * 60
+        }
+    }
+
+    /// Increment seconds for fixed presets. `nil` for Off / Custom.
+    var fixedIncrementSeconds: TimeInterval? {
+        switch self {
+        case .off, .custom: nil
+        case .fivePlusThree: 3
+        case .tenPlusFive: 5
+        case .fifteenPlusTen: 10
+        }
+    }
+}
+
+enum GameClockSettings {
+    static let presetKey = "gameClockPreset"
+    static let customBaseMinutesKey = "gameClockCustomBaseMinutes"
+    static let customIncrementSecondsKey = "gameClockCustomIncrementSeconds"
+    static let customBaseMinutesDefault = 10
+    static let customIncrementSecondsDefault = 5
+    static let customBaseMinutesRange = 1...180
+    static let customIncrementSecondsRange = 0...60
+
+    static var preset: ClockPreset {
+        get {
+            let raw = UserDefaults.standard.string(forKey: presetKey) ?? ClockPreset.off.rawValue
+            return ClockPreset(rawValue: raw) ?? .off
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: presetKey) }
+    }
+
+    static var customBaseMinutes: Int {
+        get {
+            let stored = UserDefaults.standard.integer(forKey: customBaseMinutesKey)
+            if UserDefaults.standard.object(forKey: customBaseMinutesKey) == nil {
+                return customBaseMinutesDefault
+            }
+            return min(max(stored, customBaseMinutesRange.lowerBound), customBaseMinutesRange.upperBound)
+        }
+        set {
+            UserDefaults.standard.set(
+                min(max(newValue, customBaseMinutesRange.lowerBound), customBaseMinutesRange.upperBound),
+                forKey: customBaseMinutesKey
+            )
+        }
+    }
+
+    static var customIncrementSeconds: Int {
+        get {
+            if UserDefaults.standard.object(forKey: customIncrementSecondsKey) == nil {
+                return customIncrementSecondsDefault
+            }
+            let stored = UserDefaults.standard.integer(forKey: customIncrementSecondsKey)
+            return min(max(stored, customIncrementSecondsRange.lowerBound), customIncrementSecondsRange.upperBound)
+        }
+        set {
+            UserDefaults.standard.set(
+                min(max(newValue, customIncrementSecondsRange.lowerBound), customIncrementSecondsRange.upperBound),
+                forKey: customIncrementSecondsKey
+            )
+        }
+    }
+
+    static func baseSeconds(for preset: ClockPreset) -> TimeInterval {
+        switch preset {
+        case .off: 0
+        case .custom: TimeInterval(customBaseMinutes * 60)
+        case .fivePlusThree, .tenPlusFive, .fifteenPlusTen:
+            preset.fixedBaseSeconds ?? 0
+        }
+    }
+
+    static func incrementSeconds(for preset: ClockPreset) -> TimeInterval {
+        switch preset {
+        case .off: 0
+        case .custom: TimeInterval(customIncrementSeconds)
+        case .fivePlusThree, .tenPlusFive, .fifteenPlusTen:
+            preset.fixedIncrementSeconds ?? 0
+        }
+    }
+
+    /// PGN TimeControl tag value, e.g. `"300+3"`. Nil when Off.
+    static func timeControlString(for preset: ClockPreset) -> String? {
+        guard preset != .off else { return nil }
+        let base = Int(baseSeconds(for: preset))
+        let inc = Int(incrementSeconds(for: preset))
+        return "\(base)+\(inc)"
+    }
+
+    /// Parse a PGN-style `"base+increment"` string into seconds.
+    static func parseTimeControl(_ value: String) -> (base: TimeInterval, increment: TimeInterval)? {
+        let parts = value.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let base = Double(parts[0]),
+              let increment = Double(parts[1]),
+              base > 0 else { return nil }
+        return (base, max(0, increment))
+    }
+
+    /// Best matching preset for a TimeControl tag, or `.custom` when it doesn't match a fixed preset.
+    static func preset(matchingTimeControl value: String) -> ClockPreset? {
+        guard parseTimeControl(value) != nil else { return nil }
+        for preset in ClockPreset.allCases where preset != .off && preset != .custom {
+            if timeControlString(for: preset) == value { return preset }
+        }
+        return .custom
+    }
+}
+
 enum DetectionSettings {
     static let yoloConfidenceKey = "yoloConfidenceThreshold"
     static let classifierConfidenceKey = "classifierConfidenceThreshold"

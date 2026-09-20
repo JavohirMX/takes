@@ -5,7 +5,9 @@ import SwiftUI
 struct MoveSheetDrawer: View {
     let sans: [String]
     let fen: String
+    var moveTimes: [TimeInterval]? = nil
     var onDismiss: () -> Void
+    var onEditPly: ((Int) -> Void)? = nil
 
     private var openingName: String? {
         OpeningDetector.detect(sans: sans)
@@ -26,7 +28,7 @@ struct MoveSheetDrawer: View {
                     .padding(.top, 8)
                 }
 
-                MoveListView(sans: sans)
+                MoveListView(sans: sans, moveTimes: moveTimes, onEditPly: onEditPly)
                     .padding(.horizontal, 16)
 
                 Divider()

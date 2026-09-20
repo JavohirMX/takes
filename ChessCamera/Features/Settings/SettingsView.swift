@@ -1,10 +1,21 @@
+import PhotosUI
 import SwiftUI
 
 struct SettingsView: View {
+    /// Bound from History so a picked video starts the import session.
+    var pendingVideo: Binding<PhotosPickerItem?>? = nil
+    var onPieceStudio: (() -> Void)? = nil
+
     @AppStorage(FastReplySettings.key) private var detectFastReplies = true
     @AppStorage(AutoResumeSettings.key) private var autoResume = false
     @AppStorage(SoundSettings.key) private var soundEffects = true
     @AppStorage(MatchModeSettings.key) private var matchModeAutoDim = false
+    @AppStorage(BoardCalibrationSettings.key) private var rememberBoardSetup = true
+    @AppStorage(GameClockSettings.presetKey) private var clockPresetRaw = ClockPreset.off.rawValue
+    @AppStorage(GameClockSettings.customBaseMinutesKey) private var customBaseMinutes =
+        GameClockSettings.customBaseMinutesDefault
+    @AppStorage(GameClockSettings.customIncrementSecondsKey) private var customIncrementSeconds =
+        GameClockSettings.customIncrementSecondsDefault
     @AppStorage(SpeechSettings.key) private var speakMoves = false
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
     @AppStorage(ArrowAppearance.colorKey) private var arrowColorRaw = ArrowAppearance.defaultColor.rawValue
@@ -56,6 +67,44 @@ struct SettingsView: View {
         Binding(
             get: { SettleSettings.milliseconds },
             set: { SettleSettings.milliseconds = $0 }
+        )
+    }
+
+    private var clockPreset: ClockPreset {
+        ClockPreset(rawValue: clockPresetRaw) ?? .off
+    }
+
+    private var clampedCustomBaseMinutes: Binding<Int> {
+        Binding(
+            get: {
+                min(
+                    max(customBaseMinutes, GameClockSettings.customBaseMinutesRange.lowerBound),
+                    GameClockSettings.customBaseMinutesRange.upperBound
+                )
+            },
+            set: {
+                customBaseMinutes = min(
+                    max($0, GameClockSettings.customBaseMinutesRange.lowerBound),
+                    GameClockSettings.customBaseMinutesRange.upperBound
+                )
+            }
+        )
+    }
+
+    private var clampedCustomIncrement: Binding<Int> {
+        Binding(
+            get: {
+                min(
+                    max(customIncrementSeconds, GameClockSettings.customIncrementSecondsRange.lowerBound),
+                    GameClockSettings.customIncrementSecondsRange.upperBound
+                )
+            },
+            set: {
+                customIncrementSeconds = min(
+                    max($0, GameClockSettings.customIncrementSecondsRange.lowerBound),
+                    GameClockSettings.customIncrementSecondsRange.upperBound
+                )
+            }
         )
     }
 
@@ -409,6 +458,33 @@ struct SettingsView: View {
                             isOn: $matchModeAutoDim
                         )
                         divider
+                        toggleRow(
+                            title: "Remember board setup",
+                            subtitle: "Reuse the last confirmed board corners when starting a new game.",
+                            systemImage: "square.dashed",
+                            isOn: $rememberBoardSetup
+                        )
+                        divider
+                        Button(action: clearSavedBoardSetup) {
+                            HStack(spacing: 12) {
+                                settingIcon("trash")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Clear saved setup")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Remove the stored board corners so the next game detects from scratch.")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 8)
+                            }
+                            .padding(16)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear saved setup")
+                        divider
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 settingIcon("timer")
@@ -432,6 +508,135 @@ struct SettingsView: View {
                             .accessibilityLabel("Settle wait")
                         }
                         .padding(16)
+                        divider
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                settingIcon("clock")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Game clock")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Default time control for new games. Confirm Start can still override.")
+                                        .font(.callout)
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+
+                            VStack(spacing: 6) {
+                                ForEach(ClockPreset.allCases) { preset in
+                                    Button {
+                                        clockPresetRaw = preset.rawValue
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    } label: {
+                                        HStack {
+                                            Text(preset.title)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(
+                                                    clockPresetRaw == preset.rawValue
+                                                        ? Theme.textPrimary : Theme.textSecondary
+                                                )
+                                            Spacer()
+                                            if clockPresetRaw == preset.rawValue {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.body.weight(.bold))
+                                                    .foregroundStyle(Theme.accent)
+                                            } else {
+                                                Circle()
+                                                    .strokeBorder(Theme.border.opacity(0.6), lineWidth: 1.5)
+                                                    .frame(width: 18, height: 18)
+                                            }
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            clockPresetRaw == preset.rawValue
+                                                ? Theme.surfaceMuted : Theme.surface.opacity(0.4),
+                                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        )
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(
+                                                    clockPresetRaw == preset.rawValue
+                                                        ? Theme.accent.opacity(0.45)
+                                                        : Theme.border.opacity(0.25),
+                                                    lineWidth: 1
+                                                )
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Clock preset \(preset.title)")
+                                }
+                            }
+
+                            if clockPreset == .custom {
+                                HStack {
+                                    Text("Base minutes")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.textSecondary)
+                                    Spacer()
+                                    Stepper(
+                                        "\(clampedCustomBaseMinutes.wrappedValue)",
+                                        value: clampedCustomBaseMinutes,
+                                        in: GameClockSettings.customBaseMinutesRange
+                                    )
+                                    .labelsHidden()
+                                    Text("\(clampedCustomBaseMinutes.wrappedValue) min")
+                                        .font(.subheadline.monospacedDigit().weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .frame(minWidth: 56, alignment: .trailing)
+                                }
+                                HStack {
+                                    Text("Increment")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.textSecondary)
+                                    Spacer()
+                                    Stepper(
+                                        "\(clampedCustomIncrement.wrappedValue)",
+                                        value: clampedCustomIncrement,
+                                        in: GameClockSettings.customIncrementSecondsRange
+                                    )
+                                    .labelsHidden()
+                                    Text("\(clampedCustomIncrement.wrappedValue) s")
+                                        .font(.subheadline.monospacedDigit().weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .frame(minWidth: 56, alignment: .trailing)
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                }
+
+                if pendingVideo != nil || onPieceStudio != nil {
+                    settingsSection(title: "Tools") {
+                        VStack(spacing: 0) {
+                            if let pendingVideo {
+                                PhotosPicker(selection: pendingVideo, matching: .videos) {
+                                    SettingsToolsRow(
+                                        title: "Process a video…",
+                                        subtitle: "Run the full board pipeline on a recorded iPhone video.",
+                                        systemImage: "film"
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Process a video")
+                            }
+                            if pendingVideo != nil, onPieceStudio != nil {
+                                divider
+                            }
+                            if let onPieceStudio {
+                                Button(action: onPieceStudio) {
+                                    SettingsToolsRow(
+                                        title: "Piece studio",
+                                        subtitle: "Live YOLO debug viewfinder for piece detection.",
+                                        systemImage: "square.grid.3x3.topleft.filled"
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Piece studio")
+                            }
+                        }
                     }
                 }
 
@@ -662,12 +867,48 @@ struct SettingsView: View {
         showPieceBoxes = false
     }
 
+    private func clearSavedBoardSetup() {
+        BoardCalibrationStore.clear()
+    }
+
     private func settingIcon(_ systemImage: String) -> some View {
         Image(systemName: systemImage)
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.accent)
             .frame(width: 28, height: 28)
             .accessibilityHidden(true)
+    }
+}
+
+/// Standalone row so PhotosPicker’s nonisolated label isn’t calling SettingsView helpers.
+private struct SettingsToolsRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .padding(16)
+        .contentShape(Rectangle())
     }
 }
 

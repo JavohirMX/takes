@@ -19,6 +19,7 @@ struct ReplayView: View {
 
     @State private var plyIndex = 0
     @State private var sans: [String] = []
+    @State private var moveTimes: [TimeInterval] = []
     @State private var fens: [String] = []
     @State private var isFlipped = false
     @State private var isPlaying = false
@@ -27,6 +28,9 @@ struct ReplayView: View {
     @State private var shareItems: [Any] = []
     @State private var showEditSheet = false
     @State private var showRecapSheet = false
+    /// Mutable PGN so promote-to-mainline can rebuild without relying on the immutable `pgn` prop.
+    @State private var activePGN = ""
+    @State private var showPromoteConfirm = false
 
     // Analysis state
     @State private var analysisResult: GameAnalysisResult?
@@ -156,6 +160,9 @@ struct ReplayView: View {
             )
         }
         .onAppear {
+            if activePGN.isEmpty {
+                activePGN = pgn
+            }
             rebuild()
             loadCachedAnalysis()
         }
@@ -167,6 +174,18 @@ struct ReplayView: View {
             analysisTask = nil
             let engine = analysisEngine
             Task { await engine.stop() }
+        }
+        .confirmationDialog(
+            "Moves after this will be removed",
+            isPresented: $showPromoteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Promote to mainline", role: .destructive) {
+                promoteToMainline()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Replace the saved game with the current line and clear analysis.")
         }
     }
 
@@ -248,7 +267,8 @@ struct ReplayView: View {
                     sans: sans,
                     selectedPly: (variationEngine == nil && plyIndex > 0) ? plyIndex - 1 : nil,
                     qualities: qualityMap,
-                    showsQualityLabels: AnalysisSettings.effectivePostShowLabels
+                    showsQualityLabels: AnalysisSettings.effectivePostShowLabels,
+                    moveTimes: moveTimes.isEmpty ? nil : moveTimes
                 ) { index in
                     stopPlayback()
                     dismissVariation()
@@ -328,7 +348,8 @@ struct ReplayView: View {
                         sans: sans,
                         selectedPly: (variationEngine == nil && plyIndex > 0) ? plyIndex - 1 : nil,
                         qualities: qualityMap,
-                        showsQualityLabels: AnalysisSettings.effectivePostShowLabels
+                        showsQualityLabels: AnalysisSettings.effectivePostShowLabels,
+                        moveTimes: moveTimes.isEmpty ? nil : moveTimes
                     ) { index in
                         stopPlayback()
                         dismissVariation()
@@ -416,6 +437,19 @@ struct ReplayView: View {
                         .accessibilityLabel("Undo variation move")
                     }
                 }
+
+                if canPromoteToMainline {
+                    Button {
+                        showPromoteConfirm = true
+                    } label: {
+                        Label("Promote to mainline", systemImage: "arrow.up.to.line")
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .foregroundStyle(Theme.onAccent)
+                            .background(Theme.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .accessibilityLabel("Promote variation to mainline")
+                }
             }
             .padding(10)
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -451,6 +485,17 @@ struct ReplayView: View {
             Text(plyCaption)
                 .font(.body.monospaced().weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
+
+            if canPromoteScrubTruncate {
+                Button {
+                    showPromoteConfirm = true
+                } label: {
+                    Label("Promote to mainline", systemImage: "arrow.up.to.line")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .accessibilityLabel("Promote current position to mainline")
+            }
 
             HStack(spacing: 12) {
                 CircularButton(
@@ -678,6 +723,74 @@ struct ReplayView: View {
         clearSelection()
     }
 
+    private var canPromoteToMainline: Bool {
+        resolveGameRecord() != nil && variationEngine != nil && !variationSANs.isEmpty
+    }
+
+    private var canPromoteScrubTruncate: Bool {
+        resolveGameRecord() != nil
+            && variationEngine == nil
+            && plyIndex > 0
+            && plyIndex < sans.count
+    }
+
+    /// Persist the current scrub position or in-memory variation as the game's mainline.
+    private func promoteToMainline() {
+        guard let record = resolveGameRecord() else { return }
+
+        let newSans: [String]
+        if let basePly = variationBasePly, variationEngine != nil {
+            newSans = Array(sans.prefix(basePly)) + variationSANs
+        } else {
+            newSans = Array(sans.prefix(plyIndex))
+        }
+
+        let rebuilt: GameEngine
+        if let initialFen, let loaded = try? GameEngine(fen: initialFen) {
+            rebuilt = loaded
+        } else {
+            rebuilt = GameEngine()
+        }
+        for san in newSans {
+            do {
+                try rebuilt.apply(san: san)
+            } catch {
+                return
+            }
+        }
+
+        let targetPly = newSans.count
+        activePGN = rebuilt.pgn
+        record.pgn = rebuilt.pgn
+        record.finalFen = rebuilt.fen
+        record.openingName = OpeningDetector.detect(sans: newSans)
+        if record.moveTimes.count > targetPly {
+            record.moveTimes = Array(record.moveTimes.prefix(targetPly))
+        } else if !moveTimes.isEmpty {
+            record.moveTimes = Array(moveTimes.prefix(targetPly))
+        }
+        var times = record.moveTimes
+        while times.count < targetPly {
+            times.append(0)
+        }
+        record.moveTimes = times
+        record.clearPersistedAnalysis()
+        try? modelContext.save()
+
+        analysisTask?.cancel()
+        analysisTask = nil
+        isAnalyzing = false
+        analysisResult = nil
+        analysisProgress = nil
+        analysisMessage = nil
+        cachedSpeedRaw = nil
+
+        dismissVariation()
+        stopPlayback()
+        rebuild()
+        plyIndex = min(targetPly, sans.count)
+    }
+
     private func clearSelection() {
         selectedSquare = nil
         legalDestinations = []
@@ -852,7 +965,8 @@ struct ReplayView: View {
     // MARK: - Rebuild & Cache
 
     private func rebuild() {
-        sans = PGNMoveList.sans(from: pgn)
+        let source = activePGN.isEmpty ? pgn : activePGN
+        sans = PGNMoveList.sans(from: source)
         var frames = [initialFen ?? FenCodec.standard]
         let engine: GameEngine
         if let initialFen, let loaded = try? GameEngine(fen: initialFen) {
@@ -873,6 +987,26 @@ struct ReplayView: View {
         }
         fens = frames
         plyIndex = 0
+        reloadMoveTimes()
+    }
+
+    private func reloadMoveTimes() {
+        if let record = resolveGameRecord() {
+            var times = record.moveTimes
+            if times.isEmpty {
+                times = PGNMoveList.emtSeconds(from: record.pgnWithHeaders)
+            }
+            if times.isEmpty {
+                times = PGNMoveList.emtSeconds(from: activePGN.isEmpty ? pgn : activePGN)
+            }
+            if times.count > sans.count {
+                times = Array(times.prefix(sans.count))
+            }
+            moveTimes = times
+        } else {
+            let fromPGN = PGNMoveList.emtSeconds(from: activePGN.isEmpty ? pgn : activePGN)
+            moveTimes = fromPGN.count == sans.count ? fromPGN : Array(fromPGN.prefix(sans.count))
+        }
     }
 
     private func resolveGameRecord() -> GameRecord? {

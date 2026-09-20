@@ -1,6 +1,6 @@
 import Foundation
 
-enum BoardOrientation: Sendable, Equatable, CaseIterable {
+enum BoardOrientation: String, Sendable, Equatable, CaseIterable, Codable {
     /// Camera on White’s side. Image bottom-left is a1; files run left→right.
     case whiteAtBottom
     /// Camera on the h-file. Image top-left is a1; files run top→bottom.

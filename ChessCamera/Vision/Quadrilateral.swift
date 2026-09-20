@@ -278,3 +278,31 @@ struct Quadrilateral: Equatable, Sendable {
         )
     }
 }
+
+extension Quadrilateral {
+    /// Rebuild corners from a persisted calibration (buffer-space points as saved).
+    init(persisted: PersistedBoardCalibration) {
+        self.init(
+            topLeft: persisted.topLeft.cgPoint,
+            topRight: persisted.topRight.cgPoint,
+            bottomRight: persisted.bottomRight.cgPoint,
+            bottomLeft: persisted.bottomLeft.cgPoint
+        )
+    }
+
+    /// Map corners from one buffer resolution to another (independent X/Y scale).
+    func scaled(from oldSize: CGSize, to newSize: CGSize) -> Quadrilateral {
+        guard oldSize.width > 0, oldSize.height > 0 else { return self }
+        let sx = newSize.width / oldSize.width
+        let sy = newSize.height / oldSize.height
+        func scale(_ p: CGPoint) -> CGPoint {
+            CGPoint(x: p.x * sx, y: p.y * sy)
+        }
+        return Quadrilateral(
+            topLeft: scale(topLeft),
+            topRight: scale(topRight),
+            bottomRight: scale(bottomRight),
+            bottomLeft: scale(bottomLeft)
+        )
+    }
+}

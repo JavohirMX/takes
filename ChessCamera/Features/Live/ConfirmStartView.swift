@@ -19,7 +19,7 @@ struct ConfirmStartView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .animation(nil, value: verticalSizeClass)
-        .navigationTitle("Confirm start")
+        .navigationTitle(model.isContinuingGame ? "Continue game" : "Confirm start")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
         .safeAreaInset(edge: .bottom) {
@@ -55,8 +55,11 @@ struct ConfirmStartView: View {
                 Text(selectedSquare == nil ? "Tap any square to correct its piece" : "Select a piece from the palette above")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
-                if !model.isStandardStart {
+                if !model.isStandardStart && !model.isContinuingGame {
                     sideToMoveRow
+                }
+                if !model.isVideoImport {
+                    clockPresetRow
                 }
                 rotateRow
                 statusBlock
@@ -86,8 +89,11 @@ struct ConfirmStartView: View {
                     warpedBoard
                         .frame(maxWidth: 140, maxHeight: 140)
                         .frame(maxWidth: .infinity)
-                    if !model.isStandardStart {
+                    if !model.isStandardStart && !model.isContinuingGame {
                         sideToMoveRow
+                    }
+                    if !model.isVideoImport {
+                        clockPresetRow
                     }
                     rotateRow
                     statusBlock
@@ -179,7 +185,14 @@ struct ConfirmStartView: View {
                     .font(.callout)
                     .foregroundStyle(Theme.caution)
                 }
-                if model.isStandardStart {
+                if model.isContinuingGame {
+                    Label(
+                        "Continuing with \(model.committedPlyCount) move\(model.committedPlyCount == 1 ? "" : "s") — Start keeps your history.",
+                        systemImage: "arrow.clockwise"
+                    )
+                    .font(.body)
+                    .foregroundStyle(Theme.accent)
+                } else if model.isStandardStart {
                     Label("Standard starting position.", systemImage: "checkmark.circle")
                         .font(.body)
                         .foregroundStyle(Theme.accent)
@@ -203,7 +216,7 @@ struct ConfirmStartView: View {
                     }
                     if model.isLegalProposedFEN {
                         Button("Start Game from Here") {
-                            model.startRecording()
+                            model.startRecording(mode: .newGame)
                         }
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(Theme.accent)
@@ -229,6 +242,33 @@ struct ConfirmStartView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 160)
+        }
+        .padding(12)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var clockPresetRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .foregroundStyle(Theme.accent)
+                Text("Clock")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer()
+                if let label = GameClockSettings.timeControlString(for: model.sessionClockPreset) {
+                    Text(label)
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            Picker("Clock", selection: $model.sessionClockPreset) {
+                ForEach(ClockPreset.allCases) { preset in
+                    Text(preset.title).tag(preset)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Clock preset")
         }
         .padding(12)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -313,10 +353,14 @@ struct ConfirmStartView: View {
 
     @ViewBuilder
     private var startButton: some View {
-        if !model.pieceDetectionAvailable {
+        if model.isContinuingGame {
+            PrimaryButton(title: "Continue recording") {
+                model.startRecording(mode: .continueOrResync)
+            }
+        } else if !model.pieceDetectionAvailable {
             PrimaryButton(title: "Use standard starting position") {
                 model.useStandardStartingPosition()
-                model.startRecording()
+                model.startRecording(mode: .newGame)
             }
         } else {
             let title = model.isStandardStart ? "Start recording" : "Start Game from Here"
@@ -324,7 +368,7 @@ struct ConfirmStartView: View {
                 title: title,
                 isDisabled: !model.isLegalProposedFEN || model.isClassifying
             ) {
-                model.startRecording()
+                model.startRecording(mode: .newGame)
             }
         }
     }

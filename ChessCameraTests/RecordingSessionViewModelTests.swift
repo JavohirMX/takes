@@ -265,6 +265,49 @@ struct RecordingSessionViewModelTests {
         #expect(model.savedRecord === record)
     }
 
+    @Test @MainActor
+    func applyEditAtEarlierPlyClearsAnalysisAndDropsTrailingPGN() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording()
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        let e5 = try #require(Move(san: "e5", position: model.engine.board.position))
+        try model.commit(move: e5)
+        let nf3 = try #require(Move(san: "Nf3", position: model.engine.board.position))
+        try model.commit(move: nf3)
+        let nc6 = try #require(Move(san: "Nc6", position: model.engine.board.position))
+        try model.commit(move: nc6)
+
+        let record = try #require(model.savedRecordIfNeeded())
+        let persisted = PersistedGameAnalysis(
+            schemaVersion: 1,
+            speedRaw: "fast",
+            analyzedAt: .now,
+            result: .empty
+        )
+        record.savePersistedAnalysis(persisted)
+        #expect(record.hasCachedAnalysis)
+        #expect(record.pgn.contains("Nf3"))
+        #expect(record.pgn.contains("Nc6"))
+
+        model.beginEdit(atPly: 1)
+        #expect(model.editTargetPly == 1)
+        model.applyEdit(san: "c5")
+
+        #expect(model.committedSANs == ["e4", "c5"])
+        #expect(model.engine.pgn.contains("c5"))
+        #expect(!model.engine.pgn.contains("e5"))
+        #expect(!model.engine.pgn.contains("Nf3"))
+        #expect(!model.engine.pgn.contains("Nc6"))
+        #expect(record.pgn.contains("c5"))
+        #expect(!record.pgn.contains("Nf3"))
+        #expect(!record.pgn.contains("Nc6"))
+        #expect(!record.hasCachedAnalysis)
+        #expect(model.editTargetPly == nil)
+        #expect(model.showEditSheet == false)
+    }
+
     @Test
     func formatLiveDebugLineNormalRecordingPhase() {
         let clock = ContinuousClock()
@@ -487,5 +530,93 @@ struct RecordingSessionViewModelTests {
         #expect(rotated.topRight == CGPoint(x: 1, y: 1))
         #expect(rotated.bottomRight == CGPoint(x: 2, y: 1))
         #expect(rotated.bottomLeft == CGPoint(x: 2, y: 2))
+    }
+
+    @Test @MainActor
+    func continueStartRecordingPreservesAppliedSANs() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording(mode: .newGame)
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        let e5 = try #require(Move(san: "e5", position: model.engine.board.position))
+        try model.commit(move: e5)
+
+        let sansBefore = model.committedSANs
+        let fenBefore = model.engine.fen
+        model.savedRecord = GameRecord(
+            createdAt: .now,
+            pgn: model.engine.pgn,
+            finalFen: fenBefore,
+            title: "Continue test"
+        )
+        #expect(model.isContinuingGame)
+
+        // Vision proposed FEN would wipe history under the old new-game path.
+        model.proposedFEN = FenCodec.standard
+        model.startRecording()
+
+        #expect(model.committedSANs == sansBefore)
+        #expect(model.engine.appliedSANs == sansBefore)
+        #expect(model.engine.fen == fenBefore)
+        #expect(model.phase == .recording)
+        #expect(model.lastCommittedOccupancy == model.engine.occupancy())
+    }
+
+    @Test @MainActor
+    func continueOrResyncModeDoesNotWipePlies() throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording(mode: .newGame)
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+
+        model.startRecording(mode: .continueOrResync)
+        #expect(model.committedSANs == ["e4"])
+        #expect(model.engine.plyCount == 1)
+        #expect(model.phase == .recording)
+    }
+
+    @Test @MainActor
+    func resyncTrustDigitalPreservesAppliedSANsAndReseedsOccupancy() async throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording(mode: .newGame)
+
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+        let e5 = try #require(Move(san: "e5", position: model.engine.board.position))
+        try model.commit(move: e5)
+
+        let sansBefore = Array(model.engine.appliedSANs)
+        let engineOcc = model.engine.occupancy()
+        // Simulate drift: last committed occupancy no longer matches the engine.
+        model.lastCommittedOccupancy = Occupancy.standardStart()
+        #expect(model.lastCommittedOccupancy != engineOcc)
+
+        await model.applyResync(trustVision: false)
+
+        #expect(Array(model.engine.appliedSANs) == sansBefore)
+        #expect(model.committedSANs == sansBefore)
+        #expect(model.lastCommittedOccupancy == engineOcc)
+        #expect(model.liveOccupancy == engineOcc)
+        #expect(model.showResyncSheet == false)
+        #expect(model.isResyncing == false)
+    }
+
+    @Test @MainActor
+    func resyncTrustVisionClearsHistoryAndLoadsProposedFEN() async throws {
+        let model = RecordingSessionViewModel()
+        model.startRecording(mode: .newGame)
+        let e4 = try #require(Move(san: "e4", position: model.engine.board.position))
+        try model.commit(move: e4)
+
+        // After 1. e4, adopt standard start via vision — truncates history.
+        model.proposedFEN = FenCodec.standard
+        model.classifiedClasses = FenCodec.standardClasses()
+        await model.applyResync(trustVision: true)
+
+        #expect(model.engine.plyCount == 0)
+        #expect(model.committedSANs.isEmpty)
+        #expect(FenCodec.isStandardStart(model.engine.fen))
+        #expect(model.lastCommittedOccupancy == Occupancy.standardStart())
     }
 }

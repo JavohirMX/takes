@@ -20,6 +20,7 @@ struct HistoryView: View {
     @State private var showSettings = false
     @State private var searchText = ""
     @State private var selectedFilter = "All"
+    @State private var alertMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -39,7 +40,13 @@ struct HistoryView: View {
             .searchable(text: $searchText, prompt: "Search opponent, event, opening…")
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(
+                    pendingVideo: $pendingVideo,
+                    onPieceStudio: {
+                        showSettings = false
+                        beginPieceStudio()
+                    }
+                )
             }
             .navigationDestination(item: $replay) { route in
                 ReplayView(
@@ -130,7 +137,19 @@ struct HistoryView: View {
         }
         .onChange(of: pendingVideo) { _, item in
             guard let item else { return }
+            showSettings = false
             Task { await importVideo(item) }
+        }
+        .alert(
+            "Something went wrong",
+            isPresented: Binding(
+                get: { alertMessage != nil },
+                set: { if !$0 { alertMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { alertMessage = nil }
+        } message: {
+            Text(alertMessage ?? "")
         }
         .onAppear {
             if !SetupFlags.didSeePrimer && games.isEmpty {
@@ -337,10 +356,10 @@ struct HistoryView: View {
 
     private func share(_ game: GameRecord) {
         do {
-            shareItems = [try PGNShareFile.write(pgn: game.pgn, title: game.title)]
+            shareItems = [try PGNShareFile.write(pgn: game.pgnWithHeaders, title: game.title)]
             showShare = true
         } catch {
-            UIPasteboard.general.string = game.pgn
+            UIPasteboard.general.string = game.pgnWithHeaders
         }
     }
 
@@ -399,13 +418,14 @@ struct HistoryView: View {
         pendingVideo = nil
         do {
             guard let movie = try await item.loadTransferable(type: ImportedMovie.self) else {
+                alertMessage = "Couldn't load that video."
                 return
             }
             let model = RecordingSessionViewModel()
             session = model
             await model.importVideo(url: movie.url)
         } catch {
-            // PhotosPicker already dismissed; surface via a new session alert if needed.
+            alertMessage = error.localizedDescription
         }
     }
 }

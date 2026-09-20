@@ -15,6 +15,14 @@ enum SessionPhase: Equatable, Sendable {
     case replay
 }
 
+/// How `startRecording` should treat the game engine.
+enum StartRecordingMode: Equatable, Sendable {
+    /// Load `proposedFEN` / standard start (new game).
+    case newGame
+    /// Keep engine history; only re-seed vision baselines from engine occupancy.
+    case continueOrResync
+}
+
 struct SessionReducer {
     static func next(
         phase: SessionPhase,

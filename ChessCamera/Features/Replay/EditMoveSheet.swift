@@ -12,10 +12,20 @@ struct EditMoveSheet: View {
     @State private var error: String?
 
     private var boardFEN: String {
+        if let ply = model.editTargetPly, let fen = model.engine.fenBeforePly(ply) {
+            return fen
+        }
         if model.editReplacesLast, let previous = model.engine.fenBeforeLastMove() {
             return previous
         }
         return model.engine.fen
+    }
+
+    private var navigationTitle: String {
+        if let ply = model.editTargetPly {
+            return "Edit move \(ply + 1)"
+        }
+        return "Edit move"
     }
 
     private var trialEngine: GameEngine? {
@@ -77,7 +87,7 @@ struct EditMoveSheet: View {
                     .padding(16)
                 }
             }
-            .navigationTitle("Edit move")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

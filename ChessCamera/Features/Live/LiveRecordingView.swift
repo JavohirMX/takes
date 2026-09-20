@@ -34,10 +34,13 @@ struct LiveRecordingView: View {
     @State private var matchModeActive = false
     @State private var focusPoint: CGPoint?
     @State private var showFocusReticle = false
+    @State private var pendingEditPly: Int?
+    @State private var showEditEarlierConfirm = false
 
     private let topBarHeight: CGFloat = 40
     private var isLandscape: Bool { verticalSizeClass == .compact }
     private var isExpanded: Bool { viewMode == .cameraFocus }
+    private var showsClocks: Bool { model.clocks.isEnabled && !model.isVideoImport }
 
     private var liveBestArrow: BoardArrow? {
         guard liveHints else { return nil }
@@ -100,7 +103,11 @@ struct LiveRecordingView: View {
             MoveSheetDrawer(
                 sans: model.committedSANs,
                 fen: model.engine.fen,
-                onDismiss: { showScoreSheet = false }
+                moveTimes: model.committedMoveTimes,
+                onDismiss: { showScoreSheet = false },
+                onEditPly: { ply in
+                    requestEditPly(ply)
+                }
             )
         }
         .sheet(isPresented: $model.showEditSheet, onDismiss: {
@@ -113,6 +120,46 @@ struct LiveRecordingView: View {
         .sheet(isPresented: $model.showShareSheet) {
             ShareSheet(items: model.shareItems)
         }
+        .sheet(isPresented: $model.showResyncSheet, onDismiss: {
+            if model.isResyncing {
+                model.cancelResync()
+            }
+        }) {
+            ResyncBoardSheet(model: model)
+        }
+        .confirmationDialog(
+            "Moves after this will be removed",
+            isPresented: $showEditEarlierConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Edit move", role: .destructive) {
+                if let ply = pendingEditPly {
+                    showScoreSheet = false
+                    model.beginEdit(atPly: ply)
+                }
+                pendingEditPly = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingEditPly = nil
+            }
+        } message: {
+            if let ply = pendingEditPly, ply + 1 < model.committedSANs.count {
+                Text("Editing move \(ply + 1) removes all later moves from the score sheet.")
+            } else {
+                Text("Replace this move on the score sheet.")
+            }
+        }
+    }
+
+    private func requestEditPly(_ ply: Int) {
+        guard ply >= 0, ply < model.committedSANs.count else { return }
+        if ply == model.committedSANs.count - 1 {
+            showScoreSheet = false
+            model.beginEdit(atPly: ply)
+            return
+        }
+        pendingEditPly = ply
+        showEditEarlierConfirm = true
     }
 
     // MARK: - Portrait Layout
@@ -391,7 +438,11 @@ struct LiveRecordingView: View {
             // Minimal recording status dot with soft glow aura (no text badge)
             statusDot
 
-            Spacer()
+            if showsClocks {
+                dualClockDisplay
+            }
+
+            Spacer(minLength: 4)
 
             // Quick live analysis toggle using the CPU chess engine icon
             GlassCircleButton(
@@ -404,6 +455,57 @@ struct LiveRecordingView: View {
             }
 
             moreMenuButton(size: 38)
+        }
+    }
+
+    private var dualClockDisplay: some View {
+        HStack(spacing: 6) {
+            clockChip(
+                label: "W",
+                remaining: model.clocks.whiteRemaining,
+                isActive: model.clocks.activeSide == .white && model.clocks.isRunning
+            )
+            clockChip(
+                label: "B",
+                remaining: model.clocks.blackRemaining,
+                isActive: model.clocks.activeSide == .black && model.clocks.isRunning
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "White \(GameClockController.format(remaining: model.clocks.whiteRemaining)), Black \(GameClockController.format(remaining: model.clocks.blackRemaining))"
+        )
+    }
+
+    private func clockChip(label: String, remaining: TimeInterval, isActive: Bool) -> some View {
+        let caution = remaining < 30
+        let foreground: Color = {
+            if caution { return Theme.caution }
+            if isActive { return Theme.textPrimary }
+            return Theme.textSecondary
+        }()
+        return HStack(spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(isActive ? Theme.accent : Theme.textTertiary)
+            Text(GameClockController.format(remaining: remaining))
+                .font(.caption.monospacedDigit().weight(isActive ? .bold : .semibold))
+                .foregroundStyle(foreground)
+                .contentTransition(.numericText())
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            isActive ? Theme.accent.opacity(0.18) : Theme.surfaceMuted,
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    caution ? Theme.caution.opacity(0.55)
+                        : (isActive ? Theme.accent.opacity(0.45) : Theme.border.opacity(0.35)),
+                    lineWidth: 1
+                )
         }
     }
 
@@ -621,6 +723,11 @@ struct LiveRecordingView: View {
             } label: {
                 Label("Adjust corners", systemImage: "crop")
             }
+            Button {
+                Task { await model.beginResync() }
+            } label: {
+                Label("Resync board", systemImage: "arrow.triangle.2.circlepath")
+            }
             Button("Fix last move") { model.beginEdit(replacingLast: true) }
                 .disabled(model.committedPlyCount == 0)
             Button("Copy FEN") { model.copyFEN() }
@@ -667,7 +774,13 @@ struct LiveRecordingView: View {
             }
             .frame(maxWidth: .infinity)
 
-            MoveListView(sans: model.committedSANs)
+            MoveListView(
+                sans: model.committedSANs,
+                moveTimes: model.committedMoveTimes,
+                onEditPly: { ply in
+                    requestEditPly(ply)
+                }
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             bottomControls

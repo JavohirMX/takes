@@ -6,7 +6,11 @@ struct MoveListView: View {
     /// Optional per-ply quality (same length as `sans`, or sparse via dictionary).
     var qualities: [Int: MoveQuality] = [:]
     var showsQualityLabels = false
+    /// Optional per-ply think times in seconds (parallel to `sans`).
+    var moveTimes: [TimeInterval]? = nil
     var onSelect: ((Int) -> Void)?
+    /// Long-press / context menu: edit this ply (later moves will be dropped).
+    var onEditPly: ((Int) -> Void)?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -53,18 +57,26 @@ struct MoveListView: View {
         let selected = selectedPly == index
         let quality = showsQualityLabels ? qualities[index] : nil
         let label = qualityLabel(san: san, quality: quality)
+        let timeLabel = thinkTimeLabel(at: index)
         return Button {
             onSelect?(index)
         } label: {
-            HStack(spacing: 4) {
-                Text(label)
-                    .font(.body.monospaced())
-                    .foregroundStyle(qualityColor(quality))
-                if let quality, !quality.glyph.isEmpty {
-                    Text(quality.glyph)
-                        .font(.caption.weight(.bold))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(label)
+                        .font(.body.monospaced())
                         .foregroundStyle(qualityColor(quality))
-                        .accessibilityHidden(true)
+                    if let quality, !quality.glyph.isEmpty {
+                        Text(quality.glyph)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(qualityColor(quality))
+                            .accessibilityHidden(true)
+                    }
+                }
+                if let timeLabel {
+                    Text(timeLabel)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(Theme.textSecondary)
                 }
             }
             .padding(.horizontal, 8)
@@ -73,11 +85,23 @@ struct MoveListView: View {
                 selected ? Theme.accent.opacity(0.25) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
-            .frame(minHeight: 44)
+            .frame(minHeight: 44, alignment: .leading)
         }
         .id(index)
-        .disabled(onSelect == nil)
-        .accessibilityLabel(spokenMove(index: index, san: san, quality: quality))
+        .disabled(onSelect == nil && onEditPly == nil)
+        .contextMenu {
+            if let onEditPly {
+                Button("Edit this move…") {
+                    onEditPly(index)
+                }
+            }
+        }
+        .accessibilityLabel(spokenMove(index: index, san: san, quality: quality, time: timeLabel))
+    }
+
+    private func thinkTimeLabel(at index: Int) -> String? {
+        guard let moveTimes, index < moveTimes.count else { return nil }
+        return MoveThinkTimer.formatCompact(moveTimes[index])
     }
 
     private func qualityLabel(san: String, quality: MoveQuality?) -> String {
@@ -89,11 +113,14 @@ struct MoveListView: View {
         return quality.badgeColor
     }
 
-    private func spokenMove(index: Int, san: String, quality: MoveQuality? = nil) -> String {
+    private func spokenMove(index: Int, san: String, quality: MoveQuality? = nil, time: String? = nil) -> String {
         let number = index / 2 + 1
         var base = "Move \(number), \(SANSpeech.speak(san))"
         if let quality {
             base += ", \(quality.title)"
+        }
+        if let time {
+            base += ", \(time)"
         }
         return base
     }

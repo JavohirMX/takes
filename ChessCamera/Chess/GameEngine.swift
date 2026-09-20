@@ -6,6 +6,7 @@ enum GameEngineError: Error, Equatable {
     case invalidFEN(String)
     case illegalMove(String)
     case nothingToUndo
+    case invalidPly(Int)
 }
 
 @Observable
@@ -20,6 +21,7 @@ final class GameEngine {
     var pgn: String { game.pgn }
     var state: Board.State { board.state }
     var plyCount: Int { appliedSANs.count }
+    var sideToMove: Piece.Color { board.position.sideToMove }
     var lastMoveSquares: (from: ChessSquare, to: ChessSquare)? {
         guard let lastMove else { return nil }
         guard let from = ChessSquare.parse(lastMove.start.notation),
@@ -117,27 +119,49 @@ final class GameEngine {
         try rebuildFromAppliedMoves()
     }
 
-    func replaceLast(with san: String) throws {
-        guard !appliedSANs.isEmpty else {
-            throw GameEngineError.nothingToUndo
-        }
-        appliedSANs.removeLast()
-        try rebuildFromAppliedMoves()
-        try apply(san: san)
-    }
-
-    func fenBeforeLastMove() -> String? {
-        guard !appliedSANs.isEmpty else { return nil }
-        let sans = Array(appliedSANs.dropLast())
+    /// Position FEN immediately before applying `appliedSANs[ply]`.
+    /// For `ply == plyCount`, returns the current position.
+    func fenBeforePly(_ ply: Int) -> String? {
+        guard ply >= 0, ply <= appliedSANs.count else { return nil }
         do {
             let snapshot = try GameEngine(fen: (game.startingPosition ?? .standard).fen)
-            for san in sans {
+            for san in appliedSANs.prefix(ply) {
                 try snapshot.apply(san: san)
             }
             return snapshot.fen
         } catch {
             return nil
         }
+    }
+
+    /// Keep the first `ply` moves and rebuild (drops everything after).
+    func truncate(toPly ply: Int) throws {
+        guard ply >= 0, ply <= appliedSANs.count else {
+            throw GameEngineError.invalidPly(ply)
+        }
+        appliedSANs = Array(appliedSANs.prefix(ply))
+        try rebuildFromAppliedMoves()
+    }
+
+    /// Truncate to `ply`, then apply `san` (drops any later moves).
+    func replace(atPly ply: Int, with san: String) throws {
+        guard ply >= 0, ply < appliedSANs.count else {
+            throw GameEngineError.invalidPly(ply)
+        }
+        try truncate(toPly: ply)
+        try apply(san: san)
+    }
+
+    func replaceLast(with san: String) throws {
+        guard !appliedSANs.isEmpty else {
+            throw GameEngineError.nothingToUndo
+        }
+        try replace(atPly: plyCount - 1, with: san)
+    }
+
+    func fenBeforeLastMove() -> String? {
+        guard !appliedSANs.isEmpty else { return nil }
+        return fenBeforePly(plyCount - 1)
     }
 
     func legalMoves() -> [Move] {

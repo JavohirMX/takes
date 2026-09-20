@@ -75,3 +75,49 @@ import Testing
     try engine.undo()
     #expect(engine.fen.contains("4P3"))
 }
+
+@Test func fenBeforePlyMatchesPrefix() throws {
+    let engine = GameEngine()
+    let start = engine.fen
+    try engine.apply(san: "e4")
+    let afterE4 = engine.fen
+    try engine.apply(san: "e5")
+    try engine.apply(san: "Nf3")
+
+    #expect(engine.fenBeforePly(0) == start)
+    #expect(engine.fenBeforePly(1) == afterE4)
+    #expect(engine.fenBeforePly(3) == engine.fen)
+    #expect(engine.fenBeforePly(-1) == nil)
+    #expect(engine.fenBeforePly(4) == nil)
+}
+
+@Test func truncateKeepsPrefixAndDropsTrailing() throws {
+    let engine = GameEngine()
+    try engine.apply(san: "e4")
+    try engine.apply(san: "e5")
+    try engine.apply(san: "Nf3")
+    try engine.apply(san: "Nc6")
+
+    try engine.truncate(toPly: 2)
+    #expect(engine.plyCount == 2)
+    #expect(engine.appliedSANs == ["e4", "e5"])
+    #expect(engine.pgn.contains("e4"))
+    #expect(engine.pgn.contains("e5"))
+    #expect(!engine.pgn.contains("Nf3"))
+    #expect(!engine.pgn.contains("Nc6"))
+}
+
+@Test func replaceAtPlyDropsLaterMoves() throws {
+    let engine = GameEngine()
+    try engine.apply(san: "e4")
+    try engine.apply(san: "e5")
+    try engine.apply(san: "Nf3")
+    try engine.apply(san: "Nc6")
+
+    try engine.replace(atPly: 1, with: "c5")
+    #expect(engine.appliedSANs == ["e4", "c5"])
+    #expect(engine.pgn.contains("c5"))
+    #expect(!engine.pgn.contains("e5"))
+    #expect(!engine.pgn.contains("Nf3"))
+    #expect(!engine.pgn.contains("Nc6"))
+}

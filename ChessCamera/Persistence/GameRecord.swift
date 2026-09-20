@@ -17,6 +17,14 @@ final class GameRecord {
     /// `AnalysisSpeed.rawValue` used for the cached analysis.
     var analysisSpeedRaw: String?
     var analyzedAt: Date?
+    /// PGN TimeControl value, e.g. `"600+5"`. Nil when clocks were Off.
+    var timeControl: String?
+    /// Remaining white clock seconds when last saved (for Continue).
+    var whiteTimeRemaining: Double?
+    /// Remaining black clock seconds when last saved (for Continue).
+    var blackTimeRemaining: Double?
+    /// Encoded `[Double]` think times (seconds) parallel to plies in `pgn`.
+    var moveTimesJSON: Data?
 
     init(
         createdAt: Date,
@@ -27,7 +35,11 @@ final class GameRecord {
         blackPlayer: String? = nil,
         event: String? = nil,
         resultOverride: String? = nil,
-        openingName: String? = nil
+        openingName: String? = nil,
+        timeControl: String? = nil,
+        whiteTimeRemaining: Double? = nil,
+        blackTimeRemaining: Double? = nil,
+        moveTimes: [TimeInterval]? = nil
     ) {
         self.createdAt = createdAt
         self.pgn = pgn
@@ -41,6 +53,25 @@ final class GameRecord {
         self.analysisJSON = nil
         self.analysisSpeedRaw = nil
         self.analyzedAt = nil
+        self.timeControl = timeControl
+        self.whiteTimeRemaining = whiteTimeRemaining
+        self.blackTimeRemaining = blackTimeRemaining
+        self.moveTimesJSON = Self.encodeMoveTimes(moveTimes)
+    }
+
+    var moveTimes: [TimeInterval] {
+        get { Self.decodeMoveTimes(moveTimesJSON) ?? [] }
+        set { moveTimesJSON = Self.encodeMoveTimes(newValue.isEmpty ? nil : newValue) }
+    }
+
+    static func encodeMoveTimes(_ times: [TimeInterval]?) -> Data? {
+        guard let times, !times.isEmpty else { return nil }
+        return try? JSONEncoder().encode(times)
+    }
+
+    static func decodeMoveTimes(_ data: Data?) -> [TimeInterval]? {
+        guard let data else { return nil }
+        return try? JSONDecoder().decode([Double].self, from: data)
     }
 
     var displayResult: String {
@@ -64,7 +95,22 @@ final class GameRecord {
         if let opening = effectiveOpening {
             tags.append("[Opening \"\(opening)\"]")
         }
-        return tags.joined(separator: "\n") + "\n\n" + pgn
+        if let timeControl, !timeControl.isEmpty {
+            tags.append("[TimeControl \"\(timeControl)\"]")
+        }
+        let body: String
+        let times = moveTimes
+        if times.isEmpty {
+            body = pgn
+        } else {
+            let sans = PGNMoveList.sans(from: pgn)
+            body = PGNMoveList.annotatedMovetext(
+                sans: sans,
+                moveTimes: times,
+                result: displayResult
+            )
+        }
+        return tags.joined(separator: "\n") + "\n\n" + body
     }
 
     var hasCachedAnalysis: Bool {

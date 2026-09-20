@@ -31,6 +31,8 @@ final class RecordingSessionViewModel: Identifiable {
     var lastSAN: String?
     /// Snapshot of `engine.appliedSANs` assigned as a new array on each commit so SwiftUI HUD observes it.
     var committedSANs: [String] = []
+    /// Wall-clock think seconds parallel to `committedSANs` (one entry per ply).
+    var committedMoveTimes: [TimeInterval] = []
     var committedPlyCount: Int { committedSANs.count }
     var trackingLost = false
     var detectTimedOut = false
@@ -55,6 +57,8 @@ final class RecordingSessionViewModel: Identifiable {
     var yoloPieceBoxes: [PieceDetection.OverlayBox] = []
     var ambiguousMoves: [Move] = []
     var editReplacesLast = false
+    /// When set, `applyEdit` replaces this ply (0-based) and drops later moves.
+    var editTargetPly: Int? = nil
     var settleDuration: Duration = .milliseconds(600)
     var previewImage: CGImage?
     var isVideoImport = false
@@ -62,6 +66,18 @@ final class RecordingSessionViewModel: Identifiable {
     /// Active while dragging / adjusting corners mid-game or in the corner adjustment overlay.
     var isAdjustingCorners = false
     private var preAdjustmentQuad: Quadrilateral?
+    /// Active while mid-game resync is comparing / presenting the resync sheet.
+    var isResyncing = false
+    var showResyncSheet = false
+    /// Squares where vision occupancy/pieces disagree with the digital board.
+    var resyncMismatchSquares: [ChessSquare] = []
+    /// Confirm before adopting a vision FEN that clears SAN history.
+    var confirmAdoptVision = false
+    /// Per-session clock preset (defaults from Settings; Confirm Start can override).
+    var sessionClockPreset: ClockPreset = GameClockSettings.preset
+    let clocks = GameClockController()
+    let thinkTimer = MoveThinkTimer()
+    private var clockTickTask: Task<Void, Never>?
     /// Set when confirm-time OpenCV snap fails; still allow lock on the coarse quad.
     var gridSnapFailed = false
     var isCaptureRunning = false
@@ -127,6 +143,8 @@ final class RecordingSessionViewModel: Identifiable {
     var pgn: String { engine.pgn }
     var isLegalProposedFEN: Bool { FenCodec.isLegal(proposedFEN) }
     var isStandardStart: Bool { FenCodec.isStandardStart(proposedFEN) }
+    /// True when continuing a saved game that already has moves (must not wipe SANs on Start).
+    var isContinuingGame: Bool { savedRecord != nil && engine.plyCount > 0 }
     var canUndo: Bool { committedPlyCount > 0 && (phase == .recording || phase == .awaitingEdit || phase == .disturbed || phase == .gameOver) }
     var liveCaptureSession: AVCaptureSession? {
         liveCamera?.captureSession
@@ -236,6 +254,51 @@ final class RecordingSessionViewModel: Identifiable {
             )
         }
         isClassifying = false
+        persistCurrentCalibration()
+    }
+
+    /// Save the current board corners + orientation when Remember board setup is on.
+    func persistCurrentCalibration() {
+        guard BoardCalibrationSettings.rememberSetup else { return }
+        guard let quad,
+              bufferSize.width > 0,
+              bufferSize.height > 0 else { return }
+        BoardCalibrationStore.save(
+            PersistedBoardCalibration(
+                quad: quad,
+                orientation: orientation,
+                bufferSize: bufferSize
+            )
+        )
+    }
+
+    /// Whether Board Studio can offer “Use last setup”.
+    var hasPersistedCalibration: Bool {
+        BoardCalibrationSettings.rememberSetup && BoardCalibrationStore.hasSaved
+    }
+
+    /// Restore saved corners (scaled to the current buffer) when Remember is on.
+    @discardableResult
+    func restorePersistedCalibrationIfPossible() async -> Bool {
+        guard BoardCalibrationSettings.rememberSetup else { return false }
+        guard bufferSize.width > 0, bufferSize.height > 0 else { return false }
+        guard let persisted = BoardCalibrationStore.load(),
+              let savedOrientation = persisted.orientation else { return false }
+
+        var restored = Quadrilateral(persisted: persisted)
+        let savedSize = persisted.bufferSize
+        if abs(savedSize.width - bufferSize.width) > 0.5
+            || abs(savedSize.height - bufferSize.height) > 0.5 {
+            restored = restored.scaled(from: savedSize, to: bufferSize)
+        }
+        restored = restored.clamped(to: bufferSize)
+
+        quad = restored
+        orientation = savedOrientation
+        clearOpenCVSnap()
+        await pipeline.setOrientation(orientation)
+        await pipeline.setLockedQuad(restored)
+        return true
     }
 
     private func refineGridSnappingQuad() async {
@@ -389,6 +452,7 @@ final class RecordingSessionViewModel: Identifiable {
         }
         isAdjustingCorners = false
         preAdjustmentQuad = nil
+        persistCurrentCalibration()
     }
 
     func rotateQuadCornersClockwise() {
@@ -566,9 +630,25 @@ final class RecordingSessionViewModel: Identifiable {
         }
         committedSANs = Array(engine.appliedSANs)
         lastSAN = engine.formattedLastSAN
+        committedMoveTimes = record.moveTimes
+        if committedMoveTimes.isEmpty {
+            let fromPGN = PGNMoveList.emtSeconds(from: record.pgn)
+            if fromPGN.count == committedSANs.count {
+                committedMoveTimes = fromPGN
+            }
+        } else if committedMoveTimes.count > committedSANs.count {
+            committedMoveTimes = Array(committedMoveTimes.prefix(committedSANs.count))
+        }
         lastCommittedOccupancy = engine.occupancy()
         resetOccupancyTracking(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
+        if let tc = record.timeControl, let matched = GameClockSettings.preset(matchingTimeControl: tc) {
+            sessionClockPreset = matched
+        } else if record.whiteTimeRemaining != nil || record.blackTimeRemaining != nil {
+            sessionClockPreset = .custom
+        } else {
+            sessionClockPreset = GameClockSettings.preset
+        }
 
         let camera = LiveCameraSource()
         liveCamera = camera
@@ -660,17 +740,25 @@ final class RecordingSessionViewModel: Identifiable {
         useStandardPositionClasses()
     }
 
-    func startRecording() {
-        guard FenCodec.isLegal(proposedFEN) else { return }
-        do {
-            if FenCodec.isStandardStart(proposedFEN) {
+    func startRecording(mode: StartRecordingMode? = nil) {
+        let resolved = mode ?? (isContinuingGame ? .continueOrResync : .newGame)
+        switch resolved {
+        case .newGame:
+            guard FenCodec.isLegal(proposedFEN) else { return }
+            do {
+                if FenCodec.isStandardStart(proposedFEN) {
+                    engine.resetToStart()
+                } else {
+                    try engine.load(fen: proposedFEN)
+                }
+            } catch {
+                useStandardPositionClasses()
                 engine.resetToStart()
-            } else {
-                try engine.load(fen: proposedFEN)
             }
-        } catch {
-            useStandardPositionClasses()
-            engine.resetToStart()
+            committedMoveTimes = []
+        case .continueOrResync:
+            // Keep engine + appliedSANs + committedMoveTimes; only re-seed vision.
+            break
         }
         lastCommittedOccupancy = engine.occupancy()
         resetOccupancyTracking(seeding: lastCommittedOccupancy)
@@ -690,7 +778,155 @@ final class RecordingSessionViewModel: Identifiable {
                 await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
             }
         }
+        configureClocksForSession()
+        startThinkForSideToMove()
         scheduleLiveAnalysis()
+    }
+
+    /// Mid-game: re-read pieces from the locked warp and compare to the digital board.
+    func beginResync() async {
+        guard phase == .recording || phase == .disturbed || phase == .awaitingEdit else { return }
+        guard !isAdjustingCorners else { return }
+        cancelAutoResume()
+        softRejectMessage = nil
+        lastIgnoredOccupancy = nil
+        confirmAdoptVision = false
+        isResyncing = true
+
+        guard let warpedThumbnail else {
+            alertMessage = "Can't see the board yet. Try Adjust corners first."
+            isResyncing = false
+            return
+        }
+
+        isClassifying = true
+        var classes: [ChessSquare: PieceClass] = [:]
+        if pieceDetectionAvailable {
+            classes = await pipeline.detectPieces(from: warpedThumbnail)
+        }
+        isClassifying = false
+
+        if classes.isEmpty {
+            // No piece read — fall back to re-baselining against the digital board.
+            await reseedVisionFromEngine()
+            isResyncing = false
+            return
+        }
+
+        classifiedClasses = classes
+        let side = engine.fen.split(separator: " ").dropFirst().first.map(String.init) ?? "w"
+        proposedFEN = FenCodec.fen(from: classes, sideToMove: side)
+
+        if visionMatchesEngine(classes) {
+            await reseedVisionFromEngine()
+            isResyncing = false
+            return
+        }
+
+        resyncMismatchSquares = mismatchSquares(vision: classes)
+        showResyncSheet = true
+    }
+
+    /// Resolve a mismatch sheet. `trustVision: false` (default) re-baselines to the digital board.
+    /// `trustVision: true` loads the proposed/edited FEN and clears move history.
+    func applyResync(trustVision: Bool) async {
+        if trustVision {
+            guard FenCodec.isLegal(proposedFEN) else {
+                alertMessage = "That position isn’t a legal FEN."
+                return
+            }
+            do {
+                try engine.load(fen: proposedFEN)
+            } catch {
+                alertMessage = "Couldn’t load that position."
+                return
+            }
+            syncCommittedNotation()
+            committedMoveTimes = []
+            if let existing = savedRecord {
+                existing.pgn = engine.pgn
+                existing.finalFen = engine.fen
+                existing.openingName = OpeningDetector.detect(sans: committedSANs)
+                existing.moveTimes = []
+                existing.clearPersistedAnalysis()
+            }
+        }
+        await reseedVisionFromEngine()
+        finishResyncUI()
+        if phase == .awaitingEdit || phase == .disturbed {
+            phase = engine.isTerminal ? .gameOver : .recording
+            setKeepsScreenAwake(phase == .recording)
+        }
+        scheduleLiveAnalysis()
+    }
+
+    func cancelResync() {
+        finishResyncUI()
+    }
+
+    /// After editing pieces in the resync sheet, refresh mismatch list / proposed FEN.
+    func refreshResyncProposal() {
+        let side = engine.fen.split(separator: " ").dropFirst().first.map(String.init) ?? "w"
+        proposedFEN = FenCodec.fen(from: classifiedClasses, sideToMove: side)
+        resyncMismatchSquares = mismatchSquares(vision: classifiedClasses)
+    }
+
+    /// Whether the edited/vision position’s occupancy matches the engine (history can be kept).
+    var resyncOccupancyMatchesEngine: Bool {
+        Occupancy.from(classes: classifiedClasses) == engine.occupancy()
+    }
+
+    /// Piece-identity match used by the resync sheet “matches digital” affordance.
+    var visionPlacementMatchesEngine: Bool {
+        FenCodec.placement(from: classifiedClasses) == FenCodec.placement(from: engine.pieceMap())
+    }
+
+    private func finishResyncUI() {
+        showResyncSheet = false
+        isResyncing = false
+        confirmAdoptVision = false
+        resyncMismatchSquares = []
+        isClassifying = false
+    }
+
+    /// Re-seed occupancy / prior / settle / fingerprints / baselines from the engine. No engine mutation.
+    func reseedVisionFromEngine() async {
+        lastCommittedOccupancy = engine.occupancy()
+        liveOccupancy = lastCommittedOccupancy
+        resetOccupancyTracking(seeding: lastCommittedOccupancy)
+        occupancyPrior = makeOccupancyPrior()
+        settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
+        softRejectMessage = nil
+        lastIgnoredOccupancy = nil
+        lastIgnoredAt = nil
+        armFingerprintSnapshot(warmup: 3)
+        if let warpedThumbnail {
+            await pipeline.captureEmptyBaselines(from: warpedThumbnail, occupied: lastCommittedOccupancy)
+        }
+    }
+
+    private func visionMatchesEngine(_ classes: [ChessSquare: PieceClass]) -> Bool {
+        let visionOcc = Occupancy.from(classes: classes)
+        guard visionOcc == engine.occupancy() else { return false }
+        let visionPlacement = FenCodec.placement(from: classes)
+        let enginePlacement = FenCodec.placement(from: engine.pieceMap())
+        return visionPlacement == enginePlacement
+    }
+
+    private func mismatchSquares(vision: [ChessSquare: PieceClass]) -> [ChessSquare] {
+        let engineMap = engine.pieceMap()
+        var squares: [ChessSquare] = []
+        for file in 0..<8 {
+            for rank in 0..<8 {
+                let square = ChessSquare(file: file, rank: rank)
+                let v = vision[square] ?? .empty
+                let e = engineMap[square] ?? .empty
+                if v != e {
+                    squares.append(square)
+                }
+            }
+        }
+        return squares.sorted { $0.bitIndex < $1.bitIndex }
     }
 
     func requestEndGame() {
@@ -724,6 +960,11 @@ final class RecordingSessionViewModel: Identifiable {
             if let blackPlayer { existing.blackPlayer = blackPlayer }
         }
         cancelAutoResume()
+        stopClockTicker()
+        clocks.pause()
+        thinkTimer.pauseThink()
+        persistClockStateToRecord()
+        persistMoveTimesToRecord()
         phase = .gameOver
         setKeepsScreenAwake(false)
         Task { await stopCapture() }
@@ -734,6 +975,9 @@ final class RecordingSessionViewModel: Identifiable {
         consecutiveAutoResumes = 0
         do {
             try engine.undo()
+            if !committedMoveTimes.isEmpty {
+                committedMoveTimes.removeLast()
+            }
             lastCommittedOccupancy = engine.occupancy()
             resetOccupancyTracking(seeding: lastCommittedOccupancy)
             occupancyPrior = makeOccupancyPrior()
@@ -751,12 +995,15 @@ final class RecordingSessionViewModel: Identifiable {
             } else if let existing = savedRecord {
                 existing.pgn = engine.pgn
                 existing.finalFen = engine.fen
+                existing.moveTimes = committedMoveTimes
                 existing.clearPersistedAnalysis()
             }
             scheduleLiveAnalysis()
+            startThinkForSideToMove()
         } catch {
             alertMessage = "Nothing to undo."
         }
+        syncClockSideToEngine()
     }
 
     /// Discard a bad settle and keep recording from the last committed position.
@@ -802,7 +1049,23 @@ final class RecordingSessionViewModel: Identifiable {
     func beginEdit(replacingLast: Bool) {
         cancelAutoResume()
         consecutiveAutoResumes = 0
-        editReplacesLast = replacingLast && committedPlyCount > 0
+        if replacingLast, committedPlyCount > 0 {
+            editTargetPly = committedPlyCount - 1
+            editReplacesLast = true
+        } else {
+            editTargetPly = nil
+            editReplacesLast = false
+        }
+        showEditSheet = true
+    }
+
+    /// Edit an earlier ply; later moves will be removed when the edit is applied.
+    func beginEdit(atPly ply: Int) {
+        cancelAutoResume()
+        consecutiveAutoResumes = 0
+        guard ply >= 0, ply < committedPlyCount else { return }
+        editTargetPly = ply
+        editReplacesLast = ply == committedPlyCount - 1
         showEditSheet = true
     }
 
@@ -814,9 +1077,17 @@ final class RecordingSessionViewModel: Identifiable {
         resetOccupancyTracking(seeding: lastCommittedOccupancy)
         occupancyPrior = makeOccupancyPrior()
         syncCommittedNotation()
+        let think = thinkTimer.consumeThinkTime()
+        committedMoveTimes.append(think)
         softRejectMessage = nil
         lastIgnoredOccupancy = nil
         lastIgnoredAt = nil
+        if clocks.isEnabled {
+            clocks.onMoveCommitted(newSide: clockSide(for: engine.sideToMove))
+            persistClockStateToRecord()
+        }
+        persistMoveTimesToRecord()
+        startThinkForSideToMove()
         scheduleLiveAnalysis()
     }
 
@@ -855,25 +1126,51 @@ final class RecordingSessionViewModel: Identifiable {
     func applyEdit(san: String) {
         cancelAutoResume()
         consecutiveAutoResumes = 0
+        let targetPly = editTargetPly
+        let replacesLast = editReplacesLast
         do {
-            if editReplacesLast {
+            if let ply = targetPly {
+                try engine.replace(atPly: ply, with: san)
+                committedMoveTimes = Array(committedMoveTimes.prefix(ply))
+                committedMoveTimes.append(0)
+            } else if replacesLast {
                 try engine.replaceLast(with: san)
+                if !committedMoveTimes.isEmpty {
+                    committedMoveTimes.removeLast()
+                }
+                committedMoveTimes.append(0)
             } else {
                 try engine.apply(san: san)
+                committedMoveTimes.append(0)
             }
             lastCommittedOccupancy = engine.occupancy()
+            liveOccupancy = lastCommittedOccupancy
             resetOccupancyTracking(seeding: lastCommittedOccupancy)
             occupancyPrior = makeOccupancyPrior()
+            settle = makeSeededSettle(occupancy: lastCommittedOccupancy)
             syncCommittedNotation()
             showEditSheet = false
+            editTargetPly = nil
+            editReplacesLast = false
             ambiguousMoves = []
             softRejectMessage = nil
             lastIgnoredOccupancy = nil
             armFingerprintSnapshot(warmup: 3)
+            if engine.plyCount == 0 {
+                discardSavedRecord()
+            } else if let existing = savedRecord {
+                existing.pgn = engine.pgn
+                existing.finalFen = engine.fen
+                existing.openingName = OpeningDetector.detect(sans: committedSANs)
+                existing.moveTimes = committedMoveTimes
+                existing.clearPersistedAnalysis()
+            }
             phase = engine.isTerminal ? .gameOver : .recording
             setKeepsScreenAwake(phase == .recording)
             announceCommit()
             scheduleLiveAnalysis()
+            syncClockSideToEngine()
+            startThinkForSideToMove()
         } catch {
             alertMessage = "Couldn’t apply that move. Try another square."
         }
@@ -886,6 +1183,8 @@ final class RecordingSessionViewModel: Identifiable {
         guard UIApplication.shared.applicationState == .background else { return }
         pausedForBackground = true
         isCaptureRunning = false
+        clocks.pause()
+        thinkTimer.pauseThink()
         Task { await liveCamera?.pause() }
         if phase == .recording {
             phase = .disturbed
@@ -932,7 +1231,19 @@ final class RecordingSessionViewModel: Identifiable {
 
     func sharePGN() {
         do {
-            let url = try PGNShareFile.write(pgn: engine.pgn)
+            let body: String
+            if committedMoveTimes.isEmpty {
+                body = engine.pgn
+            } else if let record = savedRecord {
+                body = record.pgnWithHeaders
+            } else {
+                body = PGNMoveList.annotatedMovetext(
+                    sans: committedSANs,
+                    moveTimes: committedMoveTimes,
+                    result: engine.resultToken
+                )
+            }
+            let url = try PGNShareFile.write(pgn: body)
             shareItems = [url]
             showShareSheet = true
         } catch {
@@ -941,7 +1252,17 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     func copyPGN() {
-        UIPasteboard.general.string = engine.pgn
+        if committedMoveTimes.isEmpty {
+            UIPasteboard.general.string = engine.pgn
+        } else if let record = savedRecord {
+            UIPasteboard.general.string = record.pgnWithHeaders
+        } else {
+            UIPasteboard.general.string = PGNMoveList.annotatedMovetext(
+                sans: committedSANs,
+                moveTimes: committedMoveTimes,
+                result: engine.resultToken
+            )
+        }
     }
 
     func copyFEN() {
@@ -958,6 +1279,8 @@ final class RecordingSessionViewModel: Identifiable {
             if let pendingResultOverride { existing.resultOverride = pendingResultOverride }
             if let pendingWhitePlayer { existing.whitePlayer = pendingWhitePlayer }
             if let pendingBlackPlayer { existing.blackPlayer = pendingBlackPlayer }
+            persistClockState(to: existing)
+            existing.moveTimes = committedMoveTimes
             return existing
         }
         let record = GameRecord(
@@ -967,7 +1290,11 @@ final class RecordingSessionViewModel: Identifiable {
             title: GameRecord.defaultTitle(for: .now),
             whitePlayer: pendingWhitePlayer,
             blackPlayer: pendingBlackPlayer,
-            resultOverride: pendingResultOverride
+            resultOverride: pendingResultOverride,
+            timeControl: clocks.isEnabled ? GameClockSettings.timeControlString(for: sessionClockPreset) : nil,
+            whiteTimeRemaining: clocks.isEnabled ? clocks.whiteRemaining : nil,
+            blackTimeRemaining: clocks.isEnabled ? clocks.blackRemaining : nil,
+            moveTimes: committedMoveTimes.isEmpty ? nil : committedMoveTimes
         )
         savedRecord = record
         return record
@@ -988,6 +1315,9 @@ final class RecordingSessionViewModel: Identifiable {
         liveAnalysisTask = nil
         liveAnalysis = nil
         liveAnalysisMessage = nil
+        stopClockTicker()
+        clocks.pause()
+        thinkTimer.pauseThink()
         await analysisEngine.stop()
         consumeTask?.cancel()
         consumeTask = nil
@@ -1202,7 +1532,7 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func handleLive(_ frame: CapturedFrame) async {
-        if isAdjustingCorners {
+        if isAdjustingCorners || isResyncing {
             previewImage = image(from: frame.buffer)
             if let quad, let warped = await pipeline.warp(frame, quad: quad) {
                 warpedThumbnail = warped.squareImage
@@ -1570,6 +1900,10 @@ final class RecordingSessionViewModel: Identifiable {
     private func resetGameState() {
         cancelAutoResume()
         clearLiveAnalysis()
+        stopClockTicker()
+        clocks.configureOff()
+        thinkTimer.reset()
+        sessionClockPreset = GameClockSettings.preset
         savedRecord = nil
         phase = .idle
         quad = nil
@@ -1598,6 +1932,7 @@ final class RecordingSessionViewModel: Identifiable {
         classifiedClasses = FenCodec.standardClasses()
         lastSAN = nil
         committedSANs = []
+        committedMoveTimes = []
         consecutiveAutoResumes = 0
         trackingLost = false
         detectTimedOut = false
@@ -1605,6 +1940,12 @@ final class RecordingSessionViewModel: Identifiable {
         isCaptureRunning = false
         confirmEndGame = false
         showEditSheet = false
+        editTargetPly = nil
+        editReplacesLast = false
+        isResyncing = false
+        showResyncSheet = false
+        resyncMismatchSquares = []
+        confirmAdoptVision = false
         lastCommittedOccupancy = Occupancy.standardStart()
         liveOccupancy = Occupancy.standardStart()
         occupancyPrior = OccupancyPrior.unconstrained
@@ -1632,6 +1973,165 @@ final class RecordingSessionViewModel: Identifiable {
             await pipeline.setLockedQuad(nil)
             await pipeline.setOrientation(.whiteAtBottom)
             await pipeline.resetYoloOccupancySmoother()
+        }
+    }
+
+    // MARK: - Game clocks & think timer
+
+    private func configureClocksForSession() {
+        stopClockTicker()
+        guard !isVideoImport else {
+            clocks.configureOff()
+            startClockTicker()
+            return
+        }
+        let preset = sessionClockPreset
+        guard preset != .off else {
+            clocks.configureOff()
+            startClockTicker()
+            return
+        }
+
+        let base: TimeInterval
+        let increment: TimeInterval
+        if isContinuingGame,
+           let record = savedRecord,
+           let tc = record.timeControl,
+           let parsed = GameClockSettings.parseTimeControl(tc),
+           GameClockSettings.timeControlString(for: preset) == tc || preset == .custom {
+            base = parsed.base
+            increment = parsed.increment
+        } else {
+            base = GameClockSettings.baseSeconds(for: preset)
+            increment = GameClockSettings.incrementSeconds(for: preset)
+        }
+        guard base > 0 else {
+            clocks.configureOff()
+            startClockTicker()
+            return
+        }
+
+        if isContinuingGame,
+           let record = savedRecord,
+           let white = record.whiteTimeRemaining,
+           let black = record.blackTimeRemaining {
+            clocks.restore(white: white, black: black, base: base, increment: increment)
+            if record.timeControl == nil {
+                record.timeControl = GameClockSettings.timeControlString(for: preset)
+            }
+        } else {
+            clocks.configure(base: base, increment: increment)
+            if let record = savedRecord {
+                record.timeControl = GameClockSettings.timeControlString(for: preset)
+                persistClockState(to: record)
+            }
+        }
+
+        clocks.startIfNeeded(side: clockSide(for: engine.sideToMove))
+        startClockTicker()
+    }
+
+    private func startClockTicker() {
+        stopClockTicker()
+        clockTickTask = Task { @MainActor [weak self] in
+            let tickInterval: TimeInterval = 0.1
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled, let self else { return }
+                self.advanceClocks(delta: tickInterval)
+            }
+        }
+    }
+
+    func stopClockTicker() {
+        clockTickTask?.cancel()
+        clockTickTask = nil
+    }
+
+    /// Pause rules: disturbed / awaitingEdit / background / corner adjust / resync / edit sheet.
+    private func clockShouldRun() -> Bool {
+        guard clocks.isEnabled, !isVideoImport else { return false }
+        return thinkShouldRun()
+    }
+
+    /// Same pause gates as clocks, but always available (including clocks Off).
+    private func thinkShouldRun() -> Bool {
+        guard phase == .recording else { return false }
+        guard !pausedForBackground else { return false }
+        guard !isAdjustingCorners, !isResyncing, !showEditSheet else { return false }
+        return true
+    }
+
+    /// Deduct clock time and accumulate think time. Used by the 100 ms ticker and tests.
+    func advanceClocks(delta: TimeInterval) {
+        if thinkShouldRun() {
+            if !thinkTimer.isRunning {
+                thinkTimer.resumeThinkIfNeeded()
+            }
+            thinkTimer.tick(delta: delta)
+        } else {
+            thinkTimer.pauseThink()
+        }
+
+        guard clocks.isEnabled else { return }
+        if clockShouldRun() {
+            if !clocks.isRunning {
+                clocks.startIfNeeded(side: clockSide(for: engine.sideToMove))
+            }
+            if let flagged = clocks.tick(delta: delta) {
+                let result = flagged == .white ? "0-1" : "1-0"
+                finishGame(resultOverride: result)
+            } else {
+                persistClockStateToRecord()
+            }
+        } else {
+            clocks.pause()
+        }
+    }
+
+    private func persistClockStateToRecord() {
+        guard let record = savedRecord else { return }
+        persistClockState(to: record)
+    }
+
+    private func persistMoveTimesToRecord() {
+        guard let record = savedRecord else { return }
+        record.moveTimes = committedMoveTimes
+    }
+
+    private func persistClockState(to record: GameRecord) {
+        if clocks.isEnabled {
+            if record.timeControl == nil {
+                record.timeControl = GameClockSettings.timeControlString(for: sessionClockPreset)
+            }
+            record.whiteTimeRemaining = clocks.whiteRemaining
+            record.blackTimeRemaining = clocks.blackRemaining
+        } else {
+            record.timeControl = nil
+            record.whiteTimeRemaining = nil
+            record.blackTimeRemaining = nil
+        }
+    }
+
+    private func clockSide(for color: Piece.Color) -> ClockSide {
+        color == .white ? .white : .black
+    }
+
+    private func startThinkForSideToMove() {
+        thinkTimer.startThink(for: clockSide(for: engine.sideToMove))
+        if !thinkShouldRun() {
+            thinkTimer.pauseThink()
+        }
+    }
+
+    private func syncClockSideToEngine() {
+        guard clocks.isEnabled else { return }
+        let side = clockSide(for: engine.sideToMove)
+        clocks.setActiveSide(side)
+        if clockShouldRun() {
+            clocks.startIfNeeded(side: side)
+        } else {
+            clocks.pause()
         }
     }
 }
