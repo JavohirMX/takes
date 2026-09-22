@@ -141,6 +141,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     var fen: String { engine.fen }
     var pgn: String { engine.pgn }
+    var initialFEN: String { engine.initialFEN }
     var isLegalProposedFEN: Bool { FenCodec.isLegal(proposedFEN) }
     var isStandardStart: Bool { FenCodec.isStandardStart(proposedFEN) }
     /// True when continuing a saved game that already has moves (must not wipe SANs on Start).
@@ -227,7 +228,9 @@ final class RecordingSessionViewModel: Identifiable {
 
     func confirmQuad() async {
         guard let quad else { return }
-        await refineGridSnappingQuad()
+        if !isManuallyEdited {
+            await refineGridSnappingQuad()
+        }
         await pipeline.setLockedQuad(self.quad ?? quad)
         await pipeline.setOrientation(orientation)
         isClassifying = true
@@ -351,7 +354,8 @@ final class RecordingSessionViewModel: Identifiable {
     }
 
     private func maybeRefineWithPaddedOpenCV() async -> Bool {
-        guard !paddedRefineSettled,
+        guard !isManuallyEdited,
+              !paddedRefineSettled,
               !isDraggingCorner,
               let seed = quad,
               let buffer = lastSampleBuffer,
@@ -436,7 +440,9 @@ final class RecordingSessionViewModel: Identifiable {
             isAdjustingCorners = false
             return
         }
-        await refineGridSnappingQuad()
+        if !isManuallyEdited {
+            await refineGridSnappingQuad()
+        }
         let finalQuad = self.quad ?? current
         await pipeline.setLockedQuad(finalQuad)
         cornerTracker.reset()
@@ -457,6 +463,7 @@ final class RecordingSessionViewModel: Identifiable {
 
     func rotateQuadCornersClockwise() {
         guard let current = quad else { return }
+        isManuallyEdited = true
         quad = Quadrilateral(
             topLeft: current.bottomLeft,
             topRight: current.topLeft,
@@ -546,6 +553,7 @@ final class RecordingSessionViewModel: Identifiable {
     func placeManualCorners() {
         let size = bufferSize == .zero ? CGSize(width: 1280, height: 720) : bufferSize
         let inset = Quadrilateral.insetRect(in: size)
+        isManuallyEdited = true
         quad = inset
         visionQuad = inset
         activeLocalizer = .vision
@@ -623,8 +631,21 @@ final class RecordingSessionViewModel: Identifiable {
         await teardown()
         isVideoImport = false
         savedRecord = record
-        engine.resetToStart()
         let sans = PGNMoveList.sans(from: record.pgn)
+        var solved: String? = nil
+        if record.initialFen == nil, PGNMoveList.extractFEN(from: record.pgn) == nil, sans.count <= 6 {
+            solved = RetrogradePositionSolver.solveInitialFEN(sans: sans, finalFen: record.finalFen, maxNodes: 200)
+        }
+        let starting = record.initialFen ?? PGNMoveList.extractFEN(from: record.pgn) ?? solved ?? FenCodec.standard
+        if FenCodec.isStandardStart(starting) {
+            engine.resetToStart()
+        } else {
+            try? engine.load(fen: starting)
+        }
+        if record.initialFen == nil && !FenCodec.isStandardStart(starting) {
+            record.initialFen = starting
+            try? record.modelContext?.save()
+        }
         for san in sans {
             try? engine.apply(san: san)
         }
@@ -1276,6 +1297,7 @@ final class RecordingSessionViewModel: Identifiable {
         if let existing = savedRecord {
             existing.pgn = engine.pgn
             existing.finalFen = engine.fen
+            existing.initialFen = engine.initialFEN
             if let pendingResultOverride { existing.resultOverride = pendingResultOverride }
             if let pendingWhitePlayer { existing.whitePlayer = pendingWhitePlayer }
             if let pendingBlackPlayer { existing.blackPlayer = pendingBlackPlayer }
@@ -1288,6 +1310,7 @@ final class RecordingSessionViewModel: Identifiable {
             pgn: engine.pgn,
             finalFen: engine.fen,
             title: GameRecord.defaultTitle(for: .now),
+            initialFen: engine.initialFEN,
             whitePlayer: pendingWhitePlayer,
             blackPlayer: pendingBlackPlayer,
             resultOverride: pendingResultOverride,

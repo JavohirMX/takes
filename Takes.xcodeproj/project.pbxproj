@@ -92,6 +92,7 @@
 		9F8182BAF851E49259CD6F47 /* BoardLocalizerScoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D4B0434BA7825F7BD62B56B /* BoardLocalizerScoreTests.swift */; };
 		A416A4F7C97135D3F35F8878 /* GameEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53986798CFDD9107DC75B66 /* GameEngineTests.swift */; };
 		A4EF9D3FFF4464377C35D876 /* FenCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 981B7758ADFA4CBF0C08A0FB /* FenCodec.swift */; };
+		BA4EF9D3FFF4464377C35D81 /* RetrogradePositionSolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B981B7758ADFA4CBF0C08A01 /* RetrogradePositionSolver.swift */; };
 		A6538C828AF6671EF45A0BE5 /* GameRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0474CAE39B52E9C6EF7E3660 /* GameRecord.swift */; };
 		A6AAB227BAF40378160D50E9 /* BoardStudioRefinePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177A3801A390216CFAF5BCB9 /* BoardStudioRefinePolicy.swift */; };
 		A6D639821B7460740DBD8B88 /* MagnificationLoupeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6F202EDA1296A114C91CFE /* MagnificationLoupeView.swift */; };
@@ -244,6 +245,7 @@
 		9521AB90F37D2FE75D226124 /* MoveSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveSpeaker.swift; sourceTree = "<group>"; };
 		97748D00F2697B5C2EBF46EB /* NOTICE */ = {isa = PBXFileReference; lastKnownFileType = text; path = NOTICE; sourceTree = "<group>"; };
 		981B7758ADFA4CBF0C08A0FB /* FenCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FenCodec.swift; sourceTree = "<group>"; };
+		B981B7758ADFA4CBF0C08A01 /* RetrogradePositionSolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrogradePositionSolver.swift; sourceTree = "<group>"; };
 		984C6A2A0976BDD38928F927 /* MoveSheetDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveSheetDrawer.swift; sourceTree = "<group>"; };
 		9986F389ACFF96E98681ADA6 /* ChessPieceYOLO.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = ChessPieceYOLO.mlpackage; sourceTree = "<group>"; };
 		9ACB47835DD922FF573F0CB6 /* MoveQualitySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveQualitySummaryView.swift; sourceTree = "<group>"; };
@@ -321,6 +323,7 @@
 				2129740891B609459472B1E7 /* OccupancySmoother.swift */,
 				59CEEDD5B4307B410E4EE7B4 /* OpeningDetector.swift */,
 				74CC6B4B508B3F2F81F27B52 /* PVFormatter.swift */,
+				B981B7758ADFA4CBF0C08A01 /* RetrogradePositionSolver.swift */,
 				A9F3C615133D434758B07A58 /* SettleDetector.swift */,
 			);
 			path = Chess;
@@ -812,6 +815,7 @@
 				B1954F5AF40FE6B8926527D4 /* FakeChessAnalyzer.swift in Sources */,
 				F024EE7E51DE2359ECA86BA4 /* FenBar.swift in Sources */,
 				A4EF9D3FFF4464377C35D876 /* FenCodec.swift in Sources */,
+				BA4EF9D3FFF4464377C35D81 /* RetrogradePositionSolver.swift in Sources */,
 				DD1E143F09FFFDDCE3B52239 /* FrameSource.swift in Sources */,
 				D6CDA201D7D87FCED2D7F830 /* GameAnalyzer.swift in Sources */,
 				40E03A7C8D08DE77BECF2590 /* GameClockController.swift in Sources */,

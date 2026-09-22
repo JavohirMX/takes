@@ -5,6 +5,7 @@ import SwiftUI
 struct MoveSheetDrawer: View {
     let sans: [String]
     let fen: String
+    var initialFEN: String? = nil
     var moveTimes: [TimeInterval]? = nil
     var onDismiss: () -> Void
     var onEditPly: ((Int) -> Void)? = nil
@@ -28,7 +29,7 @@ struct MoveSheetDrawer: View {
                     .padding(.top, 8)
                 }
 
-                MoveListView(sans: sans, moveTimes: moveTimes, onEditPly: onEditPly)
+                MoveListView(sans: sans, moveTimes: moveTimes, initialFEN: initialFEN, onEditPly: onEditPly)
                     .padding(.horizontal, 16)
 
                 Divider()
@@ -36,7 +37,7 @@ struct MoveSheetDrawer: View {
 
                 HStack(spacing: 12) {
                     Button {
-                        UIPasteboard.general.string = PGNMoveList.preview(sans: sans, maxPlies: sans.count)
+                        UIPasteboard.general.string = PGNMoveList.preview(sans: sans, initialFEN: initialFEN, maxPlies: sans.count)
                     } label: {
                         Label("Copy PGN", systemImage: "doc.on.doc")
                             .font(.body.weight(.medium))

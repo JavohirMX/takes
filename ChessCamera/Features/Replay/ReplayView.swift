@@ -24,13 +24,14 @@ struct ReplayView: View {
     @State private var isFlipped = false
     @State private var isPlaying = false
     @State private var playbackTimer: Task<Void, Never>?
-    @State private var showShare = false
-    @State private var shareItems: [Any] = []
     @State private var showEditSheet = false
     @State private var showRecapSheet = false
     /// Mutable PGN so promote-to-mainline can rebuild without relying on the immutable `pgn` prop.
     @State private var activePGN = ""
     @State private var showPromoteConfirm = false
+    @State private var currentInitialFen: String? = nil
+    @State private var isMissingInitialPosition = false
+    @State private var toastMessage: String?
 
     // Analysis state
     @State private var analysisResult: GameAnalysisResult?
@@ -88,14 +89,21 @@ struct ReplayView: View {
                         } label: {
                             Label("Share Recap Card", systemImage: "photo")
                         }
-                        Button {
-                            sharePGN()
-                        } label: {
+                        ShareLink(
+                            item: pgnShareURL,
+                            preview: SharePreview(title, image: Image(systemName: "square.and.arrow.up"))
+                        ) {
                             Label("Share PGN", systemImage: "square.and.arrow.up")
                         }
-                        Button("Copy FEN") {
+                        ExternalAnalysisMenu(pgn: exportPGNString, onCopied: { msg in
+                            toastMessage = msg
+                        })
+                        Button {
                             UIPasteboard.general.string = currentDisplayFEN
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            toastMessage = "FEN copied to clipboard"
+                        } label: {
+                            Label("Copy FEN", systemImage: "doc.on.doc")
                         }
                         if let record = resolveGameRecord() {
                             Button {
@@ -112,7 +120,11 @@ struct ReplayView: View {
                             }
                         }
                         if postGameEnabled, hasCachedResult, !isAnalyzing, !sans.isEmpty {
-                            Button("Re-analyze") { startAnalysis() }
+                            Button {
+                                startAnalysis()
+                            } label: {
+                                Label("Re-analyze", systemImage: "arrow.clockwise")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -131,10 +143,10 @@ struct ReplayView: View {
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showShare) {
-            ShareSheet(items: shareItems)
-        }
-        .sheet(isPresented: $showEditSheet) {
+        .sheet(isPresented: $showEditSheet, onDismiss: {
+            rebuild()
+            attemptBackgroundRecovery()
+        }) {
             if let game = resolveGameRecord() {
                 EditGameDetailsSheet(game: game)
             }
@@ -166,6 +178,9 @@ struct ReplayView: View {
             rebuild()
             loadCachedAnalysis()
         }
+        .task(id: activePGN) {
+            attemptBackgroundRecovery()
+        }
         .onDisappear {
             stopPlayback()
             variationTask?.cancel()
@@ -187,6 +202,7 @@ struct ReplayView: View {
         } message: {
             Text("Replace the saved game with the current line and clear analysis.")
         }
+        .actionToast(message: $toastMessage)
     }
 
     // MARK: - Layouts
@@ -214,6 +230,10 @@ struct ReplayView: View {
                 }
 
                 boardRow
+
+                if isMissingInitialPosition {
+                    missingInitialPositionBanner
+                }
 
                 if variationEngine != nil {
                     variationBanner
@@ -268,8 +288,10 @@ struct ReplayView: View {
                     selectedPly: (variationEngine == nil && plyIndex > 0) ? plyIndex - 1 : nil,
                     qualities: qualityMap,
                     showsQualityLabels: AnalysisSettings.effectivePostShowLabels,
-                    moveTimes: moveTimes.isEmpty ? nil : moveTimes
+                    moveTimes: moveTimes.isEmpty ? nil : moveTimes,
+                    initialFEN: fastResolvedInitialFen
                 ) { index in
+                    guard !isMissingInitialPosition else { return }
                     stopPlayback()
                     dismissVariation()
                     plyIndex = index + 1
@@ -300,6 +322,9 @@ struct ReplayView: View {
 
                 boardRow
                     .frame(maxHeight: 280)
+                if isMissingInitialPosition {
+                    missingInitialPositionBanner
+                }
                 if variationEngine != nil {
                     variationBanner
                 }
@@ -349,8 +374,10 @@ struct ReplayView: View {
                         selectedPly: (variationEngine == nil && plyIndex > 0) ? plyIndex - 1 : nil,
                         qualities: qualityMap,
                         showsQualityLabels: AnalysisSettings.effectivePostShowLabels,
-                        moveTimes: moveTimes.isEmpty ? nil : moveTimes
+                        moveTimes: moveTimes.isEmpty ? nil : moveTimes,
+                        initialFEN: fastResolvedInitialFen
                     ) { index in
+                        guard !isMissingInitialPosition else { return }
                         stopPlayback()
                         dismissVariation()
                         plyIndex = index + 1
@@ -461,13 +488,63 @@ struct ReplayView: View {
         }
     }
 
+    private var missingInitialPositionBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .font(.title3)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Legacy Mid-Game Match")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("Starting position wasn't recorded. Set starting FEN to replay moves.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                showEditSheet = true
+            } label: {
+                Text("Set FEN")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .accessibilityLabel("Set starting board position")
+        }
+        .padding(12)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
+        }
+        .padding(.horizontal, isLandscape ? 0 : 16)
+    }
+
     private var formattedVariationSANs: String {
         guard let basePly = variationBasePly else { return "" }
+        var startMoveNumber = 1
+        var startsWithBlack = false
+        if let fen = fastResolvedInitialFen {
+            let parts = fen.split(separator: " ")
+            if parts.count >= 2 {
+                startsWithBlack = (parts[1] == "b")
+            }
+            if parts.count >= 6, let num = Int(parts[5]), num > 0 {
+                startMoveNumber = num
+            }
+        }
         var tokens: [String] = []
         for (i, san) in variationSANs.enumerated() {
             let ply = basePly + i
-            let moveNum = (ply / 2) + 1
-            if ply.isMultiple(of: 2) {
+            let isBlack = startsWithBlack ? (ply % 2 == 0) : (ply % 2 != 0)
+            let moveNum = startMoveNumber + (startsWithBlack ? (ply + 1) / 2 : ply / 2)
+            if !isBlack {
                 tokens.append("\(moveNum). \(san)")
             } else if i == 0 {
                 tokens.append("\(moveNum)... \(san)")
@@ -486,17 +563,6 @@ struct ReplayView: View {
                 .font(.body.monospaced().weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
-            if canPromoteScrubTruncate {
-                Button {
-                    showPromoteConfirm = true
-                } label: {
-                    Label("Promote to mainline", systemImage: "arrow.up.to.line")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                }
-                .accessibilityLabel("Promote current position to mainline")
-            }
-
             HStack(spacing: 12) {
                 CircularButton(
                     icon: "arrow.up.arrow.down",
@@ -510,10 +576,10 @@ struct ReplayView: View {
                 .accessibilityLabel(isFlipped ? "Flip board to White" : "Flip board to Black")
 
                 CircularButton(
-                    icon: "backward.end.fill",
+                    icon: "backward.end",
                     title: "First",
                     size: 40,
-                    isDisabled: plyIndex == 0 || variationEngine != nil
+                    isDisabled: isMissingInitialPosition || plyIndex == 0 || variationEngine != nil
                 ) {
                     stopPlayback()
                     plyIndex = 0
@@ -525,11 +591,12 @@ struct ReplayView: View {
                     icon: "chevron.backward",
                     title: "Prev",
                     size: 40,
-                    isDisabled: plyIndex == 0 || variationEngine != nil
+                    isDisabled: isMissingInitialPosition || plyIndex == 0 || variationEngine != nil
                 ) {
                     stopPlayback()
                     plyIndex = max(plyIndex - 1, 0)
                     clearSelection()
+                    ChessAudioFeedback.playMove()
                 }
                 .accessibilityLabel("Previous move")
 
@@ -537,7 +604,7 @@ struct ReplayView: View {
                     icon: isPlaying ? "pause.fill" : "play.fill",
                     title: isPlaying ? "Pause" : "Play",
                     size: 48,
-                    isDisabled: sans.isEmpty || variationEngine != nil
+                    isDisabled: isMissingInitialPosition || sans.isEmpty || variationEngine != nil
                 ) {
                     togglePlayback()
                 }
@@ -547,19 +614,20 @@ struct ReplayView: View {
                     icon: "chevron.forward",
                     title: "Next",
                     size: 40,
-                    isDisabled: plyIndex >= sans.count || variationEngine != nil
+                    isDisabled: isMissingInitialPosition || plyIndex >= sans.count || variationEngine != nil
                 ) {
                     stopPlayback()
                     plyIndex = min(plyIndex + 1, sans.count)
                     clearSelection()
+                    ChessAudioFeedback.playMove()
                 }
                 .accessibilityLabel("Next move")
 
                 CircularButton(
-                    icon: "forward.end.fill",
+                    icon: "forward.end",
                     title: "Last",
                     size: 40,
-                    isDisabled: plyIndex >= sans.count || variationEngine != nil
+                    isDisabled: isMissingInitialPosition || plyIndex >= sans.count || variationEngine != nil
                 ) {
                     stopPlayback()
                     plyIndex = sans.count
@@ -576,21 +644,23 @@ struct ReplayView: View {
 
     private func pvCaptionView(_ pv: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "sparkles")
+            Image(systemName: "cpu")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.accent)
             Text(pv)
                 .font(.caption.monospaced().weight(.medium))
                 .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 38)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Theme.border, lineWidth: 1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, isLandscape ? 0 : 16)
     }
 
@@ -607,7 +677,7 @@ struct ReplayView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
-                .disabled(sans.isEmpty)
+                .disabled(sans.isEmpty || isMissingInitialPosition)
                 .padding(.horizontal, isLandscape ? 0 : 16)
                 .accessibilityLabel("Analyze")
             }
@@ -617,6 +687,7 @@ struct ReplayView: View {
     // MARK: - Interactive Move Handling & Branching
 
     private func handleSquareTap(_ square: ChessSquare) {
+        guard !isMissingInitialPosition else { return }
         stopPlayback()
 
         // If tapping currently selected square, deselect
@@ -727,26 +798,18 @@ struct ReplayView: View {
         resolveGameRecord() != nil && variationEngine != nil && !variationSANs.isEmpty
     }
 
-    private var canPromoteScrubTruncate: Bool {
-        resolveGameRecord() != nil
-            && variationEngine == nil
-            && plyIndex > 0
-            && plyIndex < sans.count
-    }
-
-    /// Persist the current scrub position or in-memory variation as the game's mainline.
+    /// Persist the in-memory variation as the game's mainline.
     private func promoteToMainline() {
-        guard let record = resolveGameRecord() else { return }
+        guard let record = resolveGameRecord(),
+              let basePly = variationBasePly,
+              variationEngine != nil,
+              !variationSANs.isEmpty else { return }
 
-        let newSans: [String]
-        if let basePly = variationBasePly, variationEngine != nil {
-            newSans = Array(sans.prefix(basePly)) + variationSANs
-        } else {
-            newSans = Array(sans.prefix(plyIndex))
-        }
+        let newSans = Array(sans.prefix(basePly)) + variationSANs
 
+        let starting = fastResolvedInitialFen ?? FenCodec.standard
         let rebuilt: GameEngine
-        if let initialFen, let loaded = try? GameEngine(fen: initialFen) {
+        if let loaded = try? GameEngine(fen: starting) {
             rebuilt = loaded
         } else {
             rebuilt = GameEngine()
@@ -830,6 +893,7 @@ struct ReplayView: View {
     }
 
     private func startPlayback() {
+        guard !isMissingInitialPosition else { return }
         if plyIndex >= sans.count {
             plyIndex = 0
         }
@@ -859,14 +923,17 @@ struct ReplayView: View {
     }
 
     private var currentFEN: String {
+        if isMissingInitialPosition {
+            return resolveGameRecord()?.finalFen ?? fastResolvedInitialFen ?? FenCodec.standard
+        }
         guard plyIndex >= 0, plyIndex < fens.count else {
-            return initialFen ?? FenCodec.standard
+            return fastResolvedInitialFen ?? FenCodec.standard
         }
         return fens[plyIndex]
     }
 
     private var finalFEN: String {
-        fens.last ?? initialFen ?? FenCodec.standard
+        resolveGameRecord()?.finalFen ?? fens.last ?? fastResolvedInitialFen ?? FenCodec.standard
     }
 
     private var currentDisplayLastMove: (from: ChessSquare, to: ChessSquare)? {
@@ -877,9 +944,10 @@ struct ReplayView: View {
     }
 
     private var lastMoveHighlight: (from: ChessSquare, to: ChessSquare)? {
-        guard plyIndex > 0, plyIndex <= sans.count else { return nil }
+        guard !isMissingInitialPosition, plyIndex > 0, plyIndex <= sans.count else { return nil }
         do {
-            let engine = GameEngine()
+            let starting = fastResolvedInitialFen ?? FenCodec.standard
+            let engine = (try? GameEngine(fen: starting)) ?? GameEngine()
             for san in sans.prefix(plyIndex) {
                 try engine.apply(san: san)
             }
@@ -949,6 +1017,9 @@ struct ReplayView: View {
     }
 
     private var plyCaption: String {
+        if isMissingInitialPosition {
+            return "\(sans.count) moves recorded (starting position needed)"
+        }
         if variationEngine != nil {
             return "Branch · \(variationSANs.count) moves"
         }
@@ -964,30 +1035,102 @@ struct ReplayView: View {
 
     // MARK: - Rebuild & Cache
 
+    private var fastResolvedInitialFen: String? {
+        if let currentInitialFen, !currentInitialFen.isEmpty { return currentInitialFen }
+        if let initialFen, !initialFen.isEmpty { return initialFen }
+        if let record = resolveGameRecord(), let fen = record.initialFen, !fen.isEmpty { return fen }
+        let source = activePGN.isEmpty ? pgn : activePGN
+        if let extracted = PGNMoveList.extractFEN(from: source) { return extracted }
+        if let record = resolveGameRecord(), let analysis = record.loadPersistedAnalysis(), let firstFen = analysis.result.plies.first?.fenBefore, !firstFen.isEmpty {
+            record.initialFen = firstFen
+            try? modelContext.save()
+            return firstFen
+        }
+        return nil
+    }
+
     private func rebuild() {
         let source = activePGN.isEmpty ? pgn : activePGN
-        sans = PGNMoveList.sans(from: source)
-        var frames = [initialFen ?? FenCodec.standard]
-        let engine: GameEngine
-        if let initialFen, let loaded = try? GameEngine(fen: initialFen) {
-            engine = loaded
+        let originalSans = PGNMoveList.sans(from: source)
+        sans = originalSans
+
+        if let starting = fastResolvedInitialFen {
+            isMissingInitialPosition = false
+            var frames = [starting]
+            let engine: GameEngine
+            if let loaded = try? GameEngine(fen: starting) {
+                engine = loaded
+            } else {
+                engine = GameEngine()
+            }
+            for san in originalSans {
+                do {
+                    try engine.apply(san: san)
+                    frames.append(engine.fen)
+                } catch {
+                    break
+                }
+            }
+            fens = frames
+            plyIndex = min(plyIndex, max(0, frames.count - 1))
         } else {
-            engine = GameEngine()
-        }
-        for san in sans {
-            do {
-                try engine.apply(san: san)
-                frames.append(engine.fen)
-            } catch {
-                break
+            // No explicit initial FEN known yet. Try simulating from standard starting position.
+            var frames = [FenCodec.standard]
+            let engine = GameEngine()
+            var simulatedAll = true
+            for san in originalSans {
+                do {
+                    try engine.apply(san: san)
+                    frames.append(engine.fen)
+                } catch {
+                    simulatedAll = false
+                    break
+                }
+            }
+
+            if simulatedAll && !originalSans.isEmpty {
+                isMissingInitialPosition = false
+                fens = frames
+                plyIndex = min(plyIndex, sans.count)
+            } else {
+                // Cannot legally apply moves from standard starting position.
+                // This is a legacy game started mid-game without recorded initial FEN.
+                isMissingInitialPosition = true
+                let fallbackBoard = resolveGameRecord()?.finalFen ?? FenCodec.standard
+                fens = [fallbackBoard]
+                plyIndex = 0
             }
         }
-        if frames.count != sans.count + 1 {
-            sans = Array(sans.prefix(max(0, frames.count - 1)))
-        }
-        fens = frames
-        plyIndex = 0
         reloadMoveTimes()
+    }
+
+    private func attemptBackgroundRecovery() {
+        guard isMissingInitialPosition,
+              !sans.isEmpty,
+              sans.count <= 6,
+              let record = resolveGameRecord() else { return }
+
+        let finalFen = record.finalFen
+        guard !finalFen.isEmpty else { return }
+
+        let currentSans = sans
+        Task.detached(priority: .background) {
+            if let solved = RetrogradePositionSolver.solveInitialFEN(
+                sans: currentSans,
+                finalFen: finalFen,
+                maxNodes: 200
+            ) {
+                await MainActor.run {
+                    guard self.isMissingInitialPosition else { return }
+                    self.currentInitialFen = solved
+                    if let rec = self.resolveGameRecord(), rec.initialFen == nil {
+                        rec.initialFen = solved
+                        try? self.modelContext.save()
+                    }
+                    self.rebuild()
+                }
+            }
+        }
     }
 
     private func reloadMoveTimes() {
@@ -1109,13 +1252,19 @@ struct ReplayView: View {
         try? modelContext.save()
     }
 
-    private func sharePGN() {
-        do {
-            shareItems = [try PGNShareFile.write(pgn: pgn, title: title)]
-            showShare = true
-        } catch {
-            UIPasteboard.general.string = pgn
+    private var exportPGNString: String {
+        if let record = resolveGameRecord() {
+            return record.pgnWithHeaders
         }
+        if !activePGN.isEmpty {
+            return activePGN
+        }
+        return pgn
+    }
+
+    private var pgnShareURL: URL {
+        (try? PGNShareFile.write(pgn: exportPGNString, title: title))
+            ?? FileManager.default.temporaryDirectory.appending(path: "game.pgn")
     }
 }
 

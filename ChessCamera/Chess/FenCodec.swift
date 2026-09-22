@@ -142,6 +142,21 @@ enum PGNMoveList {
         return moves
     }
 
+    /// Extracts FEN from `[FEN "..."]` tag in PGN string if present.
+    static func extractFEN(from pgn: String) -> String? {
+        guard let range = pgn.range(of: #"(?i)\[FEN\s+"([^"]+)""#, options: .regularExpression) else {
+            return nil
+        }
+        let tagSubstring = pgn[range]
+        guard let startQuote = tagSubstring.firstIndex(of: "\""),
+              let endQuote = tagSubstring.lastIndex(of: "\""),
+              startQuote < endQuote else {
+            return nil
+        }
+        let fen = String(tagSubstring[tagSubstring.index(after: startQuote)..<endQuote])
+        return FenCodec.isLegal(fen) ? fen : nil
+    }
+
     /// Elapsed-move-time seconds from `{[%emt H:MM:SS]}` comments, in ply order.
     static func emtSeconds(from pgn: String) -> [TimeInterval] {
         var times: [TimeInterval] = []
@@ -192,11 +207,23 @@ enum PGNMoveList {
     }
 
     static func preview(_ pgn: String, maxPlies: Int = 6) -> String {
-        preview(sans: sans(from: pgn), maxPlies: maxPlies, trailing: false)
+        let fen = extractFEN(from: pgn)
+        return preview(sans: sans(from: pgn), initialFEN: fen, maxPlies: maxPlies, trailing: false)
     }
 
-    static func preview(sans: [String], maxPlies: Int = 6, trailing: Bool = true) -> String {
+    static func preview(sans: [String], initialFEN: String? = nil, maxPlies: Int = 6, trailing: Bool = true) -> String {
         guard !sans.isEmpty else { return "" }
+        var startMoveNumber = 1
+        var startsWithBlack = false
+        if let initialFEN {
+            let parts = initialFEN.split(separator: " ")
+            if parts.count >= 2 {
+                startsWithBlack = (parts[1] == "b")
+            }
+            if parts.count >= 6, let num = Int(parts[5]), num > 0 {
+                startMoveNumber = num
+            }
+        }
         let start: Int
         let slice: ArraySlice<String>
         if trailing, sans.count > maxPlies {
@@ -209,10 +236,12 @@ enum PGNMoveList {
         var parts: [String] = []
         for (offset, san) in slice.enumerated() {
             let index = start + offset
-            if index.isMultiple(of: 2) {
-                parts.append("\(index / 2 + 1). \(san)")
+            let isBlack = startsWithBlack ? (index % 2 == 0) : (index % 2 != 0)
+            let moveNum = startMoveNumber + (startsWithBlack ? (index + 1) / 2 : index / 2)
+            if !isBlack {
+                parts.append("\(moveNum). \(san)")
             } else if parts.isEmpty {
-                parts.append("\(index / 2 + 1)... \(san)")
+                parts.append("\(moveNum)... \(san)")
             } else {
                 parts.append(san)
             }

@@ -103,6 +103,7 @@ struct LiveRecordingView: View {
             MoveSheetDrawer(
                 sans: model.committedSANs,
                 fen: model.engine.fen,
+                initialFEN: model.initialFEN,
                 moveTimes: model.committedMoveTimes,
                 onDismiss: { showScoreSheet = false },
                 onEditPly: { ply in
@@ -413,7 +414,7 @@ struct LiveRecordingView: View {
                         showScoreSheet = true
                     } label: {
                         HStack(spacing: 6) {
-                            RecentPlyStrip(sans: model.committedSANs, maxPlies: 3)
+                            RecentPlyStrip(sans: model.committedSANs, initialFEN: model.initialFEN, maxPlies: 3)
                             Image(systemName: "list.bullet.clipboard")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.accent)
@@ -647,7 +648,7 @@ struct LiveRecordingView: View {
             showScoreSheet = true
         } label: {
             HStack(spacing: 8) {
-                RecentPlyStrip(sans: model.committedSANs)
+                RecentPlyStrip(sans: model.committedSANs, initialFEN: model.initialFEN)
                 Image(systemName: "list.bullet.clipboard")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(Theme.accent)
@@ -728,9 +729,18 @@ struct LiveRecordingView: View {
             } label: {
                 Label("Resync board", systemImage: "arrow.triangle.2.circlepath")
             }
-            Button("Fix last move") { model.beginEdit(replacingLast: true) }
-                .disabled(model.committedPlyCount == 0)
-            Button("Copy FEN") { model.copyFEN() }
+            Button {
+                model.beginEdit(replacingLast: true)
+            } label: {
+                Label("Fix last move", systemImage: "arrow.uturn.backward")
+            }
+            .disabled(model.committedPlyCount == 0)
+
+            Button {
+                model.copyFEN()
+            } label: {
+                Label("Copy FEN", systemImage: "doc.on.doc")
+            }
         } label: {
             GlassCircleButton(
                 icon: "ellipsis",
@@ -777,6 +787,7 @@ struct LiveRecordingView: View {
             MoveListView(
                 sans: model.committedSANs,
                 moveTimes: model.committedMoveTimes,
+                initialFEN: model.initialFEN,
                 onEditPly: { ply in
                     requestEditPly(ply)
                 }

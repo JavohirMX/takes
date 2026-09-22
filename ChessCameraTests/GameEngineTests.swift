@@ -121,3 +121,81 @@ import Testing
     #expect(!engine.pgn.contains("Nf3"))
     #expect(!engine.pgn.contains("Nc6"))
 }
+
+@Test func midGameStartPreservesInitialFenAndSetsPGNTags() throws {
+    let midGameFen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    let engine = try GameEngine(fen: midGameFen)
+    #expect(engine.initialFEN == midGameFen)
+    #expect(engine.pgn.contains("[SetUp \"1\"]"))
+    #expect(engine.pgn.contains("[FEN \"\(midGameFen)\"]"))
+
+    try engine.apply(san: "Bb5")
+    #expect(engine.appliedSANs == ["Bb5"])
+    #expect(engine.initialFEN == midGameFen)
+    #expect(engine.fenBeforePly(0) == midGameFen)
+
+    // GameRecord pgnWithHeaders should also include SetUp and FEN tags
+    let record = GameRecord(
+        createdAt: Date(),
+        pgn: engine.pgn,
+        finalFen: engine.fen,
+        title: "Test Game",
+        initialFen: midGameFen
+    )
+    let headers = record.pgnWithHeaders
+    #expect(headers.contains("[SetUp \"1\"]"))
+    #expect(headers.contains("[FEN \"\(midGameFen)\"]"))
+}
+
+@Test func retrogradePositionSolverRecoversInitialFen() throws {
+    let initialFen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    let engine = try GameEngine(fen: initialFen)
+    try engine.apply(san: "Bb5")
+    try engine.apply(san: "a6")
+    try engine.apply(san: "Ba4")
+    let finalFen = engine.fen
+    let sans = engine.appliedSANs
+
+    let deduced = RetrogradePositionSolver.solveInitialFEN(sans: sans, finalFen: finalFen)
+    #expect(deduced != nil)
+    if let deduced {
+        // Forward verify that applying sans from deduced produces finalFen
+        let testEngine = try GameEngine(fen: deduced)
+        for san in sans {
+            try testEngine.apply(san: san)
+        }
+        #expect(testEngine.fen == finalFen)
+    }
+}
+
+@Test func pgnExtractFenAndMovePreview() {
+    let pgnWithFen = """
+    [Event "Casual"]
+    [SetUp "1"]
+    [FEN "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 3"]
+
+    3... Nf6 4. Nc3
+    """
+    let extracted = PGNMoveList.extractFEN(from: pgnWithFen)
+    #expect(extracted == "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 3")
+
+    let sans = ["Nf6", "Nc3", "d5"]
+    let preview = PGNMoveList.preview(sans: sans, initialFEN: extracted, maxPlies: 3)
+    #expect(preview.contains("3... Nf6"))
+    #expect(preview.contains("4. Nc3"))
+}
+
+@Test func retrogradePositionSolverExceedsMaxNodesReturnsNilQuickly() {
+    let finalFen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    let impossibleSans = ["Rxd8+", "Kxd8", "Nxf7+", "Ke8"]
+    let solved = RetrogradePositionSolver.solveInitialFEN(sans: impossibleSans, finalFen: finalFen, maxNodes: 20)
+    #expect(solved == nil)
+}
+
+@Test func retrogradePositionSolverHandlesEmptySANs() {
+    let fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    let solved = RetrogradePositionSolver.solveInitialFEN(sans: [], finalFen: fen)
+    #expect(solved == fen)
+}
+
+

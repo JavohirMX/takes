@@ -65,20 +65,28 @@ struct CornerCalibrationView: View {
                 VideoMapping.bufferToView(point: quad.bottomLeft, viewSize: size, bufferSize: model.bufferSize)
             ]
             ForEach(0..<4, id: \.self) { index in
-                CornerHandle(label: "\(index + 1)", point: points[index], onDrag: { location in
-                    let clamped = VideoMapping.clampToVideo(
-                        point: location,
-                        viewSize: size,
-                        bufferSize: model.bufferSize
-                    )
-                    if let bufferPoint = VideoMapping.viewToBuffer(
-                        point: clamped,
-                        viewSize: size,
-                        bufferSize: model.bufferSize
-                    ) {
-                        model.setCorner(index, bufferPoint: bufferPoint)
+                CornerHandle(
+                    label: "\(index + 1)",
+                    point: points[index],
+                    onDrag: { location in
+                        model.beginCornerDrag()
+                        let clamped = VideoMapping.clampToVideo(
+                            point: location,
+                            viewSize: size,
+                            bufferSize: model.bufferSize
+                        )
+                        if let bufferPoint = VideoMapping.viewToBuffer(
+                            point: clamped,
+                            viewSize: size,
+                            bufferSize: model.bufferSize
+                        ) {
+                            model.setCorner(index, bufferPoint: bufferPoint)
+                        }
+                    },
+                    onEnded: {
+                        model.finishCornerDrag()
                     }
-                })
+                )
             }
         }
     }

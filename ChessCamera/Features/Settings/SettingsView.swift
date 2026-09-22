@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage(SpeechSettings.key) private var speakMoves = false
     @AppStorage(BoardAppearance.styleKey) private var styleRaw = BoardAppearance.defaultStyle.rawValue
     @AppStorage(ArrowAppearance.colorKey) private var arrowColorRaw = ArrowAppearance.defaultColor.rawValue
+    @AppStorage(MoveAnimationAppearance.key) private var moveAnimationRaw = MoveAnimationAppearance.defaultStyle.rawValue
     @AppStorage(DetectionSettings.yoloConfidenceKey) private var yoloConfidenceRaw =
         DetectionSettings.yoloConfidenceDefault
     @AppStorage(DetectionSettings.classifierConfidenceKey) private var classifierConfidenceRaw =
@@ -54,6 +55,10 @@ struct SettingsView: View {
 
     private var selectedArrowColor: BestMoveArrowColor {
         BestMoveArrowColor(rawValue: arrowColorRaw) ?? ArrowAppearance.defaultColor
+    }
+
+    private var selectedAnimationStyle: MoveAnimationStyle {
+        MoveAnimationStyle(rawValue: moveAnimationRaw) ?? MoveAnimationAppearance.defaultStyle
     }
 
     private var analysisSpeed: Binding<String> {
@@ -434,7 +439,7 @@ struct SettingsView: View {
                                 Text("Appearance & Colors")
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(Theme.textPrimary)
-                                Text("\(selectedStyle.title) · \(selectedArrowColor.title) Arrow")
+                                Text("\(selectedStyle.title) · \(selectedArrowColor.title) Arrow · \(selectedAnimationStyle.title)")
                                     .font(.callout)
                                     .foregroundStyle(Theme.textSecondary)
                             }
@@ -446,7 +451,7 @@ struct SettingsView: View {
                         .padding(16)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Board appearance, \(selectedStyle.title), \(selectedArrowColor.title) arrow")
+                    .accessibilityLabel("Board appearance, \(selectedStyle.title), \(selectedArrowColor.title) arrow, \(selectedAnimationStyle.title) animation")
                 }
 
                 settingsSection(title: "Recording") {

@@ -44,6 +44,7 @@ struct SessionFlowView: View {
                     ReplayView(
                         pgn: model.pgn,
                         title: model.savedRecord?.title ?? "Replay",
+                        initialFen: model.initialFEN,
                         gamePersistentID: ensureGameSaved()?.persistentModelID,
                         onDone: {
                             let record = ensureGameSaved()
@@ -56,6 +57,7 @@ struct SessionFlowView: View {
                 ReplayView(
                     pgn: model.pgn,
                     title: model.savedRecord?.title ?? "Replay",
+                    initialFen: model.initialFEN,
                     gamePersistentID: model.savedRecord?.persistentModelID,
                     onDone: {
                         let record = ensureGameSaved()

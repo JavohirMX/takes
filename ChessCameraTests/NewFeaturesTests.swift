@@ -122,4 +122,15 @@ struct NewFeaturesTests {
         #expect(missedWinQuality.title == "Missed Win")
         #expect(missedWinQuality.glyph == "✕")
     }
+
+    @MainActor
+    @Test func testPlatformAnalysisExporter() {
+        let pgn = "1. e4 e5 2. Nf3 Nc6"
+        let chessComUrl = PlatformAnalysisExporter.chessComURL(pgn: pgn)
+        #expect(chessComUrl.host == "www.chess.com")
+        #expect(chessComUrl.path == "/analysis")
+        let components = URLComponents(url: chessComUrl, resolvingAgainstBaseURL: false)
+        let pgnItem = components?.queryItems?.first(where: { $0.name == "pgn" })
+        #expect(pgnItem?.value == pgn)
+    }
 }

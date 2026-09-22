@@ -9,8 +9,21 @@ struct EditGameDetailsSheet: View {
     @State private var blackPlayer: String = ""
     @State private var event: String = ""
     @State private var result: String = "*"
+    @State private var initialFen: String = ""
 
     private let resultOptions = ["*", "1-0", "0-1", "½-½"]
+
+    private var isFenValid: Bool {
+        let trimmed = initialFen.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || FenCodec.isStandardStart(trimmed) { return true }
+        return FenCodec.isLegal(trimmed)
+    }
+
+    private var isMidGameMatch: Bool {
+        let fen = game.initialFen ?? PGNMoveList.extractFEN(from: game.pgn)
+        guard let fen else { return false }
+        return !FenCodec.isStandardStart(fen)
+    }
 
     init(game: GameRecord) {
         self.game = game
@@ -19,6 +32,7 @@ struct EditGameDetailsSheet: View {
         _blackPlayer = State(initialValue: game.blackPlayer ?? "")
         _event = State(initialValue: game.event ?? "")
         _result = State(initialValue: game.displayResult)
+        _initialFen = State(initialValue: game.initialFen ?? "")
     }
 
     var body: some View {
@@ -49,6 +63,27 @@ struct EditGameDetailsSheet: View {
                     }
                     .pickerStyle(.segmented)
                 }
+
+                if isMidGameMatch {
+                    Section {
+                        TextField("Standard starting position", text: $initialFen, axis: .vertical)
+                            .font(.footnote.monospaced())
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(2...4)
+                    } header: {
+                        Text("Starting Position (FEN)")
+                    } footer: {
+                        if !isFenValid {
+                            Text("Invalid FEN notation. Please enter a valid chess board position.")
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        } else {
+                            Text("Specify starting FEN if the game began from an arbitrary position. Leave blank for standard chess starting position.")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
@@ -64,7 +99,8 @@ struct EditGameDetailsSheet: View {
                         dismiss()
                     }
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(isFenValid ? Theme.accent : Theme.textSecondary)
+                    .disabled(!isFenValid)
                 }
             }
             .toolbarBackground(Theme.background, for: .navigationBar)
@@ -82,5 +118,14 @@ struct EditGameDetailsSheet: View {
         game.blackPlayer = blackPlayer.trimmingCharacters(in: .whitespaces).isEmpty ? nil : blackPlayer.trimmingCharacters(in: .whitespaces)
         game.event = event.trimmingCharacters(in: .whitespaces).isEmpty ? nil : event.trimmingCharacters(in: .whitespaces)
         game.resultOverride = result == "*" ? nil : result
+
+        if isMidGameMatch {
+            let trimmedFen = initialFen.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedFen: String? = (trimmedFen.isEmpty || FenCodec.isStandardStart(trimmedFen)) ? nil : trimmedFen
+            if game.initialFen != resolvedFen {
+                game.initialFen = resolvedFen
+                game.clearPersistedAnalysis()
+            }
+        }
     }
 }

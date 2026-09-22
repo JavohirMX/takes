@@ -21,10 +21,17 @@ struct ChessSquare: Hashable, Sendable, Codable {
     }
 }
 
-extension ChessSquare: Identifiable {
+extension ChessSquare: Identifiable, CaseIterable {
     public var id: String { algebraic }
+
+    public static let allCases: [ChessSquare] = (0..<64).map { ChessSquare(bitIndex: $0) }
 
     init(bitIndex: Int) {
         self.init(file: bitIndex % 8, rank: bitIndex / 8)
+    }
+
+    init?(algebraic: String) {
+        guard let sq = ChessSquare.parse(algebraic) else { return nil }
+        self = sq
     }
 }

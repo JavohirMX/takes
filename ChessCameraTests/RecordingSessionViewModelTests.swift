@@ -619,4 +619,38 @@ struct RecordingSessionViewModelTests {
         #expect(FenCodec.isStandardStart(model.engine.fen))
         #expect(model.lastCommittedOccupancy == Occupancy.standardStart())
     }
+
+    @Test @MainActor
+    func manualCornerAdjustmentFreezesCorners() async {
+        let model = RecordingSessionViewModel()
+        #expect(model.isManuallyEdited == false)
+
+        // Simulating manual corner placement
+        model.placeManualCorners()
+        #expect(model.isManuallyEdited == true)
+
+        // Rescan board restores auto detection state
+        await model.rescanBoard()
+        #expect(model.isManuallyEdited == false)
+
+        // Dragging handle also sets isManuallyEdited to freeze corners
+        model.beginCornerDrag()
+        model.finishCornerDrag()
+        #expect(model.isManuallyEdited == true)
+    }
+
+    @Test @MainActor
+    func midGameStartPreservesInitialFENInEngineAndRecord() throws {
+        let midGameFen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+        let model = RecordingSessionViewModel()
+        model.proposedFEN = midGameFen
+        model.startRecording(mode: .newGame)
+
+        #expect(model.engine.initialFEN == midGameFen)
+        #expect(model.initialFEN == midGameFen)
+        let bb5 = try #require(Move(san: "Bb5", position: model.engine.board.position))
+        try model.commit(move: bb5)
+        let record = model.savedRecordIfNeeded()
+        #expect(record?.initialFen == midGameFen)
+    }
 }

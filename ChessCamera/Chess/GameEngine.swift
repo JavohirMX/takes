@@ -16,6 +16,7 @@ final class GameEngine {
     private var currentIndex: MoveTree.Index
     private(set) var appliedSANs: [String] = []
     private(set) var lastMove: Move?
+    private(set) var initialFEN: String = FenCodec.standard
 
     var fen: String { board.position.fen }
     var pgn: String { game.pgn }
@@ -73,16 +74,22 @@ final class GameEngine {
         board = Board()
         game = newGame
         currentIndex = newGame.startingIndex
+        initialFEN = FenCodec.standard
     }
 
     init(fen: String) throws {
         guard let position = Position(fen: fen) else {
             throw GameEngineError.invalidFEN(fen)
         }
-        let newGame = Game(startingWith: position)
+        var newGame = Game(startingWith: position)
+        if !FenCodec.isStandardStart(fen) {
+            newGame.tags.setUp = "1"
+            newGame.tags.fen = fen
+        }
         board = Board(position: position)
         game = newGame
         currentIndex = newGame.startingIndex
+        initialFEN = fen
     }
 
     func apply(move: Move) throws {
@@ -224,18 +231,24 @@ final class GameEngine {
         currentIndex = newGame.startingIndex
         appliedSANs = []
         lastMove = nil
+        initialFEN = FenCodec.standard
     }
 
     func load(fen: String) throws {
         guard let position = Position(fen: fen) else {
             throw GameEngineError.invalidFEN(fen)
         }
-        let newGame = Game(startingWith: position)
+        var newGame = Game(startingWith: position)
+        if !FenCodec.isStandardStart(fen) {
+            newGame.tags.setUp = "1"
+            newGame.tags.fen = fen
+        }
         board = Board(position: position)
         game = newGame
         currentIndex = newGame.startingIndex
         appliedSANs = []
         lastMove = nil
+        initialFEN = fen
     }
 
     static func occupancy(of board: Board) -> Occupancy {
@@ -299,7 +312,12 @@ final class GameEngine {
     private func rebuildFromAppliedMoves() throws {
         let start = game.startingPosition ?? .standard
         board = Board(position: start)
-        game = Game(startingWith: start)
+        var newGame = Game(startingWith: start)
+        if !FenCodec.isStandardStart(start.fen) {
+            newGame.tags.setUp = "1"
+            newGame.tags.fen = start.fen
+        }
+        game = newGame
         currentIndex = game.startingIndex
         lastMove = nil
         let sans = appliedSANs

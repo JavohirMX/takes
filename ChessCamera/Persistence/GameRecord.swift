@@ -7,6 +7,7 @@ final class GameRecord {
     var pgn: String
     var finalFen: String
     var title: String
+    var initialFen: String?
     var whitePlayer: String?
     var blackPlayer: String?
     var event: String?
@@ -31,6 +32,7 @@ final class GameRecord {
         pgn: String,
         finalFen: String,
         title: String,
+        initialFen: String? = nil,
         whitePlayer: String? = nil,
         blackPlayer: String? = nil,
         event: String? = nil,
@@ -45,6 +47,7 @@ final class GameRecord {
         self.pgn = pgn
         self.finalFen = finalFen
         self.title = title
+        self.initialFen = initialFen
         self.whitePlayer = whitePlayer
         self.blackPlayer = blackPlayer
         self.event = event
@@ -97,6 +100,10 @@ final class GameRecord {
         }
         if let timeControl, !timeControl.isEmpty {
             tags.append("[TimeControl \"\(timeControl)\"]")
+        }
+        if let initialFen, !FenCodec.isStandardStart(initialFen) {
+            tags.append("[SetUp \"1\"]")
+            tags.append("[FEN \"\(initialFen)\"]")
         }
         let body: String
         let times = moveTimes

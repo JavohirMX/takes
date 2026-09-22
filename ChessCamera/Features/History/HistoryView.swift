@@ -21,6 +21,7 @@ struct HistoryView: View {
     @State private var searchText = ""
     @State private var selectedFilter = "All"
     @State private var alertMessage: String?
+    @State private var toastMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -52,6 +53,7 @@ struct HistoryView: View {
                 ReplayView(
                     pgn: route.pgn,
                     title: route.title,
+                    initialFen: route.initialFen,
                     gamePersistentID: route.gamePersistentID,
                     onContinueGame: { game in
                         self.replay = nil
@@ -156,6 +158,7 @@ struct HistoryView: View {
                 showPrimer = true
             }
         }
+        .actionToast(message: $toastMessage)
     }
 
     private var emptyState: some View {
@@ -197,6 +200,7 @@ struct HistoryView: View {
                                 replay = ReplayRoute(
                                     pgn: game.pgn,
                                     title: game.title,
+                                    initialFen: game.initialFen ?? PGNMoveList.extractFEN(from: game.pgn),
                                     gamePersistentID: game.persistentModelID
                                 )
                             } label: {
@@ -242,15 +246,22 @@ struct HistoryView: View {
                                     replay = ReplayRoute(
                                         pgn: game.pgn,
                                         title: game.title,
+                                        initialFen: game.initialFen ?? PGNMoveList.extractFEN(from: game.pgn),
                                         gamePersistentID: game.persistentModelID
                                     )
                                 }
                                 Button("Edit Details", systemImage: "pencil") {
                                     editingGame = game
                                 }
-                                Button("Share PGN", systemImage: "square.and.arrow.up") {
-                                    share(game)
+                                ShareLink(
+                                    item: (try? PGNShareFile.write(pgn: game.pgnWithHeaders, title: game.title)) ?? FileManager.default.temporaryDirectory.appending(path: "game.pgn"),
+                                    preview: SharePreview(game.title, image: Image(systemName: "square.and.arrow.up"))
+                                ) {
+                                    Label("Share PGN", systemImage: "square.and.arrow.up")
                                 }
+                                ExternalAnalysisMenu(pgn: game.pgnWithHeaders, onCopied: { msg in
+                                    toastMessage = msg
+                                })
                                 Button("Delete", systemImage: "trash", role: .destructive) {
                                     pendingDelete = game
                                 }
@@ -564,9 +575,10 @@ private struct HistoryRow: View {
 }
 
 struct ReplayRoute: Hashable, Identifiable {
-    var id: String { title + pgn + (gamePersistentID.map { String(describing: $0) } ?? "") }
+    var id: String { title + pgn + (initialFen ?? "") + (gamePersistentID.map { String(describing: $0) } ?? "") }
     var pgn: String
     var title: String
+    var initialFen: String? = nil
     var gamePersistentID: PersistentIdentifier?
 }
 

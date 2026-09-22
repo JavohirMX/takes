@@ -88,3 +88,67 @@ enum ArrowAppearance {
     static let colorKey = "bestMoveArrowColor"
     static let defaultColor = BestMoveArrowColor.cyan
 }
+
+enum MoveAnimationStyle: String, CaseIterable, Identifiable, Sendable {
+    case smooth
+    case jump
+    case fast
+    case pulse
+    case none
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .smooth: "Smooth Slide"
+        case .jump: "Arc Jump"
+        case .fast: "Fast Slide"
+        case .pulse: "Pulse Pop"
+        case .none: "Instant"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .smooth: "Fluid piece translation with soft landing"
+        case .jump: "Parabolic arc with lift and dynamic shadow"
+        case .fast: "Quick snappy slide for rapid review"
+        case .pulse: "Tactile arrival pop without sliding"
+        case .none: "Immediate placement without animation"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .smooth: "arrow.right"
+        case .jump: "arrowshape.bounce.right"
+        case .fast: "hare.fill"
+        case .pulse: "circle.circle.fill"
+        case .none: "bolt.slash.fill"
+        }
+    }
+
+    var isSlide: Bool {
+        self == .smooth || self == .jump || self == .fast
+    }
+
+    var animation: Animation? {
+        switch self {
+        case .smooth:
+            .easeInOut(duration: 0.22)
+        case .jump:
+            .easeInOut(duration: 0.26)
+        case .fast:
+            .easeOut(duration: 0.12)
+        case .pulse:
+            .spring(response: 0.24, dampingFraction: 0.65)
+        case .none:
+            nil
+        }
+    }
+}
+
+enum MoveAnimationAppearance {
+    static let key = "moveAnimationStyle"
+    static let defaultStyle = MoveAnimationStyle.smooth
+}

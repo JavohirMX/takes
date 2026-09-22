@@ -8,9 +8,64 @@ struct MoveListView: View {
     var showsQualityLabels = false
     /// Optional per-ply think times in seconds (parallel to `sans`).
     var moveTimes: [TimeInterval]? = nil
+    var initialFEN: String? = nil
     var onSelect: ((Int) -> Void)?
     /// Long-press / context menu: edit this ply (later moves will be dropped).
     var onEditPly: ((Int) -> Void)?
+
+    private struct MoveRow: Identifiable {
+        let id: Int
+        let moveNumber: Int
+        let label: String
+        let whitePly: Int?
+        let blackPly: Int?
+    }
+
+    private var moveRows: [MoveRow] {
+        var startMoveNumber = 1
+        var startsWithBlack = false
+        if let fen = initialFEN {
+            let parts = fen.split(separator: " ")
+            if parts.count >= 2 {
+                startsWithBlack = (parts[1] == "b")
+            }
+            if parts.count >= 6, let num = Int(parts[5]), num > 0 {
+                startMoveNumber = num
+            }
+        }
+
+        var rows: [MoveRow] = []
+        var ply = 0
+        var currentMove = startMoveNumber
+
+        if startsWithBlack && ply < sans.count {
+            rows.append(MoveRow(
+                id: currentMove * 2,
+                moveNumber: currentMove,
+                label: "\(currentMove)...",
+                whitePly: nil,
+                blackPly: ply
+            ))
+            ply += 1
+            currentMove += 1
+        }
+
+        while ply < sans.count {
+            let white = ply
+            let black = (ply + 1 < sans.count) ? ply + 1 : nil
+            rows.append(MoveRow(
+                id: currentMove * 2 + 1,
+                moveNumber: currentMove,
+                label: "\(currentMove).",
+                whitePly: white,
+                blackPly: black
+            ))
+            ply += (black != nil ? 2 : 1)
+            currentMove += 1
+        }
+
+        return rows
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -21,16 +76,17 @@ struct MoveListView: View {
                             .font(.body)
                             .foregroundStyle(Theme.textSecondary)
                     }
-                    ForEach(Array(stride(from: 0, to: sans.count, by: 2)), id: \.self) { start in
-                        let number = start / 2 + 1
+                    ForEach(moveRows) { row in
                         HStack(spacing: 8) {
-                            Text("\(number).")
+                            Text(row.label)
                                 .font(.body.monospaced())
                                 .foregroundStyle(Theme.textSecondary)
-                                .frame(minWidth: 28, alignment: .trailing)
-                            plyButton(index: start)
-                            if start + 1 < sans.count {
-                                plyButton(index: start + 1)
+                                .frame(minWidth: 32, alignment: .trailing)
+                            if let white = row.whitePly {
+                                plyButton(index: white)
+                            }
+                            if let black = row.blackPly {
+                                plyButton(index: black)
                             }
                             Spacer(minLength: 0)
                         }
@@ -91,8 +147,10 @@ struct MoveListView: View {
         .disabled(onSelect == nil && onEditPly == nil)
         .contextMenu {
             if let onEditPly {
-                Button("Edit this move…") {
+                Button {
                     onEditPly(index)
+                } label: {
+                    Label("Edit this move…", systemImage: "pencil")
                 }
             }
         }
@@ -114,8 +172,22 @@ struct MoveListView: View {
     }
 
     private func spokenMove(index: Int, san: String, quality: MoveQuality? = nil, time: String? = nil) -> String {
-        let number = index / 2 + 1
-        var base = "Move \(number), \(SANSpeech.speak(san))"
+        var startMoveNumber = 1
+        var startsWithBlack = false
+        if let fen = initialFEN {
+            let parts = fen.split(separator: " ")
+            if parts.count >= 2 {
+                startsWithBlack = (parts[1] == "b")
+            }
+            if parts.count >= 6, let num = Int(parts[5]), num > 0 {
+                startMoveNumber = num
+            }
+        }
+        let isBlack = startsWithBlack ? (index % 2 == 0) : (index % 2 != 0)
+        let offset = startsWithBlack ? (index + 1) / 2 : index / 2
+        let number = startMoveNumber + offset
+        let color = isBlack ? "Black" : "White"
+        var base = "Move \(number), \(color), \(SANSpeech.speak(san))"
         if let quality {
             base += ", \(quality.title)"
         }
@@ -128,6 +200,7 @@ struct MoveListView: View {
 
 struct RecentPlyStrip: View {
     var sans: [String]
+    var initialFEN: String? = nil
     var maxPlies: Int = 6
 
     @AppStorage(AnalysisSettings.pieceNotationKey) private var pieceNotationRaw = PieceNotationStyle.figurines.rawValue
@@ -139,7 +212,12 @@ struct RecentPlyStrip: View {
     var body: some View {
         let previewText = sans.isEmpty
             ? "No moves yet"
-            : PGNMoveList.preview(sans: sans.map { PieceNotationFormatter.format(san: $0, style: notationStyle) }, maxPlies: maxPlies, trailing: true)
+            : PGNMoveList.preview(
+                sans: sans.map { PieceNotationFormatter.format(san: $0, style: notationStyle) },
+                initialFEN: initialFEN,
+                maxPlies: maxPlies,
+                trailing: true
+            )
         Text(previewText)
             .font(.body.monospaced())
             .foregroundStyle(sans.isEmpty ? Theme.textSecondary : Theme.textPrimary)
